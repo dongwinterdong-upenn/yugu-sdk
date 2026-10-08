@@ -159,10 +159,11 @@
   function loadIndex() {
     if (index) return Promise.resolve(index);
     if (!loading) {
-      loading = fetch(document.body.getAttribute('data-search')).then(function (r) { return r.json(); }).then(function (d) {
+      loading = fetch(document.body.getAttribute('data-search')).then(function (r) { if (!r.ok) throw new Error('index ' + r.status); return r.json(); }).then(function (d) {
         index = d.map(function (e) { e._p = e.p.toLowerCase(); e._h = e.h.toLowerCase(); e._t = e.t.toLowerCase(); return e; });
         return index;
       });
+      loading.catch(function () { loading = null; });
     }
     return loading;
   }
@@ -243,9 +244,17 @@
     if (lastFocus) lastFocus.focus();
   }
   if (dialog) {
-    $$('.search-open').forEach(function (b) { b.addEventListener('click', openSearch); });
+    $$('.search-open').forEach(function (b) {
+      b.addEventListener('click', openSearch);
+      // Fetch the index as soon as the reader heads for the search box.
+      b.addEventListener('pointerenter', loadIndex, { once: true });
+      b.addEventListener('focus', loadIndex, { once: true });
+    });
     $$('[data-close]', dialog).forEach(function (b) { b.addEventListener('click', closeSearch); });
-    input.addEventListener('input', function () { loadIndex().then(function () { renderResults(input.value); }); });
+    input.addEventListener('input', function () {
+      if (!index && input.value.trim()) results.innerHTML = '<li class="sr-empty">加载中</li>';
+      loadIndex().then(function () { renderResults(input.value); }, function () { results.innerHTML = '<li class="sr-empty">索引加载失败</li>'; });
+    });
     input.addEventListener('keydown', function (e) {
       if (e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); moveSel(-1); }
