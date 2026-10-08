@@ -79,9 +79,7 @@
     {"errId": 60006, "message": "refText 为空"},
     {"errId": 60007, "message": "引擎未初始化"},
     {"errId": 60008, "message": "引擎正忙，上一次评测未结束"},
-    {"errId": 60009, "message": "音频大于 50 MB 或长于 300 秒"},
-    {"errId": 90005, "message": "平台响应无法解析"},
-    {"errId": 90011, "message": "证书校验失败"}
+    {"errId": 60009, "message": "音频大于 50 MB 或长于 300 秒"}
   ],
   "httpFallback": {"400": "INVALID_PARAM", "401": "AUTH", "403": "PERMISSION", "404": "NOT_FOUND", "405": "INVALID_PARAM", "408": "TIMEOUT", "409": "CONFLICT", "413": "INVALID_PARAM", "415": "INVALID_PARAM", "422": "INVALID_PARAM", "425": "RATE_LIMIT", "429": "RATE_LIMIT", "500": "SERVER", "501": "SERVER", "502": "UPSTREAM", "503": "UPSTREAM", "504": "UPSTREAM"},
   "retryableHttp": [408, 425, 429, 500, 502, 503, 504]
