@@ -218,7 +218,18 @@ internal class WsSession(
         val request = Request.Builder().url(url).header("User-Agent", cfg.userAgent).build()
         ws = wsClient.newWebSocket(request, Listener(id))
         handshakeTimer?.cancel(false)
-        handshakeTimer = schedule(cfg.connectTimeoutMs) { onHandshakeTimeout(id) }
+        // Until the upgrade completes OkHttp bounds each phase itself and may need one connect
+        // timeout per address before falling back, for example from a silent IPv6 address to IPv4.
+        handshakeTimer = schedule(cfg.connectTimeoutMs * OPEN_TIMEOUT_FACTOR) { onHandshakeTimeout(id, opened = false) }
+    }
+
+    /** Transport open: from here the server must send connected and started within connectTimeoutMs. */
+    private fun onTransportOpen(id: Int) {
+        synchronized(lock) {
+            if (id != connId || state != SessionState.CONNECTING) return
+            handshakeTimer?.cancel(false)
+            handshakeTimer = schedule(cfg.connectTimeoutMs) { onHandshakeTimeout(id, opened = true) }
+        }
     }
 
     internal fun buildUrl(): HttpUrl {
@@ -247,6 +258,7 @@ internal class WsSession(
     private inner class Listener(private val id: Int) : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             log.d { "[$sessionId] open conn=$id" }
+            onTransportOpen(id)
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) = onText(id, text)
@@ -403,12 +415,15 @@ internal class WsSession(
         }
     }
 
-    private fun onHandshakeTimeout(id: Int) {
+    private fun onHandshakeTimeout(id: Int, opened: Boolean) {
         synchronized(lock) {
             if (id != connId || (state != SessionState.CONNECTING && state != SessionState.CONNECTED)) return
-            onTransportFailureLocked(
-                YuguErrors.local(90002, "${cfg.connectTimeoutMs} ms 内未完成握手与开始帧"), 1000, "handshake timeout",
-            )
+            val message = if (opened) {
+                "连接打开后 ${cfg.connectTimeoutMs} ms 内未收到开始帧"
+            } else {
+                "${cfg.connectTimeoutMs * OPEN_TIMEOUT_FACTOR} ms 内未建立连接"
+            }
+            onTransportFailureLocked(YuguErrors.local(90002, message), 1000, "handshake timeout")
         }
     }
 
@@ -549,6 +564,9 @@ internal class WsSession(
         }, delayMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
 
     internal companion object {
+        /** Bound for connect and upgrade, in units of connectTimeoutMs: two addresses plus the upgrade. */
+        const val OPEN_TIMEOUT_FACTOR = 3L
+
         /** Largest binary frame sent, the platform closes frames above 128 KB with 1009. */
         const val MAX_FRAME_BYTES = 32_000
 

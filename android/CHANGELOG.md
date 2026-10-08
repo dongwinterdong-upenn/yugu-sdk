@@ -27,7 +27,7 @@ Android 核心 SDK `com.shengzhiai.yugu:yugu-android-sdk` 的版本记录，格�
 - 结果的 `report` 与原始数据由 `JSONObject` 改为 `Map`，另有响应原文 `rawJson`，SDK 不再依赖 `org.json`。
 - 心跳由 20 秒改为 15 秒，未按时收到 pong 即判定连接失效，随后按策略重连。
 - 请求头 `User-Agent` 为 `yugu-android-sdk/2.0.0`。
-- OkHttp 的内部连接重试关闭，全部重试由 SDK 按策略执行，尝试次数可观测。
+- 已开始发送的请求只由 SDK 按策略重发，OkHttp 只在连接失败，请求还没有发出时改连下一个地址，尝试次数可观测。
 
 ### 修复
 
@@ -36,6 +36,7 @@ Android 核心 SDK `com.shengzhiai.yugu:yugu-android-sdk` 的版本记录，格�
 - 分数用整数读取，例如 93.7 被截成 93。现在按小数读取。
 - 服务端在终评前关闭连接时没有任何回调，调用方会一直等待。现在会话一定以 `onResult` 或 `onError` 结束，最后回调 `onClosed`。
 - 录音器初始化失败时没有释放 AudioRecord，麦克风可能一直被占用。
+- 双栈网络里域名的第一个地址连不上时，请求不会改连其余地址，例如 IPv6 不通的网络里每次尝试都连 IPv6，重试用尽后失败。现在同一次尝试内改连下一个地址，不消耗重试次数，实时评测的握手同样改连。IPv6 丢包时先等满一次 `connectTimeoutMs` 再改走 IPv4，实时评测建连与升级的时限为 `connectTimeoutMs` 的 3 倍，留出改连的时间。
 
 ### 破坏性变更
 

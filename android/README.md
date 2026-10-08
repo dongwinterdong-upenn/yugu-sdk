@@ -135,7 +135,7 @@ client.close()
 | `baseUrl` | `https://open.shengzhiai.com` | REST 基址 |
 | `wsBaseUrl` | `wss://open.shengzhiai.com` | 实时评测基址 |
 | `auth` | 必填 | `Auth.appKey(appKey, secretKey)` 或 `Auth.token(jwt)` |
-| `connectTimeoutMs` | 10000 | TCP 与 TLS 建连超时，也是实时评测从握手到收到开始帧的时限 |
+| `connectTimeoutMs` | 10000 | 每个地址的 TCP 与 TLS 建连超时，实时评测连接打开后等待开始帧的时限，实时评测建连与升级以 3 倍为上限 |
 | `readTimeoutMs` | 120000 | 单次 REST 尝试的读取超时 |
 | `totalTimeoutMs` | 300000 | 一次逻辑调用的总时限，含全部重试与等待 |
 | `retryPolicy` | 见重试一节 | REST 重试策略 |
@@ -277,6 +277,8 @@ now + delay 超过总时限时停止重试，抛出最后一次的错误
 
 参数错误，鉴权失败，额度不足等不会重试。每次重试都会回调 `eventListener.onRetry`，同时写一条 WARN 日志，例如 `retry 1/2 in 231 ms: HTTP 503 code=50200`。
 
+一次尝试指一次发出的请求。连接域名的某个地址失败时，请求还没有发出，SDK 在同一次尝试内改连下一个地址，例如 IPv6 不通时改走 IPv4，不计入重试次数。请求开始发送之后的重发只由 SDK 按策略执行，带同一个幂等键与新的 `X-Nonce`。
+
 ### 幂等键
 
 写操作 `evaluate`，`evaluateCompat`，`tts` 带请求头 `Idempotency-Key`，实时评测在握手参数与开始帧里带 `idempotencyKey`。
@@ -396,7 +398,7 @@ session.end()
 ### 心跳与超时
 
 - 心跳：每 15 秒发一次 WebSocket ping，到下一次发 ping 时仍未收到上一次的 pong 即判定连接失效，最长 30 秒，随后按重连策略处理。
-- 握手：建连，握手到收到 `started` 须在 `connectTimeoutMs` 内完成。
+- 握手：建连与升级须在 `connectTimeoutMs` 的 3 倍内完成，一个地址连不上时改连下一个地址，例如 IPv6 不通时改走 IPv4。连接打开后须在 `connectTimeoutMs` 内收到 `started`。
 - 终评：调用 `end()` 后 `resultTimeoutMs` 内未收到结果，按 90007 处理，可重连时用同一个幂等键重放音频取回结果。
 
 ### 区分中断与结束
@@ -580,6 +582,10 @@ SDK 的重试与重连都复用同一个幂等键，平台对同一个键只计�
 ### 录音器启动失败
 
 错误码 90201 表示没有录音权限，90202 表示麦克风被其他应用占用或设备不支持 16 kHz 单声道录音，都不会占住麦克风。
+
+### IPv6 不通的网络
+
+部分网络分配了 IPv6 地址，实际不通。连接失败的地址会被跳过，同一次尝试内改连域名的下一个地址，调用方不需要处理。IPv6 地址拒绝连接时改连立即完成，丢包时每次连接先等满一次 `connectTimeoutMs`，这类网络里可以适当调小 `connectTimeoutMs`。
 
 ### 代理与自定义证书
 

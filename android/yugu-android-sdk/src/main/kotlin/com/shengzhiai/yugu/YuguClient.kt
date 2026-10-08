@@ -85,18 +85,22 @@ public class YuguClient private constructor(builder: Builder) : Closeable {
         )
         log = Log(builder.logLevel, builder.logger ?: LogcatLogger())
         val base = builder.okHttpClient ?: Shared.okHttp
+        // retryOnConnectionFailure stays on: it is what lets OkHttp try the next address of a host
+        // when connecting to one fails, for example an unreachable IPv6 address before a working
+        // IPv4 one. Request bodies are one-shot (HttpEngine), so OkHttp only re-sends a request when
+        // nothing was sent yet; every resend after sending started is an SDK retry.
         restClient = base.newBuilder()
             .connectTimeout(cfg.connectTimeoutMs, TimeUnit.MILLISECONDS)
             .readTimeout(cfg.readTimeoutMs, TimeUnit.MILLISECONDS)
             .writeTimeout(cfg.readTimeoutMs, TimeUnit.MILLISECONDS)
-            .retryOnConnectionFailure(false)
+            .retryOnConnectionFailure(true)
             .build()
         wsClient = base.newBuilder()
             .connectTimeout(cfg.connectTimeoutMs, TimeUnit.MILLISECONDS)
             .readTimeout(cfg.connectTimeoutMs, TimeUnit.MILLISECONDS)
             .writeTimeout(cfg.connectTimeoutMs, TimeUnit.MILLISECONDS)
             .pingInterval(cfg.pingIntervalMs, TimeUnit.MILLISECONDS)
-            .retryOnConnectionFailure(false)
+            .retryOnConnectionFailure(true)
             .build()
         engine = HttpEngine(cfg, log, restClient, lifecycle)
         log.i("client created base=$baseUrl ws=$wsBase auth=$auth ua=${cfg.userAgent}")
@@ -451,7 +455,10 @@ public class YuguClient private constructor(builder: Builder) : Closeable {
         /** 鉴权方式，必填。 */
         public fun auth(auth: Auth): Builder = apply { this.auth = auth }
 
-        /** TCP 加 TLS 建连超时，默认 10000 毫秒，也是实时评测握手到开始帧的时限。 */
+        /**
+         * 每个地址的 TCP 加 TLS 建连超时，默认 10000 毫秒。一个地址连不上时改连域名的下一个地址。
+         * 也是实时评测连接打开后等待开始帧的时限，实时评测建连与升级以 3 倍为上限。
+         */
         public fun connectTimeoutMs(ms: Long): Builder = apply { connectTimeoutMs = positive(ms, "connectTimeoutMs") }
 
         /** 单次 REST 尝试的读取超时，默认 120000 毫秒。 */

@@ -14,9 +14,11 @@ import com.shengzhiai.yugu.YuguEventListener
 import com.shengzhiai.yugu.YuguException
 import okhttp3.Call
 import okhttp3.Headers
+import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import okio.BufferedSink
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Collections
@@ -192,6 +194,22 @@ internal class HttpRequestSpec(
     val write: Boolean,
 )
 
+/**
+ * Marks a request body one-shot for OkHttp. OkHttp then never re-sends the request on its own once
+ * sending started, it only moves on to the next address of the host when connecting failed. Resends
+ * after sending started are SDK retries: counted, reported through onRetry, same Idempotency-Key,
+ * fresh nonce. The wrapped body itself can be written again by the next SDK attempt.
+ */
+internal class OneShotBody(private val delegate: RequestBody) : RequestBody() {
+    override fun contentType(): MediaType? = delegate.contentType()
+
+    override fun contentLength(): Long = delegate.contentLength()
+
+    override fun writeTo(sink: BufferedSink) = delegate.writeTo(sink)
+
+    override fun isOneShot(): Boolean = true
+}
+
 internal class HttpResponseData(val status: Int, val body: String, val headers: Headers) {
     val replayed: Boolean get() = headers["Idempotency-Replayed"].equals("true", ignoreCase = true)
 }
@@ -299,7 +317,7 @@ internal class HttpEngine(
             }
         }
         if (key != null) b.header("Idempotency-Key", key)
-        if (spec.method == "GET") b.get() else b.method(spec.method, spec.body)
+        if (spec.method == "GET") b.get() else b.method(spec.method, spec.body?.let { OneShotBody(it) })
         val call = http.newCall(b.build())
         call.timeout().timeout(remainingMs, TimeUnit.MILLISECONDS)
         token.attach(call)
