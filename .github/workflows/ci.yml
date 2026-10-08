@@ -23,6 +23,10 @@ jobs:
         with: {node-version: '20'}
       - uses: android-actions/setup-android@v3
         if: startsWith(matrix.step, 'android')
+        with:
+          # 缺省的包列表含 tools，SDK 仓库已不再提供这个包，这里只装构建用到的包
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+          log-accepted-android-sdk-licenses: false
       - uses: swift-actions/setup-swift@v2
         if: startsWith(matrix.step, 'ios')
         with: {swift-version: '6.0'}
