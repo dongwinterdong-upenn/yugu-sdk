@@ -126,8 +126,10 @@ start_mock() {
 step_swift_test() {
     local rc codecov profdata bin
     start_mock || return 1
-    # serial, so that the log ends with the XCTest totals (executed, skipped, failed)
-    (cd "$PKG" && swift test --enable-code-coverage)
+    # serial, so that the log ends with the XCTest totals (executed, skipped, failed).
+    # --enable-code-coverage instruments the Swift targets only; the -Xcc flags instrument the
+    # Objective-C and C sources of STKouyuEngine as well.
+    (cd "$PKG" && swift test --enable-code-coverage -Xcc -fprofile-instr-generate -Xcc -fcoverage-mapping)
     rc=$?
     # .build/debug is a symbolic link: the binary path comes from swift build --show-bin-path
     codecov="$(cd "$PKG" && swift test --show-codecov-path)" || return 1
@@ -135,23 +137,36 @@ step_swift_test() {
     bin="$(cd "$PKG" && swift build --show-bin-path)/STKouyuEnginePackageTests.xctest/Contents/MacOS/STKouyuEnginePackageTests"
     xcrun llvm-cov report "$bin" -instr-profile "$profdata" "$PKG/Sources/STKouyuEngine" >"$OUT/llvm-cov.txt" || return 1
     cat "$OUT/llvm-cov.txt"
+    # llvm-cov reports every file when none of the requested sources has coverage data
+    if ! grep -q 'KYTestEngine.m' "$OUT/llvm-cov.txt" || grep -q 'Tests.swift' "$OUT/llvm-cov.txt"; then
+        echo "no coverage data for Sources/STKouyuEngine"
+        return 1
+    fi
     COVERAGE="$(awk '/^TOTAL/ {gsub("%","",$10); print $10}' "$OUT/llvm-cov.txt")"
     [ -n "$COVERAGE" ] || COVERAGE="0.00"
     return "$rc"
 }
 
 step_ios_simulator_test() {
-    local udid
+    local udid scheme
     if [ "${IOS_SIMULATOR:-}" = "none" ]; then
         echo "IOS_SIMULATOR=none: iOS simulator tests skipped"
         return 77
     fi
     udid="$(bash "$ROOT/ci/ios-simulator.sh" "${IOS_SIMULATOR:-iPhone 15}")" || return 1
     start_mock || return 1
+    # a package whose only product carries the package name gets one scheme with that name and its
+    # tests, otherwise Xcode adds a "-Package" scheme
+    scheme="$(cd "$PKG" && xcodebuild -list -json | python3 -c '
+import json, sys
+schemes = json.load(sys.stdin)["workspace"]["schemes"]
+print("schemes: " + ", ".join(schemes), file=sys.stderr)
+print("STKouyuEngine-Package" if "STKouyuEngine-Package" in schemes else "STKouyuEngine")')" || return 1
+    rm -rf "$OUT/ios-simulator.xcresult"
     # TEST_RUNNER_ variables reach the test process in the simulator without the prefix; the
     # simulator shares the network of the Mac, so the mock platform is reachable at 127.0.0.1
     (cd "$PKG" && TEST_RUNNER_YUGU_MOCK_BASE_URL="$YUGU_MOCK_BASE_URL" TEST_RUNNER_YUGU_SPEC_DIR="$YUGU_SPEC_DIR" \
-        xcodebuild test -scheme STKouyuEngine-Package -destination "platform=iOS Simulator,id=$udid" \
+        xcodebuild test -scheme "$scheme" -destination "platform=iOS Simulator,id=$udid" \
         -derivedDataPath "$OUT/DerivedData" -resultBundlePath "$OUT/ios-simulator.xcresult" -enableCodeCoverage YES) ||
         return 1
     grep -q 'Debug-iphonesimulator' "$OUT/logs/ios-sim-test.log" || { echo "not built for the iOS Simulator"; return 1; }

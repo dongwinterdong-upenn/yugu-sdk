@@ -195,7 +195,9 @@ step_objc_syntax() {
         fi
         py="$cache/bin/python"
     fi
-    "$py" "$PKG/core-tests/objc-syntax/check.py" --json "$OUT/objc-syntax.json"
+    # the check runs against the stub declarations only: an SDKROOT set for the C build on macOS
+    # would add the macOS SDK as sysroot of the iOS parse as well
+    env -u SDKROOT "$py" "$PKG/core-tests/objc-syntax/check.py" --json "$OUT/objc-syntax.json"
 }
 
 step_manifest() {
