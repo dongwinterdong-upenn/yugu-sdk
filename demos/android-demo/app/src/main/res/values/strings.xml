@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">优谷雅言评测示例</string>
+    <string name="hint_app_key">appKey</string>
+    <string name="hint_secret_key">secretKey</string>
+    <string name="hint_ref_text">参考文本</string>
+    <string name="default_ref_text">今天天气很好</string>
+    <string name="btn_record">录音</string>
+    <string name="btn_stop_evaluate">停止并评测</string>
+    <string name="btn_sample">载入示例音频并评测</string>
+    <string name="btn_stream_start">开始实时评测</string>
+    <string name="btn_stream_stop">结束实时评测</string>
+    <string name="status_ready">状态：就绪</string>
+</resources>

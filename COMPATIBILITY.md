@@ -16,7 +16,7 @@
 | 服务端 Java | `com.shengzhiai.yugu:yugu-java-sdk:2.0.0` | Java 11 字节码，构建用 JDK 17 与 Maven 3.8 | JDK 11 |
 | 安卓 | `com.shengzhiai.yugu:yugu-android-sdk:2.0.0` | Kotlin 1.9，AGP 8.5，Java 8 字节码 | Android 5.0，API 21 |
 | 安卓声通平替 | `com.shengzhiai.yugu:stkouyu-compat:2.0.0` | Java 8 字节码，无第三方依赖 | Android 5.0，API 21 |
-| 网页 | `@shengzhiai/yugu-web-sdk@2.0.0` | ES2018，附 TypeScript 声明 | Chrome 70，Edge 79，Firefox 68，Safari 13，Node 18 |
+| 网页 | `@shengzhiai/yugu-web-sdk@2.0.0` | ES2018，附 TypeScript 声明 | Chrome 73，Edge 79，Firefox 68，Safari 13，Node 18 |
 | 微信小程序 | `@shengzhiai/yugu-miniprogram-sdk@2.0.0` | ES2017 CommonJS，附 TypeScript 声明 | 基础库 `2.20.1` |
 | iOS | SwiftPM `https://open.shengzhiai.com/git/yugu-ios-sdk.git` `2.0.0` | Swift `5.9`，Xcode 15 | iOS 13，macOS 11，YuguCore 另支持 Linux |
 | iOS 声通平替 | SwiftPM `https://open.shengzhiai.com/git/stkouyu-ios-compat.git` `2.0.0` | Objective-C | iOS 12 |

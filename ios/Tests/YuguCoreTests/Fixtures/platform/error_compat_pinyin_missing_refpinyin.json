@@ -1,0 +1,14 @@
+{
+ "status": 400,
+ "headers": {
+  "cache-control": "no-cache",
+  "connection": "keep-alive",
+  "content-type": "application/json",
+  "date": "Thu, 08 Oct 2026 08:21:32 GMT",
+  "server": "nginx/1.24.0 (Ubuntu)",
+  "transfer-encoding": "chunked",
+  "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+  "x-trace-id": "3f21f012c9014cb5a46c6c2f33d73818"
+ },
+ "body": "{\"code\":40001,\"message\":\"coreType=pinyin 时 refPinyin 必填（如 \\\"chong2 qing4\\\"）\",\"timestamp\":1791447692255}"
+}

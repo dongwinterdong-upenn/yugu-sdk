@@ -1,0 +1,47 @@
+// Sample app that uses only the com.stkouyu API, exactly as an app written for the Shengtong
+// 17kouyu 1.0.0 jar does. Keys come from Gradle properties:
+//   ./gradlew :compat-demo:assembleDebug -PyuguAppKey=... -PyuguSecretKey=... [-PyuguServer=https://...]
+plugins {
+    id 'com.android.application'
+}
+
+def prop = { String name, String fallback ->
+    def v = project.findProperty(name)
+    return (v == null || v.toString().isEmpty()) ? fallback : v.toString()
+}
+
+android {
+    namespace 'com.shengzhiai.yugu.stcompat.demo'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.shengzhiai.yugu.stcompat.demo'
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName rootProject.ext.yuguVersion
+        buildConfigField 'String', 'APP_KEY', "\"${prop('yuguAppKey', 'your-app-key')}\""
+        buildConfigField 'String', 'SECRET_KEY', "\"${prop('yuguSecretKey', 'your-secret-key')}\""
+        buildConfigField 'String', 'SERVER', "\"${prop('yuguServer', '')}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        encoding 'UTF-8'
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    // In a customer project this line replaces api files('libs/17kouyu_1.0.0.jar'):
+    //   implementation 'com.shengzhiai.yugu:stkouyu-compat:2.0.0'
+    implementation project(':stkouyu-compat')
+}

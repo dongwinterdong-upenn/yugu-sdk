@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- The singletons keep only the application context, which lives as long as the process.
+         STRecorder.PlayBackTask must stay a non-static inner class: that is the Shengtong API. -->
+    <issue id="StaticFieldLeak">
+        <ignore path="src/main/java/com/shengzhiai/yugu/stcompat/internal/CompatEngine.java" />
+        <ignore path="src/main/java/com/stkouyu/setting/EngineSetting.java" />
+        <ignore path="src/main/java/com/stkouyu/STRecorder.java" />
+    </issue>
+</lint>

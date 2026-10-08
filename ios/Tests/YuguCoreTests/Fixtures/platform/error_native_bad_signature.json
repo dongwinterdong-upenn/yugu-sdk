@@ -1,0 +1,14 @@
+{
+ "status": 401,
+ "headers": {
+  "cache-control": "no-cache",
+  "connection": "keep-alive",
+  "content-type": "application/json",
+  "date": "Thu, 08 Oct 2026 08:21:32 GMT",
+  "server": "nginx/1.24.0 (Ubuntu)",
+  "transfer-encoding": "chunked",
+  "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+  "x-trace-id": "89b6c996d14f442c87aa85e5627e1829"
+ },
+ "body": "{\"code\":2003,\"message\":\"签名验证失败\",\"timestamp\":1791447692272}"
+}

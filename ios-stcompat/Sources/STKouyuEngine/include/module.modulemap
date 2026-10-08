@@ -1,0 +1,18 @@
+// STKouyuEngine module. The main module exposes exactly the declarations of the Shengtong
+// framework headers (umbrella STKouyuEngine.h). The Yugu extras and the C API are explicit
+// submodules so that `import STKouyuEngine` shows the same interface as the original framework.
+module STKouyuEngine {
+    umbrella header "STKouyuEngine/STKouyuEngine.h"
+    export *
+    module * { export * }
+
+    explicit module YuguCompat {
+        header "STKouyuEngine/YuguCompat.h"
+        export *
+    }
+
+    explicit module skegn {
+        header "STKouyuEngine/skegn.h"
+        export *
+    }
+}

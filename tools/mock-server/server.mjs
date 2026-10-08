@@ -40,14 +40,21 @@ const state = {
   log: [],               // received requests
   billing: [],           // executed evaluations {op, key, idemKey, recordId}
   idem: new Map(),       // scope|key -> {status:'pending'|'done', fp, body, headers, waiters}
+  nonces: new Map(),     // appKey|nonce -> first seen ms (the platform rejects reuse within 300 s)
+  slowMs: 0,             // extra processing time of the next request, set by the slow: fault
   seq: 0,
 };
 
+const DEFAULT_PROCESSING_MS = PROCESSING_MS;
+
 function reset() {
+  PROCESSING_MS = DEFAULT_PROCESSING_MS;
   state.faults = [];
   state.log = [];
   state.billing = [];
   state.idem = new Map();
+  state.nonces = new Map();
+  state.slowMs = 0;
 }
 
 function takeFault(pathname, headerFault) {
@@ -144,6 +151,16 @@ function authenticate(req, res, signParams) {
     platformError(res, 401, 2003, '时间戳过期');
     return null;
   }
+  const nonce = req.headers['x-nonce'];
+  if (nonce) {
+    const nk = appKey + '|' + nonce;
+    const seen = state.nonces.get(nk);
+    if (seen && Date.now() - seen < 300000) {
+      platformError(res, 401, 2003, '重复的请求');
+      return null;
+    }
+    state.nonces.set(nk, Date.now());
+  }
   const accepted = signParams.some((p) => signHmac(p, secret) === sig);
   if (!accepted) {
     platformError(res, 401, 2003, '签名验证失败');
@@ -238,6 +255,11 @@ async function applyHttpFault(fault, req, res) {
     await sleep(Number(rest[0] || 1000));
     return false;
   }
+  if (kind === 'slow') {
+    // the request is registered for idempotency first and then takes this long to process
+    req.slowMs = Number(rest[0] || 1000);
+    return false;
+  }
   if (kind === 'status') {
     const status = Number(rest[0]);
     const opts = Object.fromEntries(rest.slice(1).map((s) => s.split('=')));
@@ -306,12 +328,12 @@ async function handleHttp(req, res) {
 }
 
 async function evaluateNative(req, res, body, entry) {
-  if (!/multipart\/form-data/i.test(req.headers['content-type'] || '')) return platformError(res, 415, 50000, 'Content-Type not supported');
+  if (!/multipart\/form-data/i.test(req.headers['content-type'] || '')) return platformError(res, 415, 40001, '不支持的 Content-Type，请使用 application/json');
   const mp = parseMultipart(body, req.headers['content-type']);
   const cfgPart = mp.parts.find((p) => p.name === 'config');
   const audio = mp.files.audio;
   if (!cfgPart) return platformError(res, 400, 40001, 'config 不能为空');
-  if (!/application\/json/i.test(cfgPart.contentType || '')) return platformError(res, 415, 50000, "Content-Type 'application/octet-stream' is not supported");
+  if (!/application\/json/i.test(cfgPart.contentType || '')) return platformError(res, 415, 40001, '不支持的 Content-Type，请使用 application/json');
   let cfg;
   try { cfg = JSON.parse(cfgPart.data.toString('utf8')); } catch (e) { return platformError(res, 400, 40001, 'config 不是合法 JSON'); }
   entry.config = cfg;
@@ -328,7 +350,7 @@ async function evaluateNative(req, res, body, entry) {
   if (!audio || audio.data.length === 0) return platformError(res, 400, 40001, 'audio 不能为空');
   const fp = fingerprint(['evaluate', cfgPart.data.toString('utf8'), audio.data]);
   const result = await withIdempotency(auth.scope, entry.idempotencyKey, fp, async () => {
-    await sleep(PROCESSING_MS);
+    await sleep(PROCESSING_MS + (req.slowMs || 0));
     const r = nativeResult(cfg);
     state.billing.push({ op: 'evaluate', key: auth.scope, idemKey: entry.idempotencyKey, recordId: r.recordId });
     return { status: 200, body: r };
@@ -341,7 +363,7 @@ async function evaluateCompat(req, res, body, coreType, entry) {
   const mp = parseMultipart(body, req.headers['content-type']);
   const fields = { ...mp.fields };
   entry.fields = fields;
-  if (!req.headers['x-app-key'] && !req.headers['authorization']) return platformError(res, 401, 40100, '缺少 X-App-Key,兼容层接口需鉴权');
+  if (!req.headers['x-app-key']) return platformError(res, 401, 40100, '缺少 X-App-Key,兼容层接口需鉴权');
   const auth = authenticate(req, res, [fields]);
   if (!auth) return;
   if (coreType === 'pinyin' && !fields.refPinyin) return platformError(res, 400, 40001, 'coreType=pinyin 时 refPinyin 必填（如 "chong2 qing4"）');
@@ -349,7 +371,7 @@ async function evaluateCompat(req, res, body, coreType, entry) {
   if (!audio || audio.data.length === 0) return platformError(res, 400, 40001, 'audio 不能为空');
   const fp = fingerprint(['compat', coreType, JSON.stringify(Object.keys(fields).sort().map((k) => [k, fields[k]])), audio.data]);
   const result = await withIdempotency(auth.scope, entry.idempotencyKey, fp, async () => {
-    await sleep(PROCESSING_MS);
+    await sleep(PROCESSING_MS + (req.slowMs || 0));
     const r = compatResult(coreType);
     state.billing.push({ op: 'compat', key: auth.scope, idemKey: entry.idempotencyKey, recordId: r.recordId });
     return { status: 200, body: r };
@@ -368,7 +390,7 @@ async function tts(req, res, body, entry) {
   if (!j.text) return platformError(res, 400, 40001, 'text 不能为空');
   const fp = fingerprint(['tts', body.toString('utf8')]);
   const result = await withIdempotency(auth.scope, entry.idempotencyKey, fp, async () => {
-    await sleep(PROCESSING_MS);
+    await sleep(PROCESSING_MS + (req.slowMs || 0));
     state.billing.push({ op: 'tts', key: auth.scope, idemKey: entry.idempotencyKey });
     return { status: 200, body: { code: 0, message: 'success', data: { audioUrl: '/audio/mock-' + state.seq + '.mp3', duration: '1.348', format: j.format || 'mp3', warnings: [] }, timestamp: Date.now() } };
   });
@@ -395,23 +417,44 @@ function wsAuth(url) {
 }
 
 function attachWs(server) {
-  const wss = new WebSocketServer({ noServer: true });
+  // 128 KB frame limit like the platform (WebSocketConfig); larger frames close the socket with 1009
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 128 * 1024 });
+  // ws-silent sessions must not answer protocol pings either, so heartbeat timeouts can be tested.
+  const silentWss = new WebSocketServer({ noServer: true, autoPong: false, maxPayload: 128 * 1024 });
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url, 'http://mock');
     const p = url.pathname;
     const isNative = p === '/api/v1/ws/evaluate';
     const ct = p.slice(1);
-    if (!isNative && !COMPAT_CORE_TYPES.has(ct)) { socket.destroy(); return; }
+    if (!isNative && !COMPAT_CORE_TYPES.has(ct)) {
+      state.log.push({ t: Date.now(), method: 'WS', path: p, rejected: 404 });
+      socket.destroy();
+      return;
+    }
     const auth = wsAuth(url);
-    if (!auth) { socket.write('HTTP/1.1 403 Forbidden\r\n\r\n'); socket.destroy(); return; }
+    if (!auth) {
+      state.log.push({ t: Date.now(), method: 'WS', path: p, rejected: 403 });
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     const fault = url.searchParams.get('mockFault') || takeFault(p, null);
     state.log.push({ t: Date.now(), method: 'WS', path: p, idempotencyKey: url.searchParams.get('idempotencyKey'), fault: fault || null });
-    if (fault === 'ws-refuse') { socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n'); socket.destroy(); return; }
-    wss.handleUpgrade(req, socket, head, (ws) => wsSession(ws, { isNative, coreType: ct, auth, url, fault }));
+    if (fault === 'ws-refuse') {
+      state.log.at(-1).rejected = 503;
+      socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    const target = fault && fault.startsWith('ws-silent') ? silentWss : wss;
+    target.handleUpgrade(req, socket, head, (ws) => wsSession(ws, { isNative, coreType: ct, auth, url, fault }));
   });
 }
 
 function wsSession(ws, ctx) {
+  // An oversized frame (over maxPayload) raises an error on the socket; ws then closes it with 1009.
+  // Without a handler the error would be unhandled and take the whole mock process down.
+  ws.on('error', (e) => { state.log.push({ t: Date.now(), method: 'WS', path: ctx.url.pathname, wsError: String(e && e.message) }); });
   const send = (o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
   let audio = [];
   let params = null;

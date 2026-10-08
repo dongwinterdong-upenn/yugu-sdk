@@ -1,0 +1,19 @@
+{
+  "name": "yugu-web-demo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "优谷雅言 PC Web SDK 演示：录音或上传音频，整段评测与实时评测，展示分数",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "start:mock": "node server.mjs --api http://127.0.0.1:18900",
+    "install:tarball": "node scripts/install-tarball.mjs"
+  },
+  "dependencies": {
+    "@shengzhiai/yugu-web-sdk": "2.0.0"
+  }
+}

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>优谷雅言 Web SDK 演示</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>优谷雅言语音评测 Web SDK 演示</h1>
+      <p class="muted">SDK <span id="sdkVersion">未加载</span>，录音需要 https 或 localhost。</p>
+
+      <section>
+        <h2>连接</h2>
+        <label>服务地址 <input id="baseUrl" placeholder="https://open.shengzhiai.com" /></label>
+        <label>鉴权方式
+          <select id="authMode">
+            <option value="token">token</option>
+            <option value="signature">appKey 与 secretKey</option>
+          </select>
+        </label>
+        <div id="tokenBox"><label>token <input id="token" type="password" autocomplete="off" /></label></div>
+        <div id="sigBox" hidden>
+          <label>appKey <input id="appKey" autocomplete="off" /></label>
+          <label>secretKey <input id="secretKey" type="password" autocomplete="off" /></label>
+        </div>
+      </section>
+
+      <section>
+        <h2>题目</h2>
+        <label>题型
+          <select id="coreType">
+            <option value="sentence">sentence 句子</option>
+            <option value="word">word 单词</option>
+            <option value="passage">passage 段落</option>
+            <option value="connected">connected 连读</option>
+            <option value="alpha">alpha 字母</option>
+            <option value="pinyin">pinyin 拼音</option>
+            <option value="open">open 开放题</option>
+          </select>
+        </label>
+        <label>语言
+          <select id="language">
+            <option value="zh-CN">zh-CN</option>
+            <option value="en-US">en-US</option>
+          </select>
+        </label>
+        <label>参考文本 <textarea id="referenceText" rows="2">今天天气很好</textarea></label>
+      </section>
+
+      <section>
+        <h2>音频</h2>
+        <div class="row">
+          <button id="recBtn" type="button">开始录音</button>
+          <span>录音状态 <b id="recState">IDLE</b></span>
+          <meter id="level" min="0" max="0.3" value="0"></meter>
+        </div>
+        <label>或者选择音频文件 <input id="file" type="file" accept="audio/*,.wav,.mp3" /></label>
+        <audio id="player" controls></audio>
+      </section>
+
+      <section>
+        <h2>评测</h2>
+        <div class="row">
+          <button id="evalBtn" type="button">整段评测</button>
+          <button id="streamBtn" type="button">实时评测，边录边传</button>
+          <span>会话状态 <b id="sessionState">IDLE</b></span>
+        </div>
+      </section>
+
+      <section>
+        <h2>结果</h2>
+        <div id="summary" class="summary">尚未评测</div>
+        <table id="dims"></table>
+        <div id="words" class="words"></div>
+        <div id="extra" class="muted"></div>
+      </section>
+
+      <section>
+        <h2>事件</h2>
+        <pre id="log"></pre>
+      </section>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

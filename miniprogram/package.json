@@ -1,0 +1,52 @@
+{
+  "name": "@shengzhiai/yugu-miniprogram-sdk",
+  "version": "2.0.0",
+  "description": "优谷雅言语音评测微信小程序 SDK：整段评测，实时评测，语音合成，报告查询，幂等，重试，重连，录音",
+  "license": "Apache-2.0",
+  "author": "优谷雅言 (https://open.shengzhiai.com)",
+  "homepage": "https://open.shengzhiai.com/docs.html#sdk",
+  "repository": {
+    "type": "git",
+    "url": "https://open.shengzhiai.com/git/yugu-sdk.git",
+    "directory": "miniprogram"
+  },
+  "keywords": [
+    "miniprogram",
+    "wechat",
+    "weixin",
+    "speech",
+    "pronunciation",
+    "evaluation",
+    "yugu"
+  ],
+  "main": "miniprogram_dist/index.js",
+  "miniprogram": "miniprogram_dist",
+  "types": "types/index.d.ts",
+  "files": [
+    "miniprogram_dist",
+    "types",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://open.shengzhiai.com/npm/"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "npm run build && c8 node --test --test-concurrency=4 test/unit/*.test.mjs test/integration/*.test.mjs",
+    "test:unit": "node --test test/unit/*.test.mjs",
+    "test:integration": "node --test test/integration/*.test.mjs",
+    "typecheck": "tsc -p types-test",
+    "prepack": "node scripts/build.mjs --quiet"
+  },
+  "devDependencies": {
+    "acorn": "8.18.0",
+    "c8": "11.0.0",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3",
+    "ws": "8.18.0"
+  }
+}

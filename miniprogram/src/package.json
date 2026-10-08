@@ -1,0 +1,5 @@
+{
+  "type": "module",
+  "private": true,
+  "description": "Sources are ES modules. The published CommonJS bundle is miniprogram_dist/index.js, built by scripts/build.mjs."
+}

@@ -1,0 +1,52 @@
+<view class="page">
+  <view class="card warn" wx:if="{{configError}}">{{configError}}</view>
+
+  <view class="card">
+    <view class="label">题型</view>
+    <picker range="{{coreTypes}}" value="{{coreTypeIndex}}" bindchange="onCoreTypeChange">
+      <view class="field">{{coreTypes[coreTypeIndex]}}</view>
+    </picker>
+    <view class="label">语言</view>
+    <picker range="{{languages}}" value="{{langIndex}}" bindchange="onLangChange">
+      <view class="field">{{languages[langIndex]}}</view>
+    </picker>
+    <view class="label">参考文本</view>
+    <input class="field" value="{{referenceText}}" bindinput="onRefInput" />
+    <view class="label">参考拼音（拼音题与多音字可填）</view>
+    <input class="field" value="{{refPinyin}}" bindinput="onPinyinInput" placeholder="chong2 qing4" />
+  </view>
+
+  <view class="card">
+    <view class="row">
+      <button class="btn {{recording ? 'btn-stop' : ''}}" bindtap="onRecordTap" disabled="{{streaming}}">{{recording ? '停止录音' : '开始录音'}}</button>
+      <button class="btn btn-primary" bindtap="onEvaluateTap" disabled="{{!hasRecording || busy || recording}}">{{busy ? '评测中' : '整段评测'}}</button>
+    </view>
+    <view class="row">
+      <button class="btn {{streaming ? 'btn-stop' : ''}}" bindtap="onStreamTap" disabled="{{recording}}">{{streaming ? '结束实时评测' : '实时评测'}}</button>
+    </view>
+    <view class="hint" wx:if="{{recordingInfo}}">录音：{{recordingInfo}}</view>
+    <view class="hint">会话状态：{{sessionState}}</view>
+  </view>
+
+  <view class="card" wx:if="{{result}}">
+    <view class="overall">总分 {{result.overall}}</view>
+    <view class="hint">记录号 {{result.recordId}}{{result.replayed ? '，重放结果' : ''}}</view>
+    <view class="dims">
+      <view class="dim" wx:for="{{result.dims}}" wx:key="name">{{item.name}} {{item.value}}</view>
+    </view>
+    <view class="words" wx:if="{{result.words.length}}">
+      <view class="word {{item.level}}" wx:for="{{result.words}}" wx:key="key">
+        <text class="w-text">{{item.text}}</text>
+        <text class="w-pinyin">{{item.pinyin}}</text>
+        <text class="w-score">{{item.score}}</text>
+      </view>
+    </view>
+    <view class="hint" wx:if="{{result.transcript}}">转写：{{result.transcript}}</view>
+    <view class="warn-line" wx:for="{{result.warnings}}" wx:key="*this">{{item}}</view>
+  </view>
+
+  <view class="card" wx:if="{{log.length}}">
+    <view class="label">事件</view>
+    <view class="log" wx:for="{{log}}" wx:key="*this">{{item}}</view>
+  </view>
+</view>

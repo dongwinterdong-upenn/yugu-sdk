@@ -9,6 +9,8 @@ Group=ubuntu
 WorkingDirectory=/home/ubuntu/yougu/sdk-ci
 Environment=HOME=/home/ubuntu
 Environment=CI_HOME=/home/ubuntu/yougu/sdk-ci
+Environment=TOOLS_PYTHON=/home/ubuntu/yougu/sdk-ci/venv/bin/python
+Environment=DOCS_PYTHON=/home/ubuntu/yougu/sdk-ci/venv/bin/python
 EnvironmentFile=-/home/ubuntu/yougu/sdk-ci/secrets/ci.env
 ExecStart=/usr/bin/python3 -I /home/ubuntu/yougu/sdk-ci/bin/ci_runner.py run
 Nice=10

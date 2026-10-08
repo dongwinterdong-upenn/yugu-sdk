@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
+      # 定时构建连沙箱，沙箱账号只允许 2 路并发评测
+      max-parallel: ${{ github.event_name == 'schedule' && 2 || 8 }}
       matrix:
         step: [contract, java, android, android-stcompat, web, miniprogram, ios, ios-stcompat]
     steps:
@@ -27,12 +29,17 @@ jobs:
       - name: run ${{ matrix.step }}
         env:
           CI_OUT: ${{ github.workspace }}/ci-out
-          YUGU_SANDBOX_APPKEY: ${{ secrets.YUGU_SANDBOX_APPKEY }}
-          YUGU_SANDBOX_SECRET: ${{ secrets.YUGU_SANDBOX_SECRET }}
+          # 沙箱密钥只在定时构建中注入，推送与合并请求的构建不调用平台
+          YUGU_SANDBOX_APPKEY: ${{ github.event_name == 'schedule' && secrets.YUGU_SANDBOX_APPKEY || '' }}
+          YUGU_SANDBOX_SECRET: ${{ github.event_name == 'schedule' && secrets.YUGU_SANDBOX_SECRET || '' }}
+          YUGU_SANDBOX_BASE: ${{ vars.YUGU_SANDBOX_BASE || 'https://open.shengzhiai.com' }}
+          YUGU_SLOW_TESTS: ${{ github.event_name == 'schedule' && '1' || '0' }}
         run: bash ci/run-all.sh ${{ matrix.step }}
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: ci-out-${{ matrix.step }}, path: ci-out}
+        with:
+          name: ci-out-${{ matrix.step }}
+          path: ci-out
   macos:
     runs-on: macos-14
     strategy:
@@ -44,7 +51,12 @@ jobs:
       - name: run ${{ matrix.step }}
         env:
           CI_OUT: ${{ github.workspace }}/ci-out/${{ matrix.step }}
+          YUGU_SANDBOX_APPKEY: ${{ github.event_name == 'schedule' && secrets.YUGU_SANDBOX_APPKEY || '' }}
+          YUGU_SANDBOX_SECRET: ${{ github.event_name == 'schedule' && secrets.YUGU_SANDBOX_SECRET || '' }}
+          YUGU_SANDBOX_BASE: ${{ vars.YUGU_SANDBOX_BASE || 'https://open.shengzhiai.com' }}
         run: bash ci/${{ matrix.step }}.sh
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: ci-out-${{ matrix.step }}, path: ci-out}
+        with:
+          name: ci-out-${{ matrix.step }}
+          path: ci-out

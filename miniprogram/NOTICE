@@ -1,0 +1,6 @@
+优谷雅言语音评测 SDK
+Copyright 2026 优谷雅言 open.shengzhiai.com
+
+本产品按 Apache License 2.0 授权，许可全文见 LICENSE。
+
+声通平替层 com.stkouyu 与 STKouyuEngine 只按公开的接口签名与头文件重新实现，以便现有接入代码不改即可切换到优谷雅言服务，不包含声通的实现代码，不分发声通的二进制文件。声通与 17kouyu 是其各自权利人的名称，此处仅用于说明接口兼容关系。

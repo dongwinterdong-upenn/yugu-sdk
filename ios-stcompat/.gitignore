@@ -1,0 +1,11 @@
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj
+xcuserdata/
+ci-out/
+__pycache__/
+*.o
+*.gcda
+*.gcno
+*.gcov

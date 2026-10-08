@@ -1,0 +1,13 @@
+// Root build of the Shengtong (17kouyu 1.0.0) drop-in layer.
+// Modules: :stkouyu-compat (AAR, com.shengzhiai.yugu:stkouyu-compat) and :compat-demo (sample app).
+plugins {
+    id 'com.android.library' version '8.5.2' apply false
+    id 'com.android.application' version '8.5.2' apply false
+}
+
+ext {
+    yuguGroup = 'com.shengzhiai.yugu'
+    yuguVersion = '2.0.0'
+    // Repository root (monorepo), used by tests to find spec/ fixtures and tools/mock-server.
+    yuguRepoRoot = file("${rootDir}/..").canonicalPath
+}

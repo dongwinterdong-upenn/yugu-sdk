@@ -1,0 +1,95 @@
+.page {
+  padding: 24rpx;
+}
+.card {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+}
+.card.warn {
+  background: #fff4e5;
+  color: #8a5300;
+}
+.label {
+  color: #646a73;
+  font-size: 24rpx;
+  margin: 16rpx 0 8rpx;
+}
+.field {
+  border: 1rpx solid #dee0e3;
+  border-radius: 10rpx;
+  padding: 16rpx;
+  min-height: 40rpx;
+}
+.row {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+.btn {
+  flex: 1;
+  font-size: 28rpx;
+}
+.btn-primary {
+  background: #3370ff;
+  color: #ffffff;
+}
+.btn-stop {
+  background: #f54a45;
+  color: #ffffff;
+}
+.hint {
+  color: #8f959e;
+  font-size: 24rpx;
+  margin-top: 8rpx;
+  word-break: break-all;
+}
+.overall {
+  font-size: 56rpx;
+  font-weight: 600;
+  color: #3370ff;
+}
+.dims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin: 16rpx 0;
+}
+.dim {
+  background: #f2f3f5;
+  border-radius: 8rpx;
+  padding: 6rpx 14rpx;
+  font-size: 24rpx;
+}
+.words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+.word {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80rpx;
+  padding: 10rpx;
+  border-radius: 10rpx;
+  background: #f2f3f5;
+}
+.word.good { box-shadow: inset 0 0 0 2rpx #34c724; }
+.word.mid { box-shadow: inset 0 0 0 2rpx #ffc60a; }
+.word.bad { box-shadow: inset 0 0 0 2rpx #f54a45; }
+.w-text { font-size: 32rpx; }
+.w-pinyin { font-size: 20rpx; color: #8f959e; }
+.w-score { font-size: 22rpx; color: #3370ff; }
+.warn-line {
+  color: #b26a00;
+  font-size: 24rpx;
+  margin-top: 6rpx;
+}
+.log {
+  font-size: 22rpx;
+  color: #646a73;
+  margin-top: 4rpx;
+  word-break: break-all;
+}

@@ -94,6 +94,14 @@ def run_job(job_file):
         meta['committed_at'] = git('log', '-1', '--format=%cI', cwd=wdir)
         render()
         env = dict(os.environ, CI_OUT=str(out), CI_BUILD_NUMBER=str(n), CI_COMMIT=job['sha'])
+        # Sandbox tests spend the daily sandbox quota (200 calls), so only nightly and manual builds run them.
+        if job.get('trigger') == 'push':
+            for k in [k for k in env if k.startswith('YUGU_SANDBOX_')]:
+                env.pop(k)
+        meta['sandbox'] = any(k.startswith('YUGU_SANDBOX_') for k in env)
+        # Nightly and manual builds also run the slow outage tests (a real 10 s network drop).
+        if job.get('trigger') != 'push':
+            env['YUGU_SLOW_TESTS'] = '1'
         with open(console, 'w') as f:
             p = subprocess.run(['bash', 'ci/run-all.sh'], cwd=wdir, env=env, stdout=f, stderr=subprocess.STDOUT, timeout=3 * 3600)
         summary = json.loads((out / 'summary.json').read_text()) if (out / 'summary.json').exists() else {'steps': []}
@@ -179,7 +187,7 @@ def render():
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>优谷雅言 SDK 持续集成</title><style>{CSS}</style></head><body>
 <h1>优谷雅言 SDK 持续集成</h1>
-<p>代码仓库 <code>https://open.shengzhiai.com/git/yugu-sdk.git</code> 每次提交与每晚北京时间 2 点各构建一次，构建脚本是仓库里的 <code>ci/run-all.sh</code>，五端单元测试，集成测试，覆盖率与声通接口比对都在其中。最近 30 天共 {len(recent)} 次构建，其中 {sum(1 for b in recent if b.get("status") == "passed")} 次通过。</p>
+<p>代码仓库 <code>https://open.shengzhiai.com/git/yugu-sdk.git</code> 每次提交与每晚北京时间 2 点各构建一次，构建脚本是仓库里的 <code>ci/run-all.sh</code>，五端单元测试，集成测试，覆盖率与声通接口比对都在其中，每晚的构建另外连沙箱环境跑联调测试。最近 30 天共 {len(recent)} 次构建，其中 {sum(1 for b in recent if b.get("status") == "passed")} 次通过。</p>
 <div class="wrap"><table><thead><tr><th>构建</th><th>结果</th><th>触发</th><th>提交</th><th>各步骤</th><th>开始时间 UTC</th><th>耗时秒</th></tr></thead><tbody>
 {''.join(rows)}
 </tbody></table></div></body></html>

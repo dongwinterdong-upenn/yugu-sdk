@@ -129,8 +129,15 @@ ${[...spec.errors.map((e) => `    const val ${e.name} = ${e.code}`),
 function jsTable() {
   const row = (e) => `  [${e.code}, ${jstr(e.name)}, ${jstr(e.category)}, ${e.retryable}, ${e.http ?? 0}, ${jstr(e.message)}],`;
   return `// ${HEADER}
-const rows = (list) => Object.freeze(Object.fromEntries(list.map(([code, name, category, retryable, http, message]) =>
-  [code, Object.freeze({ code, name, category, retryable, http, message })])));
+// ES2017-safe on purpose (no Object.fromEntries): the mini program runtime targets ES2017.
+const rows = (list) => {
+  const out = {};
+  for (let i = 0; i < list.length; i++) {
+    const [code, name, category, retryable, http, message] = list[i];
+    out[code] = Object.freeze({ code, name, category, retryable, http, message });
+  }
+  return Object.freeze(out);
+};
 
 export const ERROR_TABLE = rows([
 ${spec.errors.map(row).join('\n')}
@@ -274,13 +281,20 @@ const outputs = {
 };
 
 const check = process.argv.includes('--check');
+// --only <substring> limits the run to outputs whose path contains the substring, for example --only ios/
+const onlyIdx = process.argv.indexOf('--only');
+const only = onlyIdx >= 0 ? process.argv[onlyIdx + 1] : null;
 let stale = 0;
 for (const [rel, content] of Object.entries(outputs)) {
+  if (only && !rel.includes(only)) continue;
   const file = path.join(ROOT, rel);
   if (check) {
     const cur = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
     if (cur !== content) { console.error('stale: ' + rel); stale++; }
   } else {
+    // write only on change, so builds watching these files do not see a spurious modification
+    const cur = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+    if (cur === content) continue;
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content);
     console.log('wrote ' + rel);

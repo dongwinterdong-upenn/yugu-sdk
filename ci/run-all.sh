@@ -36,6 +36,13 @@ for step in "${STEPS[@]}"; do
         (cd tools/mock-server && npm ci --no-audit --no-fund --silent && node selftest.mjs)
         echo "== signature vectors include the contract vector"
         grep -q 'A+6uVB/D7khxQEt8tzgCNjMUC1QtQQd1UF+NCYVYZqE=' spec/fixtures/sign/vectors.json
+        echo "== spec/openapi.yaml is valid OpenAPI 3.0"
+        PY=${TOOLS_PYTHON:-python3}
+        if "$PY" -c 'import openapi_spec_validator' 2>/dev/null; then
+          "$PY" -c 'from openapi_spec_validator import validate; from openapi_spec_validator.readers import read_from_filename; d, _ = read_from_filename("spec/openapi.yaml"); validate(d); print("openapi valid")'
+        else
+          echo "openapi-spec-validator not installed for $PY, check skipped"
+        fi
         echo "== no v1 coordinates or domains left in shipped sources"
         if grep -rIl --exclude-dir=node_modules --exclude-dir=.gradle --exclude-dir=build --exclude-dir=.build \
             --exclude-dir=ci-out -e 'tech\.dragonai\.yugu' -e '@yugu/web-sdk' \

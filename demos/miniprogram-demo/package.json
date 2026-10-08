@@ -1,0 +1,10 @@
+{
+  "name": "yugu-miniprogram-demo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "优谷雅言语音评测微信小程序 SDK 示例工程：录音，整段评测，实时评测，展示结果",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@shengzhiai/yugu-miniprogram-sdk": "2.0.0"
+  }
+}

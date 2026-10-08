@@ -1,0 +1,167 @@
+// Drop-in replacement for the Shengtong 17kouyu 1.0.0 jar (package com.stkouyu), cloud only,
+// implemented on the Yugu platform. Java 8 bytecode, zero third-party runtime dependencies.
+plugins {
+    id 'com.android.library'
+    id 'maven-publish'
+}
+
+group = rootProject.ext.yuguGroup
+version = rootProject.ext.yuguVersion
+
+def repoRoot = rootProject.ext.yuguRepoRoot
+
+android {
+    namespace 'com.shengzhiai.yugu.stcompat'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 21
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        encoding 'UTF-8'
+    }
+
+    buildTypes {
+        debug {
+            enableUnitTestCoverage true
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+
+    testCoverage {
+        jacocoVersion = '0.8.12'
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            all {
+                maxHeapSize = '1024m'
+                maxParallelForks = 1
+                forkEvery = 0
+                systemProperty 'yugu.repoRoot', repoRoot
+                systemProperty 'robolectric.logging', 'stderr'
+                // Mock platform server used by the integration tests (tools/mock-server).
+                systemProperty 'yugu.node', (System.getenv('NODE') ?: 'node')
+                // Sandbox cases (SandboxIntegrationTest) read YUGU_SANDBOX_* from the environment.
+                // Only whether keys are present is a task input, never their values; with keys the
+                // tests always run again instead of being up to date.
+                def sandboxKeys = System.getenv('YUGU_SANDBOX_APPKEY') != null && System.getenv('YUGU_SANDBOX_SECRET') != null
+                inputs.property('yuguSandboxKeysPresent', sandboxKeys)
+                outputs.upToDateWhen { !sandboxKeys }
+                jacoco {
+                    includeNoLocationClasses = true
+                    excludes = ['jdk.internal.*']
+                }
+                testLogging {
+                    events 'failed'
+                    exceptionFormat 'full'
+                }
+            }
+        }
+    }
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+// Unit tests run on the debug variant only: the release variant has the same code, and the test
+// assets live in src/debug. ./gradlew test then runs testDebugUnitTest.
+androidComponents {
+    beforeVariants(selector().withBuildType('release')) { variantBuilder ->
+        variantBuilder.enableUnitTest = false
+    }
+}
+
+dependencies {
+    // Test only. The AAR itself has no dependencies.
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+}
+
+// ---------------------------------------------------------------- coverage summary
+// Prints "COVERAGE <pct>" from the JaCoCo XML written by createDebugUnitTestCoverageReport and
+// fails when line coverage is below the 70 % gate (DESIGN section 10).
+tasks.register('coverageSummary') {
+    group = 'verification'
+    description = 'Prints line coverage of :stkouyu-compat and enforces the 70 % gate.'
+    dependsOn 'createDebugUnitTestCoverageReport'
+    def xmlFile = layout.buildDirectory.file('reports/coverage/test/debug/report.xml')
+    def outFile = layout.buildDirectory.file('reports/coverage/test/debug/coverage.txt')
+    inputs.file(xmlFile)
+    outputs.file(outFile)
+    doLast {
+        def parser = new groovy.xml.XmlSlurper(false, false)
+        parser.setFeature('http://apache.org/xml/features/nonvalidating/load-external-dtd', false)
+        parser.setFeature('http://apache.org/xml/features/disallow-doctype-decl', false)
+        def report = parser.parse(xmlFile.get().asFile)
+        def line = report.counter.find { it.@type == 'LINE' }
+        long missed = line.@missed.toLong()
+        long covered = line.@covered.toLong()
+        double pct = (covered + missed) == 0 ? 0d : (covered * 100d / (covered + missed))
+        def text = String.format(Locale.ROOT, 'COVERAGE %.1f', pct)
+        outFile.get().asFile.text = text + '\n'
+        println text + " (lines covered ${covered}, missed ${missed})"
+        if (pct < 70d) {
+            throw new GradleException("line coverage ${String.format(Locale.ROOT, '%.1f', pct)} % is below the 70 % gate")
+        }
+    }
+}
+
+// ---------------------------------------------------------------- publishing
+// ./gradlew :stkouyu-compat:publishReleasePublicationToYuguRepository -PyuguPublishDir=/path/to/repo
+publishing {
+    publications {
+        release(MavenPublication) {
+            groupId = rootProject.ext.yuguGroup
+            artifactId = 'stkouyu-compat'
+            version = rootProject.ext.yuguVersion
+            afterEvaluate {
+                from components.release
+            }
+            pom {
+                name = 'stkouyu-compat'
+                description = 'Shengtong 17kouyu 1.0.0 (com.stkouyu) drop-in replacement on the Yugu speech evaluation platform, cloud only.'
+                url = 'https://open.shengzhiai.com'
+                licenses {
+                    license {
+                        name = 'Apache License, Version 2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                        distribution = 'repo'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'shengzhiai'
+                        name = 'Shengzhiai Yugu SDK team'
+                        url = 'https://open.shengzhiai.com'
+                    }
+                }
+                scm {
+                    url = 'https://open.shengzhiai.com/git/yugu-sdk.git'
+                    connection = 'scm:git:https://open.shengzhiai.com/git/yugu-sdk.git'
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'yugu'
+            url = uri(project.findProperty('yuguPublishDir') ?: layout.buildDirectory.dir('repo').get().asFile)
+        }
+    }
+}

@@ -32,12 +32,13 @@ node server.mjs --port 0 --processing-ms 50
 | `status:429:code=42901:retryAfter=1` | 指定错误码与 Retry-After |
 | `status:400:code=40001` | 参数错误 |
 | `status:502:detail=xxx` | FastAPI 风格 `{"detail":...}` 错误体 |
-| `delay:1500` | 延迟后正常处理，用来触发读超时 |
+| `delay:1500` | 先延迟再开始处理，延迟期间还没有登记幂等键 |
+| `slow:3000` | 先登记幂等键再慢处理，模拟服务端算得慢，同一个键的重发会等首次结果 |
 | `drop` | 直接断开连接 |
 | `hang` | 不应答 |
 | `ws-kill-after:N` | 收到 N 帧后强断 |
 | `ws-close-after:N` | 收到 N 帧后以 1011 关闭 |
-| `ws-silent:N` | 收到 N 帧后不再应答 |
+| `ws-silent:N` | 收到 N 帧后不再应答，整个会话也不回协议层 pong |
 | `ws-error:50200` | 结束时回带错误码的 error 帧 |
 | `ws-delay-result:3000` | 终评延迟 |
 | `ws-refuse` | 握手返回 503 |

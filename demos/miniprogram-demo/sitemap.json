@@ -1,0 +1,9 @@
+{
+  "desc": "示例工程不需要被搜索收录",
+  "rules": [
+    {
+      "action": "disallow",
+      "page": "*"
+    }
+  ]
+}

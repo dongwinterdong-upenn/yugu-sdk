@@ -1,0 +1,39 @@
+# XcodeGen project of the YuguSDK demo app.
+#   brew install xcodegen
+#   xcodegen generate
+#   open YuguDemo.xcodeproj
+#
+# The app depends on the published package by URL. To try a local checkout of the SDK, replace
+# the url and from lines with:  path: ../../ios
+name: YuguDemo
+options:
+  bundleIdPrefix: com.shengzhiai.yugu
+  deploymentTarget:
+    iOS: "15.0"
+packages:
+  YuguSDK:
+    url: https://open.shengzhiai.com/git/yugu-ios-sdk.git
+    from: 2.0.0
+targets:
+  YuguDemo:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: YuguDemo
+        excludes:
+          - Config.xcconfig
+          - Info.plist
+    configFiles:
+      Debug: YuguDemo/Config.xcconfig
+      Release: YuguDemo/Config.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shengzhiai.yugu.demo
+        INFOPLIST_FILE: YuguDemo/Info.plist
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - package: YuguSDK
+        product: YuguSDK

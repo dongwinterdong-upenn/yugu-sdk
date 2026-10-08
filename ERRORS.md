@@ -76,7 +76,7 @@ SDK 在本地发现的问题，没有服务端错误码时使用。
 | 90010 | `INVALID_ARGUMENT` | `INVALID_PARAM` | 否 | 调用参数不合法 |
 | 90011 | `TLS_ERROR` | `NETWORK` | 否 | 证书校验失败 |
 | 90101 | `AUDIO_TOO_SHORT` | `AUDIO` | 否 | 音频短于 1 秒 |
-| 90102 | `AUDIO_TOO_LONG` | `AUDIO` | 否 | 音频长于 300 秒或大于 10 MB |
+| 90102 | `AUDIO_TOO_LONG` | `AUDIO` | 否 | 音频长于 300 秒，整段上传大于 50 MB，或实时评测一轮大于 10 MB |
 | 90103 | `AUDIO_SILENT` | `AUDIO` | 否 | 音频全程静音 |
 | 90104 | `AUDIO_LOW_VOLUME` | `AUDIO` | 否 | 音量过低 |
 | 90105 | `AUDIO_FORMAT_UNSUPPORTED` | `AUDIO` | 否 | 不是 16 位 PCM 或采样率低于 16000 |
@@ -123,4 +123,4 @@ SDK 在本地发现的问题，没有服务端错误码时使用。
 | 60006 | refText 为空 |
 | 60007 | 引擎未初始化 |
 | 60008 | 引擎正忙，上一次评测未结束 |
-| 60009 | 音频大于 10 MB |
+| 60009 | 音频大于 50 MB 或长于 300 秒 |

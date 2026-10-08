@@ -1,0 +1,6 @@
+// Credentials of the demo. Fill in a sandbox key pair (or a token), then build.
+// `//` starts a comment in xcconfig files, hence the $() inside the URL.
+YUGU_BASE_URL = https:/$()/open.shengzhiai.com
+YUGU_APP_KEY =
+YUGU_SECRET_KEY =
+YUGU_TOKEN =
