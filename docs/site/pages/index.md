@@ -2,7 +2,7 @@
 eyebrow: 优谷雅言开放平台
 version: 2.0.0
 title: 语音评测 SDK
-lead: 五端 SDK 与两个声通平替层，覆盖整段评测，实时评测，语音合成与报告查询。写操作自动带幂等键，网络抖动时按策略重试，实时评测断线后整段重放，同一段音频只计费一次。
+lead: 五端 SDK 与两个声通平替层，覆盖整段评测，实时评测，语音合成与报告查询。写操作自动带幂等键，网络抖动时按策略重试，实时评测断线后整段重放，重试与重连都不会重复计费。
 actions:
   - { label: 快速开始, href: 'page:quickstart', primary: true }
   - { label: 接口参考, href: 'page:api' }
@@ -34,7 +34,7 @@ code:
     lang: js
     parts:
       - { ref: miniprogram/README.md#五分钟上手, n: 1, lines: 1-6 }
-      - { ref: miniprogram/README.md#五分钟上手, n: 2, lines: 1-9 }
+      - { ref: miniprogram/README.md#五分钟上手, n: 2 }
   - label: cURL
     file: docs/site/snippets/evaluate.sh
     lang: bash
@@ -50,8 +50,8 @@ items:
   - { title: iOS, icon: mobile, href: 'page:sdk-ios', desc: Swift 并发与回调两种写法，iOS 13 及以上, meta: 'yugu-ios-sdk.git 2.0.0' }
   - { title: 网页, icon: web, href: 'page:sdk-web', desc: 浏览器与 Node.js，附 TypeScript 声明, meta: '@shengzhiai/yugu-web-sdk@2.0.0' }
   - { title: 微信小程序, icon: apps, href: 'page:sdk-miniprogram', desc: '小程序录音器直连实时评测，基础库 `2.20.1` 及以上', meta: '@shengzhiai/yugu-miniprogram-sdk@2.0.0' }
-  - { title: 安卓声通平替, icon: swap_horiz, href: 'page:sdk-android-stcompat', desc: 包名 com.stkouyu 与声通一致，换依赖即可切换, meta: 'com.shengzhiai.yugu:stkouyu-compat:2.0.0' }
-  - { title: iOS 声通平替, icon: swap_horiz, href: 'page:sdk-ios-stcompat', desc: 模块名 STKouyuEngine 与声通一致，头文件逐项对齐, meta: 'stkouyu-ios-compat.git 2.0.0' }
+  - { title: 安卓声通平替, icon: swap_horiz, href: 'page:sdk-android-stcompat', desc: '包名 `com.stkouyu` 与声通一致，换依赖即可切换', meta: 'com.shengzhiai.yugu:stkouyu-compat:2.0.0' }
+  - { title: iOS 声通平替, icon: swap_horiz, href: 'page:sdk-ios-stcompat', desc: '模块名 `STKouyuEngine` 与声通一致，头文件逐项对齐', meta: 'stkouyu-ios-compat.git 2.0.0' }
   - { title: 其他语言, icon: data_object, href: 'page:api-openapi', desc: 按 OpenAPI 描述生成客户端，补上签名头即可调用, meta: spec/openapi.yaml }
 ```
 
@@ -63,7 +63,7 @@ items:
   - { title: 整段评测, icon: graphic_eq, href: 'page:evaluate', desc: 录完整段上传，一次请求返回总分，维度分与逐字详情, meta: 'POST /api/v1/evaluate' }
   - { title: 实时评测, icon: stream, href: 'page:streaming', desc: 边录边传，发出结束帧后返回终评，断线自动重连, meta: 'WSS /api/v1/ws/evaluate' }
   - { title: 语音合成, icon: record_voice_over, href: 'page:tts-report', desc: 中文与英文示范音，返回可播放的音频地址, meta: 'POST /api/v1/tts/generate' }
-  - { title: 报告查询, icon: assignment, href: 'page:tts-report', desc: 按 recordId 查询评测报告与维度分析, meta: 'GET /api/v1/report/{recordId}' }
+  - { title: 报告查询, icon: assignment, href: 'page:tts-report', desc: '按 `recordId` 查询评测报告与维度分析', meta: 'GET /api/v1/report/{recordId}' }
 ```
 
 ## 生产可靠性
@@ -71,7 +71,7 @@ items:
 ```facts
 - icon: fingerprint
   k: 幂等键
-  v: 写操作自动生成 32 位幂等键，重试与重连复用同一个键，平台按键只评测一次，只计费一次。
+  v: 写操作自动生成 32 位十六进制幂等键，重试与重连复用同一个键，平台按键只评测一次，只计费一次。
   href: 'page:api-idempotency'
   link: 幂等语义
 - icon: replay
@@ -81,7 +81,7 @@ items:
   link: 重试策略
 - icon: sync
   k: 断线重连
-  v: 实时评测断线后连续重连 8 次，重放这一轮的全部音频，评分覆盖整段录音。
+  v: 实时评测断线后最多连续重连 8 次，重放这一轮的全部音频，评分覆盖整段录音。
   href: 'page:streaming'
   link: 实时评测
 - icon: bug_report

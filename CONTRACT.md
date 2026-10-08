@@ -8,14 +8,14 @@
 |---|---|
 | REST 基址 | `https://open.shengzhiai.com` |
 | WebSocket 基址 | `wss://open.shengzhiai.com` |
-| 接口文档 | `https://open.shengzhiai.com/docs.html` |
+| 平台接口文档 | `https://open.shengzhiai.com/docs.html` |
 | SDK 下载与仓库 | 见 README.md 的安装一节 |
 
 全部接口只接受 HTTPS 与 WSS。单次 REST 请求在服务端最长处理 600 秒，其中评测排队最长 540 秒，入口读超时 660 秒。评测上传的请求体上限 50 MB，实时评测单轮音频上限 10 MB，单帧上限 128 KB。
 
 ## 2 鉴权
 
-两种方式任选其一，全部接口通用。
+两种方式任选其一，声通兼容整段评测 `POST /{coreType}` 只接受签名，其余接口两种方式通用。
 
 ### 2.1 Bearer Token
 
@@ -23,7 +23,7 @@
 
 ### 2.2 签名
 
-面向 API Key 接入方，服务端与 SDK 推荐用这一种。
+面向持有 appKey 与 secretKey 的接入方服务端，各端 SDK 联调阶段也可以使用。
 
 | 请求头 | 含义 |
 |---|---|
@@ -32,7 +32,7 @@
 | `X-Nonce` | 随机串，服务端 300 秒内去重防重放，建议每次都带 |
 | `X-Signature` | 签名值 |
 
-签名算法与服务端 `SignatureUtil.signHmacSha256` 一致：
+签名算法：
 
 1. 取本次请求的业务参数，不含请求头，不含文件二进制。
 2. 丢弃值为 null 或空字符串的项。
@@ -72,14 +72,14 @@ expected = A+6uVB/D7khxQEt8tzgCNjMUC1QtQQd1UF+NCYVYZqE=
 |---|---|---|
 | `audio` | 文件 | wav，mp3，m4a，webm，ogg 等常见格式，建议 16 kHz，16 位，单声道 |
 | `image` | 文件，可选 | 只在 coreType 为 open，taskType 为 picture 的看图说话时上传 |
-| `config` | 文本段，`Content-Type: application/json` | EvaluateConfigDTO，字段见下表。缺少 `application/json` 类型时服务端回 415 |
+| `config` | 文本段，`Content-Type: application/json` | 评测配置，字段见下表。缺少 `application/json` 类型时服务端回 415 |
 
 | 字段 | 类型 | 必填 | 取值与默认 |
 |---|---|---|---|
 | `coreType` | string | 是 | `word`，`sentence`，`passage`，`connected`，`open`，`alpha`，`pinyin` |
 | `referenceText` | string | 是 | 参考文本，open 时为题目，最长 1000 字 |
 | `language` | string | 否 | `en-US` 默认，`en-GB`，`zh-CN`。中文评测要显式传 `zh-CN` |
-| `includeReport` | bool | 否 | 返回字与音素级详报，默认 false |
+| `includeReport` | bool | 否 | 生成 AI 报告，`report` 另含整体点评 `summary` 与改进建议 `suggestions`，默认 false |
 | `includeStandardAudio` | bool | 否 | 返回标准示范音地址，默认 false |
 | `includeAsrText` | bool | 否 | 返回识别文本，默认 false |
 | `slack` | double | 否 | 松紧度，取值 -1 到 1，默认 0 |
@@ -142,7 +142,7 @@ voice 英文取 `female` 或 `male`，中文取 `xiaoyan` 女声或 `xiaofeng` �
 `wss://open.shengzhiai.com/api/v1/ws/evaluate`，握手 query 带鉴权参数。
 
 1. 服务端发 `{"event": "connected"}`。
-2. 客户端发开始帧 `{"cmd": "start", "coreType": "sentence", "referenceText": "今天天气很好", "language": "zh-CN", "idempotencyKey": "..."}`，开始帧接受 EvaluateConfigDTO 的全部字段。服务端回 `{"event": "started"}`。
+2. 客户端发开始帧 `{"cmd": "start", "coreType": "sentence", "referenceText": "今天天气很好", "language": "zh-CN", "idempotencyKey": "..."}`，开始帧接受原生整段评测 `config` 的全部字段。服务端回 `{"event": "started"}`。
 3. 客户端发音频：二进制帧，推荐 640 字节一帧即 16 kHz 16 位单声道 20 毫秒，或文本帧 `{"cmd": "audio", "data": "<base64>"}`。
 4. 客户端发 `{"cmd": "end"}`，服务端回 `{"event": "result", "recordId": ..., "eof": 1, "result": {...}, "report": {...}, "asrText": {...}, "warnings": [...]}`。同一幂等键的重放结果带 `"replayed": true`。
 
@@ -228,7 +228,7 @@ voice 英文取 `female` 或 `male`，中文取 `xiaoyan` 女声或 `xiaofeng` �
 
 SDK 只对带幂等键或天然幂等的请求重试。默认最多重试 2 次即一共 3 次尝试，第 n 次重试前等待 `min(4000, 200 × 2^(n-1))` 毫秒，再乘以 0.7 到 1.3 之间的随机系数。响应带 `Retry-After` 时等待时间取两者较大值，上限 30 秒。一次逻辑调用的总时长上限默认 300 秒，重试与等待都计入，到时即以最后一次的错误结束。
 
-可重试的情形：连接失败，连接被重置，连接或读取超时，HTTP 408，425，429，500，502，503，504，以及错误码表里标为可重试的错误码，例如 40901，42900，42901，50000，50200，3001 到 3003。参数错误，鉴权失败，权限不足，额度不足与其余 4xx 不重试。每次重试都通过事件回调与日志告知调用方。
+可重试的情形：连接失败，连接被重置，连接或读取超时，HTTP 408，425，429，500，502，503，504，以及错误码表里标为可重试的错误码，例如 40901，42900，42901，50000，50200，3001 到 3003。参数错误，鉴权失败，权限不足，额度不足与其余 4xx 不重试。每次重试都通过指标回调与日志告知调用方。
 
 ## 8 错误码与警告码
 
@@ -251,7 +251,7 @@ SDK 把错误归为 NETWORK，TIMEOUT，AUTH，PERMISSION，INVALID_PARAM，NOT_
 | 时长 | 不短于 1 秒，短于 1 秒服务端回 40001 |
 | 大小 | REST 上传不超过 50 MB，实时评测单轮不超过 10 MB |
 
-SDK 在上传前对 WAV 与 PCM 做预检，模式 OFF，WARN，REJECT，默认 WARN。检查项为时长短于 1 秒，时长超过 300 秒，整段上传大于 50 MB 或实时评测一轮大于 10 MB，全程静音，音量过低，非 16 位 PCM 或采样率低于 16000，错误码 90101 到 90105。REJECT 模式下前三项与格式问题在上传前即报错，不发请求，不计费。
+SDK 在上传前对 WAV 与 PCM 做预检，模式 OFF，WARN，REJECT，默认 WARN。检查项为时长短于 1 秒，时长超过 300 秒，整段上传大于 50 MB 或实时评测一轮大于 10 MB，全程静音，音量过低，非 16 位 PCM 或采样率低于 16000，错误码 90101 到 90105。REJECT 模式下 90101，90102，90103 与 90105 在上传前即报错，不发请求，不计费，90104 只警告。
 
 ## 10 声通平替层
 
@@ -263,7 +263,7 @@ SDK 在上传前对 WAV 与 PCM 做预检，模式 OFF，WARN，REJECT，默认 
  "result": {"overall": 85}}
 ```
 
-请求带 `attachAudioUrl=1` 时，兼容接口的返回体顶层另有 `audioUrl`，为本次录音的下载地址，形如 `https://open.shengzhiai.com/rec/<yyyyMMdd>/<文件名>`，保留 7 天，平替层把该地址原样放进回调 JSON。错误时回调 `{"tokenId": "...", "errId": 20009, "error": "...", "eof": 1, "applicationId": "..."}`。可重试的失败在重试用尽后统一给 errId 20009，其余服务端错误把平台错误码作为 errId，平替层本地错误为 60001 到 60009，见 `ERRORS.md`。接入方式见 `SHENGTONG-MIGRATION.md`。
+请求带 `attachAudioUrl=1` 时，兼容接口的返回体顶层另有 `audioUrl`，为本次录音的下载地址，形如 `https://open.shengzhiai.com/rec/<yyyyMMdd>/<文件名>`，保留 7 天，平替层把该地址原样放进回调 JSON。错误时回调 `{"tokenId": "...", "errId": 20009, "error": "...", "eof": 1, "applicationId": "..."}`。可重试的失败在重试用尽后统一给 errId 20009，其余服务端错误把平台错误码作为 errId，平替层本地错误为 60001 到 60009 与 90005，90011，见 `ERRORS.md`。接入方式见 `SHENGTONG-MIGRATION.md`。
 
 ## 11 沙箱
 

@@ -56,13 +56,13 @@ export default {
     architecture: { url: 'architecture/', tab: 'guides', group: '核心概念', title: 'SDK 架构', file: 'pages/architecture.md',
       description: 'SDK 的分层结构，各层职责与各端能力对照。' },
     'core-types': { url: 'core-types/', tab: 'guides', group: '核心概念', title: '评测模式', file: 'pages/core-types.md',
-      description: '原生与声通兼容两套 coreType，语种，参考文本与各模式的取分字段。' },
+      description: '原生与声通兼容两套 `coreType`，语种，参考文本与各模式的取分字段。' },
     evaluate: { url: 'guides/evaluate/', tab: 'guides', group: '评测能力', title: '整段评测', file: 'pages/evaluate.md',
       description: '录完一段音频后整段上传，一次请求拿到评测结果。' },
     streaming: { url: 'guides/streaming/', tab: 'guides', group: '评测能力', title: '实时评测', file: 'pages/streaming.md',
       description: '边录边传的 WebSocket 会话，状态机，心跳，断线重连与音频缓冲策略。' },
     'tts-report': { url: 'guides/tts-report/', tab: 'guides', group: '评测能力', title: '语音合成与报告', file: 'pages/tts-report.md',
-      description: '合成示范音，按 recordId 查询评测报告。' },
+      description: '合成示范音，按 `recordId` 查询评测报告。' },
     audio: { url: 'guides/audio/', tab: 'guides', group: '评测能力', title: '音频与录音', file: 'pages/audio.md',
       description: '音频格式要求，上传前预检，内置录音器与外部音频注入。' },
     'errors-guide': { url: 'guides/errors/', tab: 'guides', group: '生产环境', title: '错误处理', file: 'pages/errors.md',
@@ -108,7 +108,7 @@ export default {
     'api-tts': { url: 'api/tts/', tab: 'api', group: 'REST', title: '语音合成', layout: 'api', file: 'pages/api/tts.md',
       description: '文本合成为中文或英文语音，返回音频地址。' },
     'api-report': { url: 'api/report/', tab: 'api', group: 'REST', title: '报告查询', layout: 'api', file: 'pages/api/report.md',
-      description: '按 recordId 查询一次评测的报告。' },
+      description: '按 `recordId` 查询一次评测的报告。' },
     'api-ws-evaluate': { url: 'api/ws-evaluate/', tab: 'api', group: 'WebSocket', title: '原生实时评测', layout: 'api', file: 'pages/api/ws-evaluate.md',
       description: '一个 WebSocket 连接承载一轮或多轮评测，音频以二进制帧送入，结束后返回终评。' },
     'api-ws-compat': { url: 'api/ws-compat/', tab: 'api', group: 'WebSocket', title: '声通兼容实时评测', layout: 'api', file: 'pages/api/ws-compat.md',
@@ -123,11 +123,11 @@ export default {
       description: '格式，时长与大小上限，SDK 上传前的预检项。' },
     'api-results': { url: 'api/results/', tab: 'api', group: '数据结构', title: '评测结果字段', source: 'RESULTS.md' },
     'api-errors': { url: 'api/errors/', tab: 'api', group: '数据结构', title: '错误码', file: 'pages/api/errors.md',
-      description: '服务端错误码，音频质量警告码，SDK 本地错误码与声通平替层 errId。' },
+      description: '服务端错误码，音频质量警告码，SDK 本地错误码与声通平替层 `errId`。' },
     'api-compat-layer': { url: 'api/compat-layer/', tab: 'api', group: '数据结构', title: '平替层回调 JSON', file: 'pages/api/compat-layer.md',
       description: '安卓与 iOS 声通平替层在回调里给出的结果 JSON 与错误 JSON。' },
     'api-openapi': { url: 'api/openapi/', tab: 'api', group: '数据结构', title: 'OpenAPI 描述', file: 'pages/api/openapi.md',
-      description: '用 spec/openapi.yaml 为没有 SDK 的服务端语言生成客户端。' },
+      description: '用 `spec/openapi.yaml` 为没有 SDK 的服务端语言生成客户端。' },
 
     // 资源
     changelog: { url: 'changelog/', tab: 'resources', title: '变更记录', source: 'CHANGELOG.md' },
@@ -158,6 +158,19 @@ export default {
     'java/README.md', 'java/CHANGELOG.md', 'android/README.md', 'android/CHANGELOG.md', 'ios/README.md', 'ios/CHANGELOG.md',
     'web/README.md', 'web/CHANGELOG.md', 'miniprogram/README.md', 'miniprogram/CHANGELOG.md',
     'android-stcompat/README.md', 'android-stcompat/CHANGELOG.md', 'ios-stcompat/README.md', 'ios-stcompat/CHANGELOG.md'],
+
+  // Site-only wording for included contract text: numbered cross references become links to the pages
+  // that now hold those sections. CONTRACT.md itself keeps its numbering.
+  rewrites: [
+    { file: 'CONTRACT.md', from: '| SDK 下载与仓库 | 见 README.md 的安装一节 |', to: '| SDK 下载与仓库 | 见[安装](page:installation) |' },
+    { file: 'CONTRACT.md', from: '各评测模式的取分字段逐项列在 `spec/openapi.yaml` 与各端 README 的结果模型一节，报告结构化字段沿用 `1.x` 契约第 7 节，',
+      to: '各评测模式的取分字段见[评测结果字段](page:api-results)，报告结构化字段沿用 [`1.x` 契约](/sdk/CONTRACT.md)第 7 节，' },
+    { file: 'CONTRACT.md', from: '`result` 内的字段与 3.1 节一致', to: '`result` 内的字段与[原生整段评测](page:api-evaluate)一致' },
+    { file: 'CONTRACT.md', from: 'coreType 同 3.2 节。', to: 'coreType 取值同[声通兼容整段评测](page:api-evaluate-compat#路径参数)。' },
+    { file: 'CONTRACT.md', from: '规则同 5.1 节。', to: '规则同[原生实时评测](page:api-ws-evaluate)。' },
+    { file: 'CONTRACT.md', from: '内部走 3.2 节的兼容整段评测。', to: '内部调用[声通兼容整段评测](page:api-evaluate-compat)。' },
+    { file: 'CONTRACT.md', from: '见 `ERRORS.md`。接入方式见 `SHENGTONG-MIGRATION.md`。', to: '见[错误码](page:api-errors#声通平替层-errid)。接入方式见[从声通迁移](page:migrate-shengtong)。' },
+  ],
 
   // Repository folders that have no page on the site. Links into them keep their text and lose the link.
   unlinkPrefixes: ['demos/', 'tools/', 'ci/', 'java/', 'android/', 'android-stcompat/', 'ios/', 'ios-stcompat/', 'web/', 'miniprogram/', 'spec/fixtures/'],

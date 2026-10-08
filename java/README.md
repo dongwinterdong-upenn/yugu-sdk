@@ -62,7 +62,7 @@ dependencies {
 
 ## 五分钟快速开始
 
-按顺序执行，全程只用到本 README 的内容。需要 JDK 11 或更高版本与 Maven 3.6 或更高版本，一段 3 秒左右的 16 kHz，16 位，单声道 WAV 录音，以及开放平台签发的 appKey 与 secretKey，联调期间用沙箱密钥，申请方式见 [`SANDBOX.md`](../SANDBOX.md)。
+分三步执行。需要 JDK 11 或更高版本与 Maven 3.6 或更高版本，一段 3 秒左右的 16 kHz，16 位，单声道 WAV 录音，以及开放平台签发的 appKey 与 secretKey，联调期间用沙箱密钥，申请方式见 [`SANDBOX.md`](../SANDBOX.md)。
 
 1. 新建工程目录 `yugu-quickstart`，在其中新建 `pom.xml`：
 
@@ -127,7 +127,7 @@ public class QuickStart {
             EvalResult r = client.evaluate(Path.of("audio.wav"),
                     new EvaluateConfig(EvaluateConfig.CORE_SENTENCE, "今天天气很好", "zh-CN"));
             System.out.println("总分 " + r.getOverall());
-            System.out.println("准确度 " + r.getDims().getPronunciation());
+            System.out.println("发音 " + r.getDims().getPronunciation());
             System.out.println("流利度 " + r.getDims().getFluency());
             System.out.println("完整度 " + r.getDims().getIntegrity());
             r.getWords().forEach(w -> System.out.println(w.getWord() + " " + w.getScores().getOverall()));

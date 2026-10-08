@@ -53,10 +53,12 @@ function layers(spec) {
       const by = y + 10;
       parts.push(`<rect class="dg-box${m.accent ? ' dg-box-accent' : ''}" x="${x.toFixed(1)}" y="${by}" width="${colW.toFixed(1)}" height="${boxH}" rx="8"/>`);
       parts.push(t((x + 12).toFixed(1), by + 24, m.title, { cls: `dg-t dg-title${m.mono === false ? '' : ' dg-mono'}` }));
+      // Identifiers and paths in monospace, Chinese descriptions in the body face.
+      const itemMono = (it) => m.itemsMono !== false && !/[\u4e00-\u9fff]/.test(it);
       (m.items || []).forEach((it, k) => {
-        parts.push(t((x + 12).toFixed(1), by + 24 + LH + k * (LH - 2), it, { cls: `dg-t dg-item${m.itemsMono === false ? '' : ' dg-mono'}`, size: FS_SMALL }));
+        parts.push(t((x + 12).toFixed(1), by + 24 + LH + k * (LH - 2), it, { cls: `dg-t dg-item${itemMono(it) ? ' dg-mono' : ''}`, size: FS_SMALL }));
       });
-      const need = Math.max(textWidth(m.title, FS, m.mono !== false), ...(m.items || []).map((s) => textWidth(s, FS_SMALL, m.itemsMono !== false))) + 24;
+      const need = Math.max(textWidth(m.title, FS, m.mono !== false), ...(m.items || []).map((s) => textWidth(s, FS_SMALL, itemMono(s)))) + 24;
       if (need > colW) fail(spec.name, `"${m.title}" needs ${need}px, column is ${Math.round(colW)}px`);
       x += colW + GAP;
     });
@@ -162,18 +164,18 @@ const DIAGRAMS = {
       ] },
       { name: '可靠性', sub: 'SDK 内部', modules: [
         { title: '幂等键', mono: false, items: ['Idempotency-Key', '32 位十六进制'] },
-        { title: 'RetryPolicy', items: ['重试 2 次', '指数退避加抖动'] },
-        { title: 'ReconnectPolicy', items: ['连续重连 8 次', 'REPLAY DROP FAIL'] },
-        { title: '预检与错误分类', mono: false, items: ['90101 到 90105', '16 个类别'] },
+        { title: 'RetryPolicy', items: ['默认重试 2 次', '指数退避加抖动'] },
+        { title: 'ReconnectPolicy', items: ['最多连续重连 8 次', 'REPLAY DROP FAIL'] },
+        { title: '预检与错误分类', mono: false, items: ['90101 到 90105', '十六个类别'] },
       ] },
       { name: '传输', sub: 'SDK 内部', modules: [
-        { title: 'HTTPS', items: ['multipart/form-data, JSON', 'HMAC-SHA256 签名头'] },
+        { title: 'HTTPS', items: ['multipart/form-data 与 JSON', 'HMAC-SHA256 签名头'] },
         { title: 'WSS', items: ['二进制音频帧', '每 15 秒心跳'] },
       ] },
       { name: '开放平台', sub: '服务端', modules: [
         { title: 'REST', w: 1.45, items: ['POST /api/v1/evaluate', 'POST /{coreType}', 'POST /api/v1/tts/generate', 'GET /api/v1/report/{recordId}'] },
         { title: 'WebSocket', items: ['/api/v1/ws/evaluate', '/{coreType}'] },
-        { title: '幂等守卫', mono: false, itemsMono: false, items: ['同一个键只评测一次', '首次结果保存 24 小时'] },
+        { title: '幂等校验', mono: false, itemsMono: false, items: ['同一个键只评测一次', '首次结果保存 24 小时'] },
       ] },
     ],
   }),
@@ -201,20 +203,22 @@ const DIAGRAMS = {
 
   'ws-reconnect': () => sequence({
     name: 'ws-reconnect',
-    label: '实时评测断线后用同一个幂等键重连，整段重放',
+    label: '结束帧发出后断线，SDK 用同一个幂等键重连，整段重放，平台重放首次结果',
     participants: ['应用代码', 'SDK 实时会话', '开放平台'],
     messages: [
       { from: 1, to: 2, text: '二进制音频帧' },
-      { from: 1, to: 2, lost: true, mono: false, text: '连接断开' },
+      { from: 0, to: 1, text: 'end()' },
+      { from: 1, to: 2, text: '{"cmd":"end"}' },
+      { from: 2, to: 1, reply: true, lost: true, mono: false, text: '连接断开，终评未送达' },
       { from: 1, to: 0, reply: true, text: 'onStateChanged(RECONNECTING)' },
       { note: '退避等待 0.5，1，2，4 秒，最多连续 8 次', span: [1, 2] },
       { from: 1, to: 2, mono: false, text: '新握手，幂等键不变' },
       { from: 2, to: 1, reply: true, text: '{"event":"connected"}' },
       { from: 1, to: 2, mono: false, text: '开始帧，参数与幂等键不变' },
       { from: 2, to: 1, reply: true, text: '{"event":"started"}' },
-      { from: 1, to: 2, mono: false, text: '重放这一轮的全部音频与断线期间的音频' },
+      { from: 1, to: 2, mono: false, text: '重放这一轮的全部音频' },
       { from: 1, to: 2, text: '{"cmd":"end"}' },
-      { note: '首次评测已完成时平台重放首次结果，不重复评测，不重复计费', span: [1, 2], kind: 'accent' },
+      { note: '平台按幂等键重放首次结果，不重复评测，不重复计费', span: [1, 2], kind: 'accent' },
       { from: 2, to: 1, reply: true, text: '{"event":"result",…,"replayed":true}' },
       { from: 1, to: 0, reply: true, text: 'onResult(result)' },
     ],
@@ -275,7 +279,7 @@ const DIAGRAMS = {
       ];
     },
     text: [
-      'IDLE 到 CONNECTING：调用 streamEvaluate 后建立连接。',
+      'IDLE 到 CONNECTING：调用 streamEvaluate 后建立连接，iOS 为调用 start 后。',
       'CONNECTING 到 CONNECTED：平台发来 connected，SDK 随即发出开始帧。',
       'CONNECTED 到 STARTED：平台回 started，开始送音频。',
       'STARTED 到 ENDING：调用 end，结束帧已发出。',

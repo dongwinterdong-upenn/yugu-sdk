@@ -24,7 +24,7 @@ items:
   - { label: Gradle Kotlin, ref: 'java/README.md#安装', lang: kotlin, title: build.gradle.kts }
 ```
 
-运行时依赖只有 `jackson-databind` 2.17，从 Maven Central 获取，HTTP 与 WebSocket 使用 JDK 自带的 `java.net.http`。
+运行时依赖只有 `jackson-databind` `2.17`，从 Maven Central 获取，HTTP 与 WebSocket 使用 JDK 自带的 `java.net.http`。
 
 ### 安卓
 

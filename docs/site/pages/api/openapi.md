@@ -16,7 +16,7 @@ npx @openapitools/openapi-generator-cli generate \
   -g python -o yugu-client
 ```
 
-`-g` 换成 `go`，`php`，`csharp`，`rust` 等生成器名即可得到对应语言的客户端。生成的客户端不含签名逻辑，要在请求拦截器里补上 `X-App-Key`，`X-Timestamp`，`X-Nonce`，`X-Signature` 四个请求头，被签名参数与拼接规则见[签名与鉴权](page:api-auth)，各语言的签名函数见[签名示例](page:api-auth#签名示例)。
+`-g` 换成 `go`，`php`，`csharp`，`rust` 等生成器名即可得到对应语言的客户端。生成的客户端不含签名逻辑，要在请求拦截器里补上 `X-App-Key`，`X-Timestamp`，`X-Nonce`，`X-Signature` 四个请求头，被签名参数与拼接规则见[签名与鉴权](page:api-auth)，各语言的签名函数见[签名示例](page:api-auth#签名示例)。生成的客户端发送 `config` 段时若带文件名，被签名参数改为去掉 `config` 后的表单参数加上 config JSON 的顶层非空标量字段。
 
 ## 描述内容
 

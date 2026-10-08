@@ -19,7 +19,7 @@ title: NOTICE
 
 | 制品 | 运行时依赖 |
 |---|---|
-| Java SDK | `jackson-databind` 2.17，Apache-2.0 |
+| Java SDK | `jackson-databind` `2.17`，Apache-2.0 |
 | 安卓 SDK | OkHttp 与 Kotlin 标准库，Apache-2.0 |
 | 安卓声通平替 | 无第三方依赖 |
 | 网页 SDK，小程序 SDK | 无运行时依赖，Node.js 实时评测另需 `ws` 包，MIT |

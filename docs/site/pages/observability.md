@@ -9,7 +9,7 @@
 | `INFO` | 每次调用的状态码，耗时与尝试次数，会话状态变化 |
 | `DEBUG` | 每次请求的方法，路径，超时与脱敏后的请求头，WebSocket 握手地址 |
 
-日志不含 secretKey，签名，token 与音频数据，appKey 只保留前 4 个字符，地址里的 `signature` 与 `token` 参数显示为 `***`。默认输出位置：Java 为标准错误输出，安卓为 Logcat 标签 `YuguSDK`，网页与小程序为控制台。
+日志不含 secretKey，签名，token 与音频数据，appKey 只保留前 4 个字符，地址里的 `signature` 与 `token` 参数显示为 `***`。默认输出位置：Java 为标准错误输出，安卓为 Logcat 标签 `YuguSDK`，iOS 为 `ConsoleLogger`，网页与小程序为控制台。
 
 ## 接入自有日志
 
@@ -22,9 +22,9 @@ items:
   - { label: 小程序, ref: 'miniprogram/README.md#日志与指标', lang: js }
 ```
 
-## 事件回调
+## 指标回调
 
-`eventListener` 的方法全部可选，适合接入监控与指标系统：
+指标回调 `eventListener` 的方法全部可选，适合接入监控系统：
 
 | 方法 | 时机 |
 |---|---|

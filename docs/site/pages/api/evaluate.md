@@ -13,8 +13,10 @@ path: /api/v1/evaluate
     - { label: 网页, ref: 'web/README.md#五分钟快速开始', lang: js, lines: 9-15 }
     - { label: 小程序, ref: 'miniprogram/README.md#五分钟上手', lang: js, lines: 12-21 }
 - title: 返回示例
-  fixture: spec/fixtures/platform/native_evaluate_sentence_zh.json
-  label: 200，中文句子
+  fixture: docs/site/data/evaluate-example.json
+  label: 200，中文句子，沙箱实测，节选
+  omit: [report.dimensionTree, report.scoringContext]
+  limitArrays: 3
 - title: 错误示例
   fixture: spec/fixtures/platform/error_native_bad_signature.json
   pick: body
@@ -25,11 +27,11 @@ path: /api/v1/evaluate
 
 | 请求头 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `X-App-Key` | string | 是 | appKey，签名鉴权时必填 |
-| `X-Timestamp` | string | 是 | 当前 Unix 时间戳，单位为秒，与服务端相差不超过 300 秒 |
+| `X-App-Key` | string | 否 | appKey，签名鉴权时必填，token 鉴权时不带 |
+| `X-Timestamp` | string | 否 | 签名鉴权时必填，当前 Unix 时间戳，单位为秒，与服务端相差不超过 300 秒 |
 | `X-Nonce` | string | 否 | 随机串，服务端 300 秒内去重防重放，建议每次都带 |
-| `X-Signature` | string | 是 | 签名值，被签名参数为 `config` 段的 JSON 原文，规则见[签名与鉴权](page:api-auth) |
-| `Authorization` | string | 否 | `Bearer <jwt>`，token 鉴权时代替以上四个请求头 |
+| `X-Signature` | string | 否 | 签名鉴权时必填，被签名参数为 `config` 段的 JSON 原文，规则见[签名与鉴权](page:api-auth) |
+| `Authorization` | string | 否 | token 鉴权时必填，`Bearer <jwt>`，代替以上四个请求头 |
 | `Idempotency-Key` | string | 否 | 幂等键，1 到 200 个可见 ASCII 字符，也认 `X-Idempotency-Key` |
 
 ## 请求体
@@ -56,11 +58,11 @@ canonical: false
 | 状态 | 错误码 | 原因 |
 |---|---|---|
 | 200 | 无 | 评测完成，返回结果对象 |
-| 400 | 40001 | 参数校验失败，例如音频短于 1 秒，pinyin 题缺 `refPinyin` |
+| 400 | 40001，1004，1005，1012，1013，1310，2012 | 参数校验失败，例如音频短于 1 秒，pinyin 题缺 `refPinyin`。用户或账户被禁用，锁定，冻结，余额不足，API Key 配额超限同样回 400 |
 | 401 | 40100，2001 到 2011 | 未认证，签名错误，token 或 API Key 无效 |
 | 403 | 40300 | 无权限，例如 API Key 未授权该 coreType |
 | 409 | 40901，40902，40903 | 同一幂等键处理中，额度不足，幂等键用于不同请求 |
 | 415 | 无 | `config` 段缺少 `Content-Type: application/json` |
-| 429 | 42900，42901，42903，3001 到 3003 | 限流，并发超限，沙箱当日次数用尽，带 `Retry-After` |
+| 429 | 42900，42901，42902，42903，3001 到 3003 | 限流，并发超限，试用层 AI 报告或沙箱当日次数用尽，带 `Retry-After` |
 | 500 | 50000 | 服务器内部错误，可重试 |
 | 502 | 50200 | 上游评测服务暂不可用，可重试 |

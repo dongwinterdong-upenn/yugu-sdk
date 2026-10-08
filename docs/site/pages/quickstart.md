@@ -4,9 +4,9 @@
 |---|---|
 | 密钥 | 开放平台签发的 appKey 与 secretKey。联调期间用沙箱密钥，每把每天 200 次，不扣套餐与余额，申请方式见[沙箱环境](page:sandbox) |
 | 音频 | 一段 1 秒以上的 WAV 录音，16 kHz，16 位，单声道。可以直接用[示例音频](/sdk/v2/spec/fixtures/audio/zh_short.wav)，朗读的参考文本为 `今天天气很好` |
-| 运行环境 | Java 11，安卓 5.0，iOS 13，Chrome 73 与 Node.js 18，微信基础库 `2.20.1`，各端完整要求见[版本兼容](page:compatibility) |
+| 运行环境 | Java 11，安卓 5.0，iOS 13，Chrome 73，Node.js 20，微信基础库 `2.20.1`。Node.js 18 需要传入 `crypto` 选项，各端完整要求见[版本兼容](page:compatibility) |
 
-> 注意：secretKey 只放在服务端或可信环境。网页，小程序与移动端正式上线时改用 token 方式，JWT 由接入方服务端向开放平台取得后下发给客户端，做法见[鉴权](page:authentication)。
+> 注意：secretKey 只放在接入方服务端或可信环境。网页，小程序与移动端联调时可以用签名，例如小程序写 `auth: { appKey, secretKey }`，正式上线改用 token，做法见[鉴权](page:authentication)。
 
 ## 接入步骤
 
@@ -45,14 +45,15 @@
 |---|---|
 | `recordId` | 评测记录号，报告查询与问题排查使用 |
 | `result.overall` | 总分，百分制。连读题型的总分在 `result.connected_overall` |
-| `result.pronunciation`，`result.fluency`，`result.integrity` | 准确度，流利度，完整度 |
+| `result.pronunciation`，`result.fluency`，`result.integrity` | 发音，流利度，完整度 |
 | `result.tone`，`result.rear_tone` | 中文声调分与句末语调 |
 | `result.words` | 逐字或逐词分数，含拼音，音素与起止时间，时间单位 10 毫秒 |
 | `warnings` | 音频质量警告码，例如 1002 音量过低，评分照常返回 |
 
 ```fixture
-file: spec/fixtures/platform/native_evaluate_sentence_zh.json
-label: 返回示例，中文句子
+file: docs/site/data/evaluate-example.json
+label: 返回示例，中文句子，沙箱实测，节选
+omit: [report.dimensionTree, report.scoringContext]
 limitArrays: 2
 ```
 

@@ -38,4 +38,5 @@ ref: CONTRACT.md#5 实时评测#5.2 声通兼容实时评测
 | `{"event":"started"}` | 文本帧 | 是 | 参数帧已受理 |
 | `{"eof":0}` | 文本帧 | 否 | 进度帧，`result.bytes` 为已收字节数，`realtime_feedback` 为 true 时约每 0.5 秒一个，不含评分 |
 | `{"eof":1}` | 文本帧 | 是 | 终评，带 `recordId` 与 `result`，重放时带 `"replayed": true` |
+| `{"event":"error"}` | 文本帧 | 否 | 错误，带 `message`，原因是服务端业务错误时另带 `code` |
 | `{"event":"pong"}` | 文本帧 | 否 | 心跳回复 |

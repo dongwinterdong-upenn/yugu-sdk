@@ -21,7 +21,7 @@ items:
 
 ## 报告查询
 
-按 `recordId` 查询一次评测的报告，只能查询本账号的记录。返回的 `data.score` 为评测分数，`data.report` 为自然语言点评，改进建议与维度分。
+按 `recordId` 查询一次评测的报告，只能查询本账号的记录，记录不存在时回 HTTP 400，错误码 40001。返回的 `data.score` 为评测分数，`data.report` 为自然语言点评，改进建议与维度分。
 
 ```tabs
 items:
@@ -37,4 +37,4 @@ items:
 | `data.report.suggestions` | 改进建议，逐条给出 |
 | `data.report.dimensionScores` | 维度分，键随语种与题型不同，值为 null 表示本次不评该维 |
 
-报告查询天然幂等，SDK 照常重试。评测时设置 `includeReport` 可以在评测结果里直接拿到报告，不必再查一次。接口定义见[报告查询](page:api-report)。
+报告查询天然幂等，SDK 照常重试。评测时设置 `includeReport` 会生成 AI 报告，评测结果的 `report` 另含整体点评与改进建议。接口定义见[报告查询](page:api-report)。

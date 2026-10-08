@@ -38,11 +38,40 @@ function writeFile(p, data) {
 
 // ```include fences are replaced by the named section before rendering. lineOrigin[i] is the repository
 // file that line i came from, or null for the page's own text.
-function expandIncludes(text, repo, where) {
+// Site-only wording for included repository text, see `rewrites` in site.config.mjs. Contract headings drop
+// their section numbers on the site; the numbered text stays registered as an alias for old anchors.
+const rewriteUse = new Map();
+
+function siteWording(text, file, rewrites, aliases) {
+  let out = text;
+  for (const r of rewrites.filter((x) => x.file === file)) {
+    if (out.includes(r.from)) {
+      out = out.split(r.from).join(r.to);
+      rewriteUse.set(r, true);
+    }
+  }
+  if (file === 'CONTRACT.md') {
+    let fence = false;
+    out = out.split('\n').map((line) => {
+      if (/^```/.test(line)) fence = !fence;
+      if (fence) return line;
+      const m = line.match(/^(#{1,6}\s+)(\d+(?:\.\d+)*)\s+(.+)$/);
+      if (!m) return line;
+      aliases.push({ file, text: headingPlain(m[3]), original: headingPlain(`${m[2]} ${m[3]}`) });
+      return m[1] + m[3];
+    }).join('\n');
+  }
+  return out;
+}
+
+const headingPlain = (raw) => raw.replace(/`([^`]*)`/g, '$1').trim();
+
+function expandIncludes(text, repo, where, rewrites = []) {
   const lines = text.split('\n');
   const out = [];
   const origin = [];
   const sections = [];
+  const aliases = [];
   for (let i = 0; i < lines.length; i++) {
     const open = lines[i].match(/^```include\s*$/);
     if (!open) { out.push(lines[i]); origin.push(null); continue; }
@@ -53,7 +82,7 @@ function expandIncludes(text, repo, where) {
     let spec = yaml.load(body.join('\n'));
     if (typeof spec === 'string') spec = { ref: spec };
     const sec = sectionMarkdown(repo, spec.ref, { body: spec.body !== false, shift: spec.shift || 0, drop: spec.drop || [] });
-    let incLines = sec.text.replace(/\n$/, '').split('\n');
+    let incLines = siteWording(sec.text, sec.file, rewrites, aliases).replace(/\n$/, '').split('\n');
     // from and until cut a section body at a paragraph that starts with the given text.
     if (spec.from) {
       const k = incLines.findIndex((l) => l.startsWith(spec.from));
@@ -71,7 +100,7 @@ function expandIncludes(text, repo, where) {
     if (spec.body !== false && spec.canonical !== false && sec.heading) sections.push({ file: sec.file, text: sec.heading.text });
     i = j;
   }
-  return { text: out.join('\n') + '\n', origin, sections };
+  return { text: out.join('\n') + '\n', origin, sections, aliases };
 }
 
 // A page whose text is a whole repository document: the H1 becomes the page title, the first paragraph
@@ -141,7 +170,7 @@ async function main() {
     } else {
       const file = path.join(siteDir, page.file);
       const raw = fs.readFileSync(file, 'utf8');
-      composed = expandIncludes(raw, repo, page.file);
+      composed = expandIncludes(raw, repo, page.file, site.rewrites || []);
       const included = [...new Set(composed.origin.filter(Boolean))];
       page.files = [path.posix.join('docs/site', page.file), ...included];
     }
@@ -150,7 +179,11 @@ async function main() {
     md.parse(composed.text, env);
     for (const h of env.headings) {
       const from = h.line != null ? composed.origin[h.line] : null;
-      if (from) resolver.registerAnchor(from, h.text, page.id, h.id);
+      if (!from) continue;
+      resolver.registerAnchor(from, h.text, page.id, h.id);
+      for (const a of composed.aliases || []) {
+        if (a.file === from && a.text === h.text) resolver.registerAnchor(from, a.original, page.id, h.id);
+      }
     }
     for (const sec of composed.sections || []) resolver.registerAnchor(sec.file, sec.text, page.id, null);
     built.push({ page, composed });
@@ -186,7 +219,12 @@ async function main() {
   const copyLines = [];
   const rendered = [];
   for (const { page, composed } of built) {
+    // The lead keeps inline code; the meta description and llms.txt use the plain text.
     if (page.leadMd) page.leadHtml = md.renderInline(rebaseLinks(page.leadMd, page.source), { page, usedIds: new Map() });
+    else if (page.description) {
+      page.leadHtml = md.renderInline(page.description, { page, usedIds: new Map() });
+      page.description = leadToPlain(page.description);
+    }
     const env = { page, usedIds: new Map(), toc: [], aside: '' };
     const body = md.render(composed.text, env);
     const updated = gitDate(repo, page.files) || new Date().toISOString().slice(0, 10);
@@ -250,6 +288,8 @@ async function main() {
   const urls = rendered.map((r) => `  <url><loc>${esc(site.origin + resolver.hrefOf(r.page.id))}</loc><lastmod>${r.updated}</lastmod></url>`);
   writeFile(path.join(out, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`);
 
+  const unused = (site.rewrites || []).filter((r) => !rewriteUse.has(r));
+  if (unused.length) throw new Error(`rewrites no longer match their source: ${unused.map((r) => r.from).join(' | ')}`);
   if (resolver.broken.length) {
     for (const b of resolver.broken) console.error(`unresolved link ${b.href} on page ${b.page}`);
     throw new Error(`${resolver.broken.length} unresolved links`);

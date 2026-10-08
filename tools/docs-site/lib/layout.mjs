@@ -20,7 +20,7 @@ function topbar(site, page, hrefOf) {
     `<nav class="toptabs" aria-label="文档分区">${tabs}</nav>` +
     `<div class="topbar-actions">` +
     `<button class="search-open" type="button" aria-label="搜索文档" aria-keyshortcuts="/ Control+K Meta+K">${icon('search')}<span class="search-open-label">搜索</span><kbd>/</kbd></button>` +
-    `<a class="top-link" href="${site.links.platformDocs}">平台接口</a>` +
+    `<a class="top-link" href="${site.links.platformDocs}">平台接口文档</a>` +
     `<a class="btn btn-primary btn-sm" href="${site.links.console}">控制台</a>` +
     `<button class="icon-btn theme-toggle" type="button" aria-label="主题">${icon('contrast', 'i theme-system')}${icon('light_mode', 'i theme-light')}${icon('dark_mode', 'i theme-dark')}</button>` +
     `</div></div></header>`;

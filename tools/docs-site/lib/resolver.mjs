@@ -62,6 +62,9 @@ export function createResolver(site, pages) {
     return null;
   }
 
+  // A link whose text is a repository document name shows the page title on the site.
+  const titleFor = (name) => (site.fileHome[name] ? pages[site.fileHome[name]].title : null);
+
   const absoluteHref = (href) => {
     const r = resolveHref(href);
     return r && r.startsWith('/') ? site.origin + r : r;
@@ -69,7 +72,7 @@ export function createResolver(site, pages) {
 
   return {
     siteOrigin: site.origin,
-    hrefOf, resolveHref, codeLink, absoluteHref, repoTarget,
+    hrefOf, resolveHref, codeLink, absoluteHref, repoTarget, titleFor,
     registerAnchor(file, text, page, id) {
       const key = `${file}#${slugify(text)}`;
       if (!anchors.has(key)) anchors.set(key, { page, id });

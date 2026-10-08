@@ -11,7 +11,7 @@ path: /{coreType}
     - { label: iOS 平替, ref: 'ios-stcompat/README.md#生命周期示例', lang: swift }
 - title: 返回示例
   fixture: spec/fixtures/platform/compat_sent.eval.cn_attach_audio_url.json
-  label: 200，带 attachAudioUrl=1
+  label: 200，带 attachAudioUrl=1，节选
 - title: 错误示例
   fixture: spec/fixtures/platform/error_compat_pinyin_missing_refpinyin.json
   pick: body
@@ -31,14 +31,14 @@ path: /{coreType}
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `audio` | 文件 | 是 | 音频文件，建议 WAV，PCM 16 位，16 kHz，单声道 |
-| `refText` | string | 是 | 参考文本，中文题设置了 `refPinyin` 时可以为空 |
+| `refText` | string | 否 | 参考文本。英文题必填，中文题设置了 `refPinyin` 时可以为空 |
 | `language` | string | 否 | 语种，例如 `zh-CN`，`en-US` |
 | `refPinyin` | string | 否 | 拼音，pinyin 题必填，例如 `chong2 qing4` |
 | `agegroup` | string | 否 | 年龄段，`1` 学前，`2` 小学，`3` 中学及以上 |
 | `scale` | string | 否 | 分制，1 到 100 |
 | `precision` | string | 否 | 精度，大于 0 到 1 |
 | `slack` | string | 否 | 松紧度，-1 到 1 |
-| `paragraph_need_word_score` | string | 否 | 段落题是否返回逐词详情，`1` 或 `0` |
+| `paragraph_need_word_score` | string | 否 | 段落题是否返回逐字或逐词详情，`1` 或 `0` |
 | `phoneme_output` | string | 否 | 音素级输出，`1` 或 `0` |
 | `attachAudioUrl` | string | 否 | `1` 时返回体顶层带录音下载地址 `audioUrl`，保留 7 天 |
 | `dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron` | string | 否 | 词典与自定义发音，原样传给评测引擎，`dict_dialect` 取 `en_br` 或 `en_us` |

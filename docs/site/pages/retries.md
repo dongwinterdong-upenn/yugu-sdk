@@ -7,7 +7,7 @@
 
 ## 指定幂等键
 
-业务上同一份作业只计一次费时，用业务单号作为幂等键，例如作业号加题号。键为 1 到 200 个可见 ASCII 字符，不含空格，不合规时在发出请求前报错，错误码 90010。
+需要同一份作业只计费一次时，用业务单号作为幂等键，例如作业号加题号。键为 1 到 200 个可见 ASCII 字符，不含空格，不合规时在发出请求前报错，错误码 90010。
 
 ```tabs
 items:
@@ -66,8 +66,26 @@ now + delay 超过总时限时停止重试，抛出最后一次的错误
 ```tabs
 items:
   - { label: Java, ref: 'java/README.md#重试与幂等', lang: java, n: 2 }
-  - { label: iOS, ref: 'ios/README.md#重试与幂等#重试策略', lang: swift }
-  - { label: 小程序, ref: 'miniprogram/README.md#单次调用选项', lang: js }
+  - label: 安卓
+    lang: kotlin
+    code: |
+      val options = RequestOptions(totalTimeoutMs = 60_000, retryPolicy = RetryPolicy(maxRetries = 4))
+      val result = client.evaluate(config, audio, options)
+  - label: iOS
+    lang: swift
+    code: |
+      let options = RequestOptions(timeoutMs: 60_000, retry: RetryPolicy(maxRetries: 4))
+      let result = try await client.evaluate(audio: .file(wavURL), config: config, options: options)
+  - label: 网页
+    lang: js
+    code: |
+      const result = await client.evaluate(audio, config, { retry: { maxRetries: 4 }, totalTimeoutMs: 60000 });
+  - label: 小程序
+    lang: js
+    code: |
+      const result = await client.evaluate(params, { retry: { maxRetries: 4 }, totalTimeoutMs: 60000 });
 ```
+
+客户端级别的默认值在创建客户端时设置，例如 iOS 的 `YuguClientOptions.retry` 与 `totalTimeoutMs`，网页与小程序的 `retry` 与 `totalTimeoutMs` 选项，`retry: false` 关闭重试。
 
 关闭自动幂等键后，没有幂等键的写操作不重试，实时会话不重连，避免重复计费。报告查询是只读请求，照常重试。业务代码已有重试时改用 SDK 的策略，两层重试叠加会拉长总耗时。

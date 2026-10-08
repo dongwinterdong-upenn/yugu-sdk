@@ -117,7 +117,18 @@ export function createRenderer({ components, resolver }) {
       if (block.type !== 'inline' || !block.children) continue;
       let inLink = 0;
       const out = [];
-      for (const c of block.children) {
+      const kids = block.children;
+      for (let k = 0; k < kids.length; k++) {
+        const c = kids[k];
+        // [`SANDBOX.md`](../SANDBOX.md) reads as the page name on the site.
+        if (c.type === 'link_open' && kids[k + 1]?.type === 'code_inline' && kids[k + 2]?.type === 'link_close') {
+          const title = resolver.titleFor(kids[k + 1].content);
+          if (title) {
+            const t = new state.Token('text', '', 0);
+            t.content = title;
+            kids[k + 1] = t;
+          }
+        }
         if (c.type === 'link_open') inLink++;
         if (c.type === 'link_close') inLink--;
         if (c.type === 'code_inline' && !inLink) {

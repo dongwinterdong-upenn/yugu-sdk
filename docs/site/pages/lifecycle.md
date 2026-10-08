@@ -27,7 +27,7 @@ Java 客户端实现 `AutoCloseable`，可以用 try-with-resources 管理，SDK
 |---|---|
 | 客户端 | 网页与小程序 `isClosed()`，Java `getOpenSessionCount()` 返回尚未关闭的会话数 |
 | 实时会话 | `getState()` 或 `state`，`isActive()` 在终态之前为 true |
-| 录音器 | 网页与小程序的录音器状态为 `IDLE`，`RECORDING`，`PAUSED`，`STOPPED`，`RELEASED` |
+| 录音器 | 安卓，iOS，网页与小程序的录音器状态都是 `IDLE`，`RECORDING`，`PAUSED`，`STOPPED`，`RELEASED`，iOS 用 `recorder.state` 查询，其余用 `getState()` |
 
 ## 声通平替层
 

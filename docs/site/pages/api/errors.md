@@ -36,3 +36,5 @@ body: false
 ref: ERRORS.md#声通平替层 errId
 body: false
 ```
+
+> 说明：1004 与 1005 按出现位置解释。错误响应与错误帧里是用户禁用与用户锁定，评测结果的 `warning` 里是环境噪声与音频不完整。

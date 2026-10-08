@@ -218,6 +218,15 @@ export function createComponents({ repo, resolver }) {
       if (data === undefined) throw new SourceError(`fixture ${file} has no ${b.pick}`);
     }
     if (typeof data === 'string' && /^[[{]/.test(data.trim())) data = JSON.parse(data);
+    // Keys starting with an underscore are platform internals; examples never show them.
+    data = dropPrivate(data);
+    for (const pathStr of b.omit || []) {
+      const parts = pathStr.split('.');
+      let o = data;
+      for (const part of parts.slice(0, -1)) o = o?.[part];
+      if (!o || !(parts[parts.length - 1] in o)) throw new SourceError(`fixture ${file} has no ${pathStr} to omit`);
+      delete o[parts[parts.length - 1]];
+    }
     if (b.limitArrays) data = limitArrays(data, b.limitArrays);
     return JSON.stringify(data, null, 2);
   }
@@ -349,6 +358,12 @@ function dedent(code) {
   const indents = lines.filter((l) => l.trim()).map((l) => l.match(/^ */)[0].length);
   const cut = indents.length ? Math.min(...indents) : 0;
   return lines.map((l) => l.slice(cut)).join('\n');
+}
+
+function dropPrivate(v) {
+  if (Array.isArray(v)) return v.map(dropPrivate);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('_')).map(([k, x]) => [k, dropPrivate(x)]));
+  return v;
 }
 
 function limitArrays(v, n) {

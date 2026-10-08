@@ -17,7 +17,7 @@ items:
   - { label: Node.js, file: docs/site/snippets/ws-evaluate.mjs, lang: js, title: 直连协议 }
 ```
 
-`streamEvaluate` 立即返回会话对象，连接在后台建立，开始前送入的音频先排队，开始后按顺序发出。声通兼容实时评测用 `streamEvaluateCompat`，开启 `realtime_feedback` 后平台每收约 0.5 秒音频回一个进度帧，进度帧只有已收字节数，不含评分。
+Java，安卓，网页与小程序的 `streamEvaluate` 立即返回会话对象，在后台建立连接，iOS 在调用 `session.start()` 后建立连接。开始前送入的音频先排队，开始后按顺序发出。声通兼容实时评测用 `streamEvaluateCompat`，Java，安卓，iOS 与小程序设置 `realtimeFeedback`，网页在参数里传 `realtime_feedback: true`，平台每收约 0.5 秒音频回一个进度帧，进度帧只有已收字节数，不含评分。
 
 ## 音频帧
 
@@ -29,7 +29,7 @@ items:
 | 单帧上限 | 128 KB，超出时平台以关闭码 1009 断开 |
 | 一轮上限 | 10 MB |
 
-录音器直接产出这种格式，安卓 `recorder.start(session)`，网页 `recorder.start({ session })`，小程序 `recorder.pipeTo(session)` 把录音逐帧送进会话。
+录音器直接产出这种格式，安卓 `recorder.start(session)`，网页 `recorder.start({ session })`，小程序 `recorder.pipeTo(session)` 把录音逐帧送进会话，iOS 在 `YuguRecorder` 的 `onFrame` 回调里调用 `session.sendAudio(frame)`。
 
 ## 会话状态
 
@@ -61,13 +61,16 @@ items:
 ```diagram ws-reconnect
 ```
 
-| 项 | 默认 |
+| 项 | 规则 |
 |---|---|
 | 触发条件 | 连接意外断开，心跳超时，连接超时，终评超时，可重试的错误帧 |
 | 不重连的情形 | 关闭码 1002，1003，1007 到 1010 与 4000 到 4999，会话以 90005 结束 |
-| 连续重连 | 8 次，等待依次约为 0.5，1，2，4，4，4，4，4 秒，抖动正负 30% |
+| 连续重连 | 最多 8 次，等待依次约为 0.5，1，2，4，4，4，4，4 秒，抖动正负 30% |
 | 一个会话累计 | 24 次 |
 | 用尽之后 | 会话以错误结束，错误码 90006 |
+| 结束帧之前断线 | 平台没有开始评测，新会话上评测一次，只计费一次 |
+| 结束帧之后断线 | 平台按幂等键重放首次结果，首次仍在评测时最多等 30 秒，结果带重放标记 |
+| 失败的情形 | `REPLAY` 缓冲超过 10 MB 时报 90008，`DROP` 策略在结束帧发出后断线即失败，平台以 1000 关闭却没有终评时报 90005 |
 
 音频缓冲策略：
 
@@ -83,5 +86,7 @@ items:
 |---|---|---|
 | Java，安卓，iOS | WebSocket 协议层 ping，每 15 秒一次 | 30 秒收不到 pong |
 | 网页，小程序 | 应用层 `{"cmd":"ping"}`，每 15 秒一次，平台回 `{"event":"pong"}` | 30 秒收不到任何回复 |
+
+网页与小程序的 `heartbeat` 默认取 `auto`：原生会话进入 STARTED 后先发一次探测 ping，平台回 pong 后才按 15 秒发送，同一客户端的声通兼容会话在收到过 pong 之后才发 ping。`heartbeat: true` 强制开启，`false` 关闭。
 
 发出结束帧之后改由终评等待时长判断，默认 300 秒，超时触发重连。协议层细节见[心跳与断线重连](page:api-ws-reconnect)，帧格式见[原生实时评测](page:api-ws-evaluate)。

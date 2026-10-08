@@ -55,9 +55,7 @@ import { YuguClient, YuguRecorder } from '@shengzhiai/yugu-web-sdk';
 
 ## 五分钟快速开始
 
-按顺序执行，全程只用到本 README 的内容。
-
-1. 准备环境：Node.js 20 或更高版本，一段 3 秒左右的 16 kHz 单声道 WAV 录音，沙箱环境的 appKey 与 secretKey。沙箱密钥的申请方式与每日额度见 [`SANDBOX.md`](../SANDBOX.md)，Node.js 18 的做法见 Node.js 用法一节。
+1. 准备环境：Node.js 20 或更高版本，一段 3 秒左右的 16 kHz 单声道 WAV 录音，沙箱环境的 appKey 与 secretKey。沙箱密钥的申请方式与每日额度见 [`SANDBOX.md`](../SANDBOX.md)，Node.js 18 的做法见 [Node.js 用法](README.md#nodejs-用法)。
 
 2. 新建工程，安装 SDK：
 

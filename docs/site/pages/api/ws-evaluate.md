@@ -19,12 +19,12 @@ path: /api/v1/ws/evaluate
 
 | query 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `appKey` | string | 是 | appKey，签名鉴权时必填 |
-| `timestamp` | string | 是 | 当前 Unix 时间戳，单位为秒 |
+| `appKey` | string | 否 | appKey，签名鉴权时必填，token 鉴权时不带 |
+| `timestamp` | string | 否 | 签名鉴权时必填，当前 Unix 时间戳，单位为秒 |
 | `nonce` | string | 否 | 随机串，防重放 |
-| `signature` | string | 是 | 签名值，被签名参数为 `signature` 之外的全部 query 参数 |
+| `signature` | string | 否 | 签名鉴权时必填，被签名参数为 `signature` 之外的全部 query 参数 |
 | `idempotencyKey` | string | 否 | 幂等键，开始帧没带时取这里的值 |
-| `token` | string | 否 | token 鉴权时代替以上签名参数 |
+| `token` | string | 否 | token 鉴权时必填，代替以上签名参数 |
 
 ## 会话流程
 

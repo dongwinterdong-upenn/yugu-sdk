@@ -82,4 +82,4 @@ SDK 结果模型的总分访问器在 connected 模式下取 `connected_overall`
 
 ## 报告与识别文本
 
-`report` 为自然语言报告与结构化维度。`report.dimensionScores` 的键随语种与题型不同：中文朗读有 accuracy，fluency，integrity，affect，speechRate，英文朗读没有 affect，另有 reading_skill 与 readSpeedRaw，开放题为空对象。值为整数或 null，null 表示本次不评该维，读取时每个键都按可能缺失处理。`asrText.text` 为识别文本，`asrText.alignment` 逐字给出 `char`，`read_status`，`start_time`，`end_time`，`asr_pinyin`，`gop_score`。字段的完整说明见 `CONTRACT.md` 第 3 节。
+`report` 为自然语言报告与结构化维度。`report.dimensionScores` 的键随语种与题型不同：中文朗读有 accuracy，fluency，integrity，reading_skill，affect，speechRate，readSpeedRaw，英文朗读没有 affect，开放题为空对象。值为整数或 null，null 表示本次不评该维，读取时每个键都按可能缺失处理。`asrText.text` 为识别文本，`asrText.alignment` 逐字给出 `char`，`read_status`，`start_time`，`end_time`，`asr_pinyin`，`gop_score`。字段的完整说明见 `CONTRACT.md` 第 3 节。
