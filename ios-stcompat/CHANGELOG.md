@@ -23,4 +23,4 @@ STKouyuEngine 声通 iOS 平替包的版本记录。版本号遵循语义化版�
 
 1. 只有云端评测，离线引擎与双引擎参数照收，不生效。
 2. 不返回实时中间评分，不带 MP3 编码器。
-3. Objective-C 层尚未在 macOS 构建机上编译与运行，验证情况见 README 的验证状态一节。
+3. 录音，回放，系统打断与音频路由切换尚未在真机验证。Objective-C 层已在 macOS 构建机上用 Xcode 15.4 编译，XCTest 在 macOS 与 iOS 模拟器上通过，验证情况见 README 的验证状态一节。
