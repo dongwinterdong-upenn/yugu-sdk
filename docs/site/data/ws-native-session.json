@@ -1,0 +1,523 @@
+{
+ "title": "原生实时评测帧序列",
+ "recorded": "2026-10-08",
+ "closeCode": 1000,
+ "frames": [
+  {
+   "at": 0,
+   "dir": "out",
+   "handshake": true,
+   "frame": {
+    "path": "/api/v1/ws/evaluate",
+    "query": [
+     "appKey",
+     "nonce",
+     "timestamp",
+     "idempotencyKey",
+     "signature"
+    ]
+   }
+  },
+  {
+   "at": 5,
+   "dir": "in",
+   "frame": {
+    "event": "connected",
+    "message": "stream channel ready"
+   }
+  },
+  {
+   "at": 5,
+   "dir": "out",
+   "frame": {
+    "cmd": "start",
+    "coreType": "sentence",
+    "referenceText": "今天天气很好",
+    "language": "zh-CN",
+    "idempotencyKey": "a0cc81cd…"
+   }
+  },
+  {
+   "at": 449,
+   "dir": "in",
+   "frame": {
+    "event": "started"
+   }
+  },
+  {
+   "at": 449,
+   "dir": "out",
+   "frame": {
+    "cmd": "ping"
+   }
+  },
+  {
+   "at": 449,
+   "dir": "out",
+   "binary": "二进制帧 96 个，每个 640 字节，共 61440 字节",
+   "until": 2481
+  },
+  {
+   "at": 892,
+   "dir": "in",
+   "frame": {
+    "event": "pong",
+    "ts": 1791483752768
+   }
+  },
+  {
+   "at": 2481,
+   "dir": "out",
+   "frame": {
+    "cmd": "end"
+   }
+  },
+  {
+   "at": 6245,
+   "dir": "in",
+   "frame": {
+    "event": "result",
+    "recordId": "eval_065b2c271342",
+    "eof": 1,
+    "result": {
+     "overall": 88.9,
+     "pronunciation": 100,
+     "fluency": 96,
+     "integrity": 100,
+     "tone": 83,
+     "rhythm": 78,
+     "speed": 225,
+     "duration": "1.920",
+     "warning": [],
+     "words": [
+      {
+       "word": "今",
+       "scores": {
+        "overall": 78
+       }
+      },
+      {
+       "word": "天",
+       "scores": {
+        "overall": 95
+       }
+      },
+      {
+       "word": "天",
+       "scores": {
+        "overall": 85
+       }
+      },
+      {
+       "word": "气",
+       "scores": {
+        "overall": 76
+       }
+      },
+      {
+       "word": "很",
+       "scores": {
+        "overall": 94
+       }
+      },
+      {
+       "word": "好",
+       "scores": {
+        "overall": 73
+       }
+      }
+     ]
+    },
+    "report": {
+     "summary": "# 朗读评测报告\n\n**综合总分**：88.9 / 100\n\n## 各维度\n- **完整度**：100.0\n- **准确度**：100.0\n- **流利度**：96.0\n- **朗读技巧**：78.0\n- **声调**：83.0\n- **情感**：76.0\n\n## 诊断与建议\n- 朗读完整度很高，基本完成了全部内容。",
+     "dimensions": {
+      "integrity": "完整度 100 分。",
+      "accuracy": "准确度 100 分,可结合逐字详情定位失分点。声调：整句调型判定 100 分；其中“很”（字级调型 1 分）的调型与标准读音有偏差，需对照标准音重点纠正，其余字词调型整体稳定。",
+      "fluency": "流利度 96 分,语速 225。",
+      "reading_skill": "朗读技巧 78 分(停连/重音/语调)。",
+      "emotion": "情感表达 76 分。"
+     },
+     "suggestions": [
+      "重音变化不够明显，关键词应当适度强调（音高提升 / 时长延长 / 加强气流）。",
+      "第三声（上声）调值偏低。练习时走 214 曲线，先降再升。推荐练习『你好/美好/小狗』等词。"
+     ],
+     "dimensionSuggestions": {
+      "integrity": [],
+      "accuracy": [],
+      "fluency": [],
+      "reading_skill": [
+       "重音变化不够明显，关键词应当适度强调（音高提升 / 时长延长 / 加强气流）。",
+       "先标出停连位置、句子重音和语调走向，再按标记朗读并回听节奏是否清楚。"
+      ],
+      "emotion": [
+       "第三声（上声）调值偏低。练习时走 214 曲线，先降再升。推荐练习『你好/美好/小狗』等词。",
+       "先判断语句的情绪基调，选定符合语义的表达方式朗读；录音回听情感是否与内容一致。"
+      ]
+     },
+     "rubricVersion": "v20260707b",
+     "scores": {
+      "compositeScore": 88.9
+     },
+     "dimensionScores": {
+      "accuracy": 100,
+      "fluency": 96,
+      "integrity": 100,
+      "reading_skill": 78,
+      "affect": 76,
+      "speechRate": 85,
+      "readSpeedRaw": 225
+     },
+     "dimensionEvidence": {
+      "accuracy": [
+       {
+        "word": "很",
+        "type": "pitchLow",
+        "detail": "声调 1 分（低于 60）"
+       }
+      ],
+      "fluency": [],
+      "integrity": [],
+      "affect": [],
+      "speechRate": []
+     },
+     "scoringContext": {
+      "agegroup": 4,
+      "weightProfile": "grade_advanced",
+      "weightPolicyVersion": "age-weight-v3-20260927"
+     },
+     "dimensionTree": {
+      "rubricVersion": "v20260707b",
+      "contractMode": "t2_derived",
+      "curriculumFramework": "cn_curriculum_2022_correct_fluent_expressive",
+      "agegroup": 4,
+      "weightProfile": "grade_advanced",
+      "weightPolicyVersion": "age-weight-v3-20260927",
+      "weights": {
+       "integrity": 0.1,
+       "accuracy": 0.25,
+       "fluency": 0.2,
+       "reading_skill": 0.25,
+       "affect": 0.2
+      },
+      "overall": 88.9,
+      "dims": {
+       "integrity": {
+        "curriculumAxis": "correct",
+        "label": "完整度",
+        "score": 100,
+        "scored": true,
+        "weightedContribution": 10,
+        "engineScore": 100,
+        "subs": [
+         {
+          "key": "completeness",
+          "label": "完整度",
+          "score": 100,
+          "weight": 1,
+          "scored": true
+         }
+        ]
+       },
+       "accuracy": {
+        "curriculumAxis": "correct",
+        "label": "准确度",
+        "score": 100,
+        "scored": true,
+        "weightedContribution": 25,
+        "engineScore": 100,
+        "subs": [
+         {
+          "key": "pronunciation",
+          "label": "发音",
+          "score": 100,
+          "weight": 1,
+          "scored": true
+         },
+         {
+          "key": "phoneme",
+          "label": "音素",
+          "score": 100,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         },
+         {
+          "key": "initial",
+          "label": "声母",
+          "score": 83.5,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         },
+         {
+          "key": "final",
+          "label": "韵母",
+          "score": 83.5,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         },
+         {
+          "key": "retroflex",
+          "label": "平翘舌",
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true,
+          "notAssessedReason": "source_metric_unavailable"
+         },
+         {
+          "key": "nasalFinal",
+          "label": "前后鼻音",
+          "score": 98,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         },
+         {
+          "key": "pitchPattern",
+          "label": "声调/调型",
+          "score": 100,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         }
+        ]
+       },
+       "fluency": {
+        "curriculumAxis": "fluent",
+        "label": "流利度",
+        "score": 96,
+        "scored": true,
+        "weightedContribution": 19.2,
+        "engineScore": 96,
+        "subs": [
+         {
+          "key": "flow",
+          "label": "流畅度",
+          "score": 96,
+          "weight": 1,
+          "scored": true
+         },
+         {
+          "key": "speechRate",
+          "label": "语速",
+          "score": 85,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         },
+         {
+          "key": "naturalness",
+          "label": "自然度",
+          "score": 100,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         },
+         {
+          "key": "readSpeedRaw",
+          "label": "实测语速",
+          "score": 225,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         }
+        ]
+       },
+       "reading_skill": {
+        "curriculumAxis": "expressive",
+        "label": "朗读技巧",
+        "score": 78,
+        "scored": true,
+        "weightedContribution": 19.5,
+        "engineScore": 78,
+        "subs": [
+         {
+          "key": "skill",
+          "label": "朗读技巧",
+          "score": 78,
+          "weight": 1,
+          "scored": true
+         },
+         {
+          "key": "pause",
+          "label": "停连",
+          "score": 85,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         },
+         {
+          "key": "stress",
+          "label": "重音",
+          "score": 32,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         },
+         {
+          "key": "intonation",
+          "label": "语气",
+          "score": 100,
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true
+         },
+         {
+          "key": "rhythm",
+          "label": "节奏",
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true,
+          "notAssessedReason": "source_metric_unavailable"
+         },
+         {
+          "key": "innerSpeech",
+          "label": "内在语",
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true,
+          "referenceOnly": true,
+          "source": "report.skillInsights",
+          "notScoredReason": "reference_observation_only",
+          "notAssessedReason": "skill_insight_unavailable"
+         },
+         {
+          "key": "sceneRecreation",
+          "label": "情景再现",
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true,
+          "referenceOnly": true,
+          "source": "report.skillInsights",
+          "notScoredReason": "reference_observation_only",
+          "notAssessedReason": "skill_insight_unavailable"
+         },
+         {
+          "key": "audienceAwareness",
+          "label": "对象感",
+          "weight": 0,
+          "scored": false,
+          "diagnostic": true,
+          "referenceOnly": true,
+          "source": "report.skillInsights",
+          "notScoredReason": "reference_observation_only",
+          "notAssessedReason": "skill_insight_unavailable"
+         }
+        ]
+       },
+       "affect": {
+        "curriculumAxis": "expressive",
+        "label": "情感表达",
+        "score": 76,
+        "scored": true,
+        "weightedContribution": 15.2,
+        "engineScore": 76,
+        "subs": [
+         {
+          "key": "expressiveness",
+          "label": "情感表达",
+          "score": 76,
+          "weight": 1,
+          "scored": true
+         }
+        ]
+       }
+      },
+      "contractStatus": "verified"
+     }
+    },
+    "asrText": {
+     "text": "今 天 天 气 很 好",
+     "alignment": [
+      {
+       "char": "今",
+       "index": 0,
+       "read_status": "correct",
+       "start_time": 18,
+       "end_time": 22,
+       "asr_pinyin": "jin1",
+       "asr_tone": 1,
+       "asr_initial": "j",
+       "asr_final": "in",
+       "gop_score": 100,
+       "tone_pred": 1,
+       "p_neutral": 0.007
+      },
+      {
+       "char": "天",
+       "index": 1,
+       "read_status": "correct",
+       "start_time": 36,
+       "end_time": 44,
+       "asr_pinyin": "tian1",
+       "asr_tone": 1,
+       "asr_initial": "t",
+       "asr_final": "ian",
+       "gop_score": 100,
+       "tone_pred": 1,
+       "p_neutral": 0.001
+      },
+      {
+       "char": "天",
+       "index": 2,
+       "read_status": "correct",
+       "start_time": 58,
+       "end_time": 64,
+       "asr_pinyin": "tian1",
+       "asr_tone": 1,
+       "asr_initial": "t",
+       "asr_final": "ian",
+       "gop_score": 100,
+       "tone_pred": 1,
+       "p_neutral": 0
+      },
+      {
+       "char": "气",
+       "index": 3,
+       "read_status": "correct",
+       "start_time": 78,
+       "end_time": 84,
+       "asr_pinyin": "qi4",
+       "asr_tone": 4,
+       "asr_initial": "q",
+       "asr_final": "i",
+       "gop_score": 100,
+       "tone_pred": 4,
+       "p_neutral": 0.004
+      },
+      {
+       "char": "很",
+       "index": 4,
+       "read_status": "correct",
+       "start_time": 94,
+       "end_time": 102,
+       "asr_pinyin": "hen3",
+       "asr_tone": 3,
+       "asr_initial": "h",
+       "asr_final": "en",
+       "gop_score": 100,
+       "tone_pred": 2,
+       "p_neutral": 0.003
+      },
+      {
+       "char": "好",
+       "index": 5,
+       "read_status": "correct",
+       "start_time": 124,
+       "end_time": 130,
+       "asr_pinyin": "hao3",
+       "asr_tone": 3,
+       "asr_initial": "h",
+       "asr_final": "ao",
+       "gop_score": 100,
+       "tone_pred": 3,
+       "p_neutral": 0.081
+      }
+     ]
+    },
+    "warnings": []
+   }
+  }
+ ]
+}

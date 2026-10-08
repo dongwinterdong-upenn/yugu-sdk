@@ -56,20 +56,27 @@ for step in "${STEPS[@]}"; do
     docs)
       (
         cd "$ROOT"
+        echo "== documentation site builds, every internal link and anchor resolves"
+        if ! (cd tools/docs-site && npm ci --no-audit --no-fund --silent) || \
+           ! node tools/docs-site/build.mjs --repo . --out "$CI_OUT/docs-site"; then
+          echo "documentation site build failed"
+          exit 1
+        fi
         LINT=${WRITING_LINT:-/home/ubuntu/开题/J1/系统/app/tools/writing_lint.py}
         if [ -f "$LINT" ]; then
           fails=0
           while IFS= read -r f; do
             echo "== $f"
             python3 "$LINT" --external "$f" || fails=$((fails+1))
-          done < <(find . -name 'README.md' -o -name 'CHANGELOG.md' -o -name 'CONTRACT.md' -o -name 'SANDBOX.md' \
-                     -o -name 'COMPATIBILITY.md' -o -name 'MIGRATION-2.0.md' -o -name 'SHENGTONG-MIGRATION.md' -o -name 'RESULTS.md' -o -name 'ERRORS.md' \
+          done < <( (find . -name 'README.md' -o -name 'CHANGELOG.md' -o -name 'CONTRACT.md' -o -name 'SANDBOX.md' \
+                     -o -name 'COMPATIBILITY.md' -o -name 'MIGRATION-2.0.md' -o -name 'SHENGTONG-MIGRATION.md' -o -name 'RESULTS.md' -o -name 'ERRORS.md'; \
+                     find docs/site/pages -name '*.md') \
                      | grep -v node_modules | grep -v '/build/' | grep -v '/\.build/' | sort)
           echo "files with lint findings: $fails"
           echo "COVERAGE -"
           [ "$fails" -eq 0 ]
         else
-          echo "writing lint not available on this runner, step informational"
+          echo "writing lint not available on this runner, lint step informational"
           echo "COVERAGE -"
         fi
       ) > "$log" 2>&1 || status=failed

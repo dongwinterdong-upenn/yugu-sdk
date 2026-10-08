@@ -4,7 +4,8 @@
 #   tools/registry/release.sh <commit-or-tag> [--dry-run]
 #
 # Order: Maven (Java, Android core, Android drop-in), npm (web, mini program), SwiftPM git repositories
-# (iOS, iOS drop-in), rendered documentation. Released versions are immutable: every publish step refuses
+# (iOS, iOS drop-in), documentation site built by tools/docs-site. The site is built before anything is
+# published, so a broken link stops the release. Released versions are immutable: every publish step refuses
 # to overwrite an existing version with different content.
 set -euo pipefail
 REV=${1:?commit or tag}
@@ -43,6 +44,10 @@ echo "== web"
 echo "== mini program"
 (cd miniprogram && npm ci --no-audit --no-fund --silent && npm run build --silent && npm pack --silent --pack-destination "$STAGE/npm")
 
+echo "== documentation site"
+(cd tools/docs-site && npm ci --no-audit --no-fund --silent)
+node tools/docs-site/build.mjs --repo . --out "$WORK/docs-site"
+
 echo "== staged files"
 find "$STAGE" -type f | sed "s#$STAGE/##" | sort | head -80
 
@@ -64,5 +69,5 @@ echo "== publish SwiftPM repositories $VERSION"
 bash tools/registry/git_publish.sh ios yugu-ios-sdk "$VERSION" "$WEB/git"
 bash tools/registry/git_publish.sh ios-stcompat stkouyu-ios-compat "$VERSION" "$WEB/git"
 echo "== publish documentation"
-"${DOCS_PYTHON:-python3}" tools/registry/publish_docs.py --repo . --out "$WEB/sdk/v2"   # needs the markdown package, DOCS_PYTHON points at a venv that has it
+rsync -a --delete "$WORK/docs-site/" "$WEB/sdk/v2/"
 echo "== done"

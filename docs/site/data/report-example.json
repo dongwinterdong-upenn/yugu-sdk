@@ -1,0 +1,39 @@
+{
+ "code": 0,
+ "message": "success",
+ "data": {
+  "recordId": "eval_a31712f40cbf",
+  "score": {
+   "overall": 88.9,
+   "pronunciation": 100,
+   "fluency": 96,
+   "integrity": 100,
+   "tone": 83,
+   "rhythm": 78,
+   "speed": 225,
+   "rear_tone": "fall",
+   "duration": "1.920",
+   "warning": []
+  },
+  "report": {
+   "summary": "朗读整体表现优秀，语音清晰流畅，情感自然贴合文本。",
+   "suggestions": [
+    "读到『很』时注意第三声的降升调型。",
+    "在『今天』后稍作停顿以增强节奏感。",
+    "强调『很好』时加重语气突出情感。",
+    "用更明亮的语调传递天气好的愉悦感。"
+   ],
+   "dimensionScores": {
+    "accuracy": 100,
+    "fluency": 96,
+    "integrity": 100,
+    "reading_skill": 78,
+    "affect": 76,
+    "speechRate": 85,
+    "readSpeedRaw": 225
+   },
+   "rubricVersion": "v20260707b"
+  }
+ },
+ "timestamp": 1791484346331
+}

@@ -1,0 +1,162 @@
+{
+ "title": "兼容实时评测帧序列",
+ "recorded": "2026-10-08",
+ "closeCode": 1000,
+ "frames": [
+  {
+   "at": 0,
+   "dir": "out",
+   "handshake": true,
+   "frame": {
+    "path": "/sent.eval.cn",
+    "query": [
+     "appKey",
+     "nonce",
+     "timestamp",
+     "signature"
+    ]
+   }
+  },
+  {
+   "at": 27,
+   "dir": "in",
+   "frame": {
+    "event": "connected",
+    "coreType": "sent.eval.cn"
+   }
+  },
+  {
+   "at": 27,
+   "dir": "out",
+   "frame": {
+    "refText": "今天天气很好",
+    "language": "zh-CN",
+    "realtime_feedback": true,
+    "idempotencyKey": "49db5f38…"
+   }
+  },
+  {
+   "at": 477,
+   "dir": "in",
+   "frame": {
+    "event": "started",
+    "coreType": "sent.eval.cn"
+   }
+  },
+  {
+   "at": 477,
+   "dir": "out",
+   "frame": {
+    "cmd": "ping"
+   }
+  },
+  {
+   "at": 477,
+   "dir": "out",
+   "binary": "二进制帧 96 个，每个 640 字节，共 61440 字节",
+   "until": 2509
+  },
+  {
+   "at": 915,
+   "dir": "in",
+   "frame": {
+    "event": "pong",
+    "ts": 1791483761096
+   }
+  },
+  {
+   "at": 1429,
+   "dir": "in",
+   "frame": {
+    "eof": 0,
+    "result": {
+     "bytes": 16000
+    }
+   }
+  },
+  {
+   "at": 1933,
+   "dir": "in",
+   "frame": {
+    "eof": 0,
+    "result": {
+     "bytes": 32000
+    }
+   }
+  },
+  {
+   "at": 2472,
+   "dir": "in",
+   "frame": {
+    "eof": 0,
+    "result": {
+     "bytes": 48000
+    }
+   }
+  },
+  {
+   "at": 2509,
+   "dir": "out",
+   "frame": {
+    "cmd": "end"
+   }
+  },
+  {
+   "at": 6268,
+   "dir": "in",
+   "frame": {
+    "recordId": "eval_a07810a40779",
+    "result": {
+     "overall": 94.6,
+     "pronunciation": 100,
+     "fluency": 96,
+     "integrity": 100,
+     "tone": 83,
+     "rhythm": 78,
+     "speed": 225,
+     "duration": "1.920",
+     "warning": [],
+     "words": [
+      {
+       "word": "今",
+       "scores": {
+        "overall": 78
+       }
+      },
+      {
+       "word": "天",
+       "scores": {
+        "overall": 95
+       }
+      },
+      {
+       "word": "天",
+       "scores": {
+        "overall": 85
+       }
+      },
+      {
+       "word": "气",
+       "scores": {
+        "overall": 76
+       }
+      },
+      {
+       "word": "很",
+       "scores": {
+        "overall": 94
+       }
+      },
+      {
+       "word": "好",
+       "scores": {
+        "overall": 73
+       }
+      }
+     ]
+    },
+    "eof": 1
+   }
+  }
+ ]
+}
