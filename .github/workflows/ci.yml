@@ -23,6 +23,15 @@ jobs:
         with: {node-version: '20'}
       - uses: android-actions/setup-android@v3
         if: startsWith(matrix.step, 'android')
+        with:
+          # 缺省的包列表含 tools，SDK 仓库已不再提供这个包，这里只装构建用到的包
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+          log-accepted-android-sdk-licenses: false
+      # 构建机的 localhost 同时解析到 127.0.0.1 与 ::1，MockWebServer 只监听 IPv4，
+      # 首个地址失败后 OkHttp 改连 ::1 被拒。测试 JVM 只用 IPv4
+      - name: IPv4 loopback for the JVM tests
+        if: matrix.step == 'android'
+        run: echo "JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true" >> "$GITHUB_ENV"
       - uses: swift-actions/setup-swift@v2
         if: startsWith(matrix.step, 'ios')
         with: {swift-version: '6.0'}

@@ -9,6 +9,7 @@
 # Environment:
 #   CI_OUT               output directory (default ./ci-out/ios-stcompat)
 #   CC                   C compiler (default cc)
+#   GCOV                 gcov of that compiler (default gcov; llvm-cov gcov for clang)
 #   ST_ORIGINAL_HEADERS  Shengtong STKouyuEngine.framework/Headers to diff against; skipped when absent.
 #                        Shengtong files are never committed to this repository.
 #   ST_ORIGINAL_SKEGN    Shengtong skegn.h (default: ../skegn.h next to the framework directory)
@@ -34,6 +35,7 @@ mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 BUILD="$OUT/build"
 CC="${CC:-cc}"
+GCOV="${GCOV:-gcov}"
 NICE=(nice -n 10)
 ST_ORIGINAL_HEADERS="${ST_ORIGINAL_HEADERS:-/home/ubuntu/yougu/sdk-v2-work/ref/st_public/ios/STKouyuEngine.framework/Headers}"
 ST_ORIGINAL_SKEGN="${ST_ORIGINAL_SKEGN:-$(dirname "$ST_ORIGINAL_HEADERS")/../skegn.h}"
@@ -96,8 +98,11 @@ step_core_strict() {
 
 step_core_tests() {
     local f
+    # compiled from the package directory: clang records source paths relative to the working
+    # directory in the coverage notes, and the coverage report resolves them against the package
     for f in "$CORE"/*.c; do
-        "${NICE[@]}" "$CC" -std=c99 -O0 -g --coverage -I"$CORE" -c "$f" -o "$BUILD/obj/$(basename "$f" .c).o" || return 1
+        (cd "$PKG" && "${NICE[@]}" "$CC" -std=c99 -O0 -g --coverage -I"$CORE" -c "$f" -o "$BUILD/obj/$(basename "$f" .c).o") ||
+            return 1
     done
     "${NICE[@]}" "$CC" -std=c99 -O0 -g -I"$CORE" -I"$PKG/core-tests/unit" "$PKG"/core-tests/unit/*.c "$BUILD"/obj/*.o \
         --coverage -lm -o "$BUILD/ygst_tests" || return 1
@@ -122,7 +127,10 @@ step_core_sanitizers() {
     fi
     "${NICE[@]}" "$CC" -std=c99 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -I"$CORE" \
         -I"$PKG/core-tests/unit" "$CORE"/*.c "$PKG"/core-tests/unit/*.c -lm -o "$BUILD/asan/ygst_tests" || return 1
-    ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+    # LeakSanitizer exists on Linux only; AddressSanitizer on macOS refuses to start with detect_leaks=1
+    local asan_options=""
+    [ "$(uname -s)" = "Linux" ] && asan_options="detect_leaks=1"
+    ASAN_OPTIONS="$asan_options" UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
         "$BUILD/asan/ygst_tests" --spec "$SPEC" | tail -n 3
     return "${PIPESTATUS[0]}"
 }
@@ -150,7 +158,7 @@ step_sandbox() {
 }
 
 step_coverage() {
-    python3 "$PKG/tools/coverage_report.py" --objdir "$BUILD/obj" --out "$OUT/coverage" || return 1
+    python3 "$PKG/tools/coverage_report.py" --objdir "$BUILD/obj" --out "$OUT/coverage" --gcov "$GCOV" || return 1
     COVERAGE="$(python3 -c 'import json,sys; print("%.2f" % json.load(open(sys.argv[1]))["total"]["percent"])' \
         "$OUT/coverage/coverage.json")"
     echo "C core line coverage $COVERAGE % (gate 70 %), report $OUT/coverage/index.html"
@@ -187,7 +195,9 @@ step_objc_syntax() {
         fi
         py="$cache/bin/python"
     fi
-    "$py" "$PKG/core-tests/objc-syntax/check.py" --json "$OUT/objc-syntax.json"
+    # the check runs against the stub declarations only: an SDKROOT set for the C build on macOS
+    # would add the macOS SDK as sysroot of the iOS parse as well
+    env -u SDKROOT "$py" "$PKG/core-tests/objc-syntax/check.py" --json "$OUT/objc-syntax.json"
 }
 
 step_manifest() {

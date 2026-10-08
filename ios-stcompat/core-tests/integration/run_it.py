@@ -230,7 +230,10 @@ def s_slow_inflight_replay(c):
     """The first attempt is registered and still processing when the retry with the same key arrives."""
     reset()
     faults(("/sent.eval.cn", "slow:1500"))
-    r = driver("--audio", audio("zh_short.wav"), "--read-timeout-ms", "700")
+    # attempt 1 times out at 1000 ms while the platform works until about 1550 ms; the retry arrives
+    # at 1140 to 1260 ms (200 ms back-off, 30 % jitter), still in flight, and has 1000 ms for the
+    # replay. With 700 ms the retry could time out before the replay when the jitter was short.
+    r = driver("--audio", audio("zh_short.wav"), "--read-timeout-ms", "1000")
     tok = r["tokenId"]
     c(r["outcome"] == "result" and r["attempts"] == 2, "timeout while the platform works, then success %r" % r)
     c(r["replayed"] == 1, "the retry was answered from the first attempt (Idempotency-Replayed)")

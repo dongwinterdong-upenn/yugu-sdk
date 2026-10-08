@@ -1,7 +1,8 @@
 // Copyright 2026 优谷雅言 open.shengzhiai.com
 // SPDX-License-Identifier: Apache-2.0
 //
-// XCTest for a macOS runner (ci/ios-stcompat-macos.sh). Not executed on the Linux CI.
+// XCTest for macOS (swift test) and an iOS Simulator (xcodebuild test), both run by
+// ci/ios-stcompat-macos.sh. Not executed on the Linux CI.
 //
 // The first group only has to compile: it uses the Shengtong API from Swift exactly as an app
 // written against STKouyuEngine.framework does. The Objective-C group calls the checks of the
@@ -60,7 +61,7 @@ final class SwiftSurfaceTests: XCTestCase {
 
     func testEngineSelectorsCompile() {
         let engine = KYTestEngine.sharedInstance()!
-        XCTAssertFalse(engine.getEngineStatus())
+        XCTAssertFalse(engine.getStatus())
         XCTAssertNotNil(engine.getLastRecordPath())
         XCTAssertTrue(engine.updateProvision())
         XCTAssertTrue(engine.updateProvision("ak", secretkey: "sk"))
@@ -68,25 +69,54 @@ final class SwiftSurfaceTests: XCTestCase {
         XCTAssertTrue(engine.inquireProvision { _ in })
         XCTAssertTrue(engine.inquireProvision("p") { _ in })
         engine.stopPlay()
-        engine.cancelEngine()
-        _ = {
-            // never executed: only checks that every selector resolves from Swift
-            engine.playback()
-            engine.playback {}
-            engine.play(withPath: "/tmp/a.wav")
-            engine.play(withPath: "/tmp/a.wav", void: {})
-            engine.activeAudioSession()
-            engine.stopEngine()
-            engine.deleteEngine()
-            var pcm = [UInt8](repeating: 0, count: 640)
-            engine.feedAudioData(&pcm, audioLength: 640)
-            // last block argument as a trailing closure: the label spelling of the final block
-            // parameter is left to the Swift importer
-            _ = engine.startEngine(with: KYTestConfig(), result: { _ in }) { _, _ in }
-            _ = engine.startEngine(with: KYTestConfig(), onStart: {}, onStartFail: { _ in }, onPause: {},
-                                   onTick: { _, _ in }, onRecording: { _, _ in }, onRecordEnd: {},
-                                   onScore: { _ in }) { _, _ in }
-        }
+        engine.cancel()
+    }
+
+    /// Never called: every Objective-C method of KYTestEngine under the name the Swift importer
+    /// gives it (the Swift name of stopEngine is stop(), the final block label of finishBlock: is
+    /// finish:). A plain function rather than a closure, so that the compiler reports every
+    /// statement that does not resolve.
+    private static func selectorsResolve(_ engine: KYTestEngine) {
+        engine.initEngine(KY_CloudEngine, startEngineConfig: KYStartEngineConfig(), finish: { _, _ in })
+        _ = engine.start(with: KYTestConfig(), result: { _ in }, finish: { _, _ in })
+        _ = engine.start(with: KYTestConfig(), onStart: {}, onStartFail: { _ in }, onPause: {},
+                         onTick: { _, _ in }, onRecording: { _, _ in }, onRecordEnd: {},
+                         onScoreBlock: { _ in }, finish: { _, _ in })
+        engine.stop()
+        engine.cancel()
+        engine.delete()
+        engine.playback()
+        engine.playback {}
+        engine.play(withPath: "/tmp/a.wav")
+        engine.play(withPath: "/tmp/a.wav", void: {})
+        engine.stopPlay()
+        engine.activeAudioSession()
+        _ = engine.getStatus()
+        _ = engine.getLastRecordPath()
+        var pcm = [UInt8](repeating: 0, count: 640)
+        engine.feedAudioData(&pcm, audioLength: 640)
+        _ = engine.updateProvision("p", appkey: "ak", secretkey: "sk")
+        _ = engine.updateProvision("ak", secretkey: "sk")
+        _ = engine.updateProvision()
+        _ = engine.inquireProvision("p", inquireProvisionBlock: { _ in })
+        _ = engine.inquireProvision({ _ in })
+    }
+
+    /// Never called: the Swift example of README.md, word for word.
+    private static func readmeSwiftExample() {
+        let engine = KYTestEngine.sharedInstance()!
+        let config = KYStartEngineConfig()
+        config.appKey = "优谷雅言 appKey"
+        config.secretKey = "优谷雅言 secretKey"
+        engine.initEngine(KY_CloudEngine, startEngineConfig: config) { ok, message in print(ok, message ?? "") }
+
+        let test = KYTestConfig()
+        test.coreTypeNS = "sent.eval"
+        test.refText = "How are you"
+        let tokenId = engine.start(with: test, result: { json in print(json ?? "") }) { ok, str in print(ok, str ?? "") }
+        engine.stop()
+        engine.delete()
+        _ = tokenId
     }
 
     func testYuguCompatSettings() {
@@ -140,8 +170,8 @@ final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
     }
 
     override func tearDown() {
-        engine.deleteEngine()
-        engine.deleteEngine() // idempotent
+        engine.delete()
+        engine.delete() // idempotent
         YuguCompat.baseURL = nil
         super.tearDown()
     }
@@ -173,7 +203,7 @@ final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
         let done = expectation(description: "result")
         let config = KYTestConfig()
         config.refText = "hello"
-        let token = engine.startEngine(with: config, result: { r in
+        let token = engine.start(with: config, result: { r in
             let j = self.json(r)
             XCTAssertEqual(j["errId"] as? Int, 60007)
             XCTAssertEqual(j["eof"] as? Int, 1)
@@ -189,7 +219,7 @@ final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
         let config = KYTestConfig()
         config.coreType = KYTestType_Open
         config.refText = "x"
-        _ = engine.startEngine(with: config, result: { r in
+        _ = engine.start(with: config, result: { r in
             XCTAssertEqual(self.json(r)["errId"] as? Int, 60003)
             done.fulfill()
         }) { _, _ in }
@@ -201,7 +231,7 @@ final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
         let done = expectation(description: "result")
         let config = KYTestConfig()
         config.coreTypeNS = "sent.eval"
-        _ = engine.startEngine(with: config, result: { r in
+        _ = engine.start(with: config, result: { r in
             XCTAssertEqual(self.json(r)["errId"] as? Int, 60006)
             done.fulfill()
         }) { _, _ in }
@@ -226,7 +256,7 @@ final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
         config.audioPath = spec + "/fixtures/audio/zh_short.wav"
         config.getParam = true
         var token: String?
-        token = engine.startEngine(with: config, result: { r in
+        token = engine.start(with: config, result: { r in
             let j = self.json(r)
             XCTAssertEqual(j["tokenId"] as? String, token)
             XCTAssertEqual(j["applicationId"] as? String, "mock-app-key")
@@ -252,7 +282,7 @@ final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
         config.coreTypeNS = "sent.eval.cn"
         config.refText = "今天天气很好"
         config.isStream = true
-        _ = engine.startEngine(with: config, result: { r in
+        _ = engine.start(with: config, result: { r in
             XCTAssertNotNil(self.json(r)["result"])
             done.fulfill()
         }) { _, _ in }
@@ -265,7 +295,7 @@ final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
             }
             offset += n
         }
-        engine.stopEngine()
+        engine.stop()
         wait(for: [done], timeout: 30)
     }
 
@@ -276,8 +306,8 @@ final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
         config.coreTypeNS = "sent.eval.cn"
         config.refText = "今天天气很好"
         config.audioPath = spec + "/fixtures/audio/zh_short.wav"
-        _ = engine.startEngine(with: config, result: { _ in XCTFail("no result after cancelEngine") }) { _, _ in }
-        engine.cancelEngine()
+        _ = engine.start(with: config, result: { _ in XCTFail("no result after cancelEngine") }) { _, _ in }
+        engine.cancel()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 2))
         XCTAssertTrue(scores.isEmpty)
     }

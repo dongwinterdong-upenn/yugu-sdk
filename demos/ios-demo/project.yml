@@ -8,6 +8,8 @@
 name: YuguDemo
 options:
   bundleIdPrefix: com.shengzhiai.yugu
+  # XcodeGen 2.43 and later write the Xcode 16 project format by default, which Xcode 15 cannot open
+  projectFormat: xcode15_0
   deploymentTarget:
     iOS: "15.0"
 packages:

@@ -128,12 +128,22 @@ engine.initEngine(KY_CloudEngine, startEngineConfig: config) { ok, message in pr
 let test = KYTestConfig()
 test.coreTypeNS = "sent.eval"
 test.refText = "How are you"
-let tokenId = engine.startEngine(with: test, result: { json in print(json ?? "") }) { ok, str in print(ok, str ?? "") }
-engine.stopEngine()
-engine.deleteEngine()
+let tokenId = engine.start(with: test, result: { json in print(json ?? "") }) { ok, str in print(ok, str ?? "") }
+engine.stop()
+engine.delete()
 ```
 
-Swift 里的方法名由编译器按头文件推导，与使用声通 framework 时相同。
+Swift 里的方法名由编译器按头文件推导，与使用声通 framework 时相同。编译器去掉方法名里与类名 `KYTestEngine` 重复的 `Engine`，也去掉参数名末尾的 `Block`，常用方法的 Swift 写法如下：
+
+| Objective-C | Swift |
+|---|---|
+| `initEngine:startEngineConfig:finishBlock:` | `initEngine(_:startEngineConfig:finish:)` |
+| `startEngineWithTestConfig:result:finishBlock:` | `start(with:result:finish:)` |
+| 带录音过程回调的 `startEngineWithTestConfig:` | `start(with:onStart:onStartFail:onPause:onTick:onRecording:onRecordEnd:onScoreBlock:finish:)` |
+| `stopEngine`，`cancelEngine`，`deleteEngine` | `stop()`，`cancel()`，`delete()` |
+| `getEngineStatus` | `getStatus()` |
+
+`onScoreBlock` 保留 `Block`，是编译器的推导结果。上面的示例与全部方法的 Swift 写法都写在 `Tests/STKouyuEngineTests` 里，随测试一起编译。
 
 ## 评测内核
 
@@ -410,15 +420,15 @@ python3 tools/headers-diff.py --original /path/to/STKouyuEngine.framework/Header
 
 | 部分 | 状态 |
 |---|---|
-| C 核心 | 签名，参数映射，multipart，WAV，VAD，重试判断，错误映射与结果 JSON 组装都在 `Sources/STKouyuEngine/core`。Linux 上用 gcc 13 按 C99 编译零警告，62 组单元测试 2955 项检查全部通过，AddressSanitizer 与 UndefinedBehaviorSanitizer 下同样通过，行覆盖率 98.39%。按 2026-10-08 录下的平台返回核对，平台返回的 `audioUrl` 原样进入结果 JSON 末尾，单句段落与多句段落的 `details` 补充方式相同 |
-| 集成测试 | C 核心按 KYTestEngine 的请求方式连接平台模拟服务 `tools/mock-server/server.mjs`，21 个场景 118 项检查通过，覆盖 500 与 429 重试，读超时与平台处理中两种情形下同一 tokenId 的多次提交只计费一次，409 40901 等待后重试，每次请求换新的 nonce，段落内核的逐字得分与 details 补充，`attachAudioUrl` 作为表单字段发送，400 不重试，autoRetry，签名错误，以及本机错误不发请求 |
-| 沙箱测试 | 设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`ci/ios-stcompat.sh` 的 sandbox 步骤让同一套 C 核心经 HTTPS 连接真实平台，校验证书与主机名，依次跑五个用例。`sent.eval.cn` 句子评测得到数值型 `result.overall`，结果 JSON 不带 `audioUrl`，`para.eval.cn` 段落评测的 `details` 每项带 `overall` 与 `pronunciation`，带 `attachAudioUrl` 的句子评测在结果 JSON 末尾得到平台返回的 https 下载地址 `audioUrl`，平台不认识的 appKey 得到鉴权类 errId，`pinyin` 题缺 `refPinyin` 得到 40001，两个错误用例都只发一次请求，不触发评测。每次运行最多 6 次平台调用，密钥只经环境变量传给测试程序，不出现在命令行与日志里。没有密钥时这一步记为跳过。2026-10-08 平台更新后实测五个用例 59 项检查全部通过，共 5 次平台调用。macOS 上 `Tests/STKouyuEngineTests/SandboxTests.swift` 经 Objective-C 接口跑其中四个用例，不含 `attachAudioUrl` 用例，尚未运行 |
+| C 核心 | 签名，参数映射，multipart，WAV，VAD，重试判断，错误映射与结果 JSON 组装都在 `Sources/STKouyuEngine/core`。Linux 上用 gcc 13 按 C99 编译零警告，62 组单元测试 2955 项检查全部通过，AddressSanitizer 与 UndefinedBehaviorSanitizer 下同样通过，行覆盖率 98.39%。macOS 上用 Xcode 15.4 的 clang 跑同样的步骤，结果一致。按 2026-10-08 录下的平台返回核对，平台返回的 `audioUrl` 原样进入结果 JSON 末尾，单句段落与多句段落的 `details` 补充方式相同 |
+| 集成测试 | C 核心按 KYTestEngine 的请求方式连接平台模拟服务 `tools/mock-server/server.mjs`，21 个场景 118 项检查在 Linux 与 macOS 上都通过，覆盖 500 与 429 重试，读超时与平台处理中两种情形下同一 tokenId 的多次提交只计费一次，409 40901 等待后重试，每次请求换新的 nonce，段落内核的逐字得分与 details 补充，`attachAudioUrl` 作为表单字段发送，400 不重试，autoRetry，签名错误，以及本机错误不发请求 |
+| 沙箱测试 | 设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`ci/ios-stcompat.sh` 的 sandbox 步骤让同一套 C 核心经 HTTPS 连接真实平台，校验证书与主机名，依次跑五个用例。`sent.eval.cn` 句子评测得到数值型 `result.overall`，结果 JSON 不带 `audioUrl`，`para.eval.cn` 段落评测的 `details` 每项带 `overall` 与 `pronunciation`，带 `attachAudioUrl` 的句子评测在结果 JSON 末尾得到平台返回的 https 下载地址 `audioUrl`，平台不认识的 appKey 得到鉴权类 errId，`pinyin` 题缺 `refPinyin` 得到 40001，两个错误用例都只发一次请求，不触发评测。每次运行最多 6 次平台调用，密钥只经环境变量传给测试程序，不出现在命令行与日志里。没有密钥时这一步记为跳过。2026-10-08 平台更新后实测五个用例 59 项检查全部通过，共 5 次平台调用。`Tests/STKouyuEngineTests/SandboxTests.swift` 经 Objective-C 接口跑其中四个用例，不含 `attachAudioUrl` 用例，已在 macOS 与 iOS 模拟器上编译，GitHub 的推送构建不注入沙箱密钥，这四个用例在 macOS 上尚未运行 |
 | 头文件 | 与声通公开头文件比对 5 个文件 227 项声明，差异为 0，参数名也一致 |
-| 包清单 | Linux 上用 Swift `6.0.3` 加载 `Package.swift`，`swift package describe` 识别出全部目标与源文件，没有警告。Linux 上不能编译 Objective-C 目标 |
-| Objective-C 层 | 已写完，尚未用 Apple SDK 编译，没有链接，没有运行。Linux 上用 libclang 18 按 Objective-C ARC 解析全部 `.m` 文件，目标为 iOS 12 与 macOS 10.15，按模块方式加载本包的 module map，对照手写的 Apple 接口桩声明做类型检查，20 个编译单元零错误零警告。桩声明与 Apple SDK 不一致的地方这项检查发现不了 |
-| XCTest | `Tests/STKouyuEngineTests` 的 Swift 测试，以及这些测试调用的 Objective-C 检查 `Tests/STKouyuEngineObjCSupport`，为 macOS 构建机准备，尚未执行 |
-| macOS 构建 | `ci/ios-stcompat-macos.sh` 在装有 Xcode 的 Mac 上运行 swift build，iOS 与模拟器的 xcodebuild，以及连接平台模拟服务的 swift test，设置沙箱密钥时 swift test 另跑沙箱用例，尚未运行 |
-| 真机 | 录音，回放，系统打断与音频路由切换尚未在真机验证 |
+| 包清单 | Linux 上用 Swift `6.0.3` 加载 `Package.swift`，`swift package describe` 识别出全部目标与源文件，没有警告。macOS 上 Swift `5.10` 按同一份清单构建全部目标 |
+| Objective-C 层 | 2026-10-08 在 GitHub Actions 的 macos-14 构建机上用 Xcode 15.4 编译，链接，运行。swift build 构建 macOS 版，xcodebuild 构建 iOS 真机版与模拟器版，真机版部署目标为 iOS 12，全部零警告。Linux 上另用 libclang 18 按 Objective-C ARC 解析全部 `.m` 文件，对照手写的 Apple 接口桩声明做类型检查，20 个编译单元零错误零警告 |
+| XCTest | `Tests/STKouyuEngineTests` 的 Swift 测试与其调用的 Objective-C 检查 `Tests/STKouyuEngineObjCSupport`。macOS 上 swift test 执行 14 项，13 项通过，沙箱用例 1 项跳过，iOS 17.5 模拟器上 xcodebuild test 结果相同，连接平台模拟服务的文件评测，流式评测，取消与 skegn 接口用例在两处都通过。`Sources/STKouyuEngine` 的行覆盖率在 macOS 上为 58.50%，在模拟器上为 57.76%，录音器 `YGSTRecorder.m` 需要麦克风，测试没有覆盖 |
+| macOS 构建 | `ci/ios-stcompat-macos.sh` 2026-10-08 在 GitHub Actions 的 macos-14 构建机上全部步骤通过：在 macOS 上重跑 C 核心的各步骤，swift build，iOS 真机与模拟器的 xcodebuild，连接平台模拟服务的 swift test，以及 iOS 模拟器上的 xcodebuild test。设置沙箱密钥时 swift test 另跑沙箱用例 |
+| 真机 | 录音，回放，系统打断与音频路由切换尚未在真机验证，构建机上的测试不录音 |
 
 ## 常见问题
 

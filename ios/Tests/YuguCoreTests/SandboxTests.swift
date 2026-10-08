@@ -158,10 +158,10 @@ final class SandboxWaiter: YuguStreamListener {
     }
 }
 
-#if os(macOS) || os(Linux)
 /// Local `ws://` to remote `wss://` relay for the Linux streaming test. Frames, close codes and the
 /// handshake query (with its signature) pass through unchanged. The relay prints nothing but its
-/// port, so no URL or key reaches the logs.
+/// port, so no URL or key reaches the logs. Compiled on every platform: where `NodeProcess` cannot
+/// spawn node, as on the iOS Simulator, `start` returns nil and the tests that need the relay skip.
 final class WssBridge {
     let port: Int
     private let stopProcess: () -> Void
@@ -231,4 +231,3 @@ final class WssBridge {
     process.on('SIGTERM', () => process.exit(0));
     """#
 }
-#endif
