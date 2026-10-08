@@ -69,5 +69,8 @@ echo "== publish SwiftPM repositories $VERSION"
 bash tools/registry/git_publish.sh ios yugu-ios-sdk "$VERSION" "$WEB/git"
 bash tools/registry/git_publish.sh ios-stcompat stkouyu-ios-compat "$VERSION" "$WEB/git"
 echo "== publish documentation"
-rsync -a --delete "$WORK/docs-site/" "$WEB/sdk/v2/"
+# Pages and raw files follow the new build; hashed assets are only added, so pages already open in a
+# browser can still load the files they reference.
+rsync -a --delete --exclude '/assets/' "$WORK/docs-site/" "$WEB/sdk/v2/"
+rsync -a "$WORK/docs-site/assets/" "$WEB/sdk/v2/assets/"
 echo "== done"
