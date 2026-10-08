@@ -8,7 +8,7 @@
 #   4. the CLI demo and the iOS demo app (XcodeGen, installed with Homebrew on CI) build against this
 #      checkout.
 # Every step runs even if an earlier one failed; the exit status is non-zero when any failed. The
-# last line is "COVERAGE <pct>", the line coverage of ios/Sources in the macOS swift test.
+# last line is "COVERAGE <pct>", the line coverage of Sources/YuguCore in the macOS swift test.
 #
 #   ci/ios-macos.sh                       results in ./ci-out/ios-macos
 #   IOS_SIMULATOR="iPhone 15 Pro" ci/ios-macos.sh
@@ -75,7 +75,8 @@ step_macos_coverage() {
   local codecov bin
   codecov="$(cd "$ROOT/ios" && swift test --show-codecov-path)" || return 1
   bin="$(cd "$ROOT/ios" && swift build --show-bin-path)/YuguSDKPackageTests.xctest/Contents/MacOS/YuguSDKPackageTests"
-  xcrun llvm-cov report "$bin" -instr-profile "$(dirname "$codecov")/default.profdata" "$ROOT/ios/Sources" \
+  # the test target links YuguCore; the recorder of YuguSDK is compiled but not unit tested
+  xcrun llvm-cov report "$bin" -instr-profile "$(dirname "$codecov")/default.profdata" "$ROOT/ios/Sources/YuguCore" \
     >"$OUT/llvm-cov-macos.txt" || return 1
   cat "$OUT/llvm-cov-macos.txt"
   COVERAGE="$(awk '/^TOTAL/ {gsub("%", "", $10); print $10}' "$OUT/llvm-cov-macos.txt")"
@@ -85,6 +86,7 @@ step_macos_coverage() {
 # 2. iOS Simulator: build every product and run the unit tests.
 step_ios_simulator() {
   log "destination $DESTINATION"
+  rm -rf "$OUT/ios-simulator.xcresult"
   (cd "$ROOT/ios" && xcodebuild -scheme YuguSDK-Package -destination "$DESTINATION" -derivedDataPath "$OUT/DerivedData" \
     -resultBundlePath "$OUT/ios-simulator.xcresult" -enableCodeCoverage YES build test) 2>&1 | tee "$OUT/xcodebuild-ios.log"
   local rc=${PIPESTATUS[0]}
@@ -143,7 +145,7 @@ run_step demo-app step_demo_app
 
 log "macOS swift test: ${MACOS_TESTS:-no summary}"
 log "iOS Simulator xcodebuild test: ${SIM_TESTS:-no summary}"
-log "line coverage of ios/Sources on macOS: $COVERAGE %"
+log "line coverage of YuguCore on macOS: $COVERAGE %"
 if [ ${#FAILED[@]} -gt 0 ]; then
   log "FAILED steps: ${FAILED[*]}"
   echo "COVERAGE $COVERAGE"
