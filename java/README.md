@@ -62,7 +62,54 @@ dependencies {
 
 ## 五分钟快速开始
 
-准备开放平台控制台签发的 appKey 与 secretKey，再准备一段 16 kHz，16 位，单声道的 WAV 录音。新建 `QuickStart.java`：
+按顺序执行，全程只用到本 README 的内容。需要 JDK 11 或更高版本与 Maven 3.6 或更高版本，一段 3 秒左右的 16 kHz，16 位，单声道 WAV 录音，以及开放平台签发的 appKey 与 secretKey，联调期间用沙箱密钥，申请方式见 [`SANDBOX.md`](../SANDBOX.md)。
+
+1. 新建工程目录 `yugu-quickstart`，在其中新建 `pom.xml`：
+
+```xml
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>yugu-quickstart</artifactId>
+  <version>1.0</version>
+  <properties>
+    <maven.compiler.release>11</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <repositories>
+    <repository>
+      <id>shengzhiai</id>
+      <url>https://open.shengzhiai.com/maven/</url>
+    </repository>
+  </repositories>
+  <dependencies>
+    <dependency>
+      <groupId>com.shengzhiai.yugu</groupId>
+      <artifactId>yugu-java-sdk</artifactId>
+      <version>2.0.0</version>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <configuration>
+          <mainClass>QuickStart</mainClass>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+```
+
+2. 新建 `src/main/java/QuickStart.java`：
 
 ```java
 import com.shengzhiai.yugu.YuguClient;
@@ -91,7 +138,13 @@ public class QuickStart {
 }
 ```
 
-设置环境变量后运行，控制台输出总分与逐字分数。`demos/java-cli` 是同样流程的完整工程，可直接运行。
+3. 把录音放到工程目录，命名为 `audio.wav`，设置密钥后运行，控制台输出总分，分项与逐字分数：
+
+```bash
+YUGU_APP_KEY=沙箱appKey YUGU_SECRET_KEY=沙箱secretKey mvn -q compile exec:java
+```
+
+`demos/java-cli` 是同样流程的完整工程，带命令行参数，可直接运行。
 
 ## 接口一览
 
