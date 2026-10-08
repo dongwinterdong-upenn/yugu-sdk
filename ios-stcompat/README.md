@@ -171,7 +171,7 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 | `slack` | `slack` | 非 0 时发送 |
 | `isParagraphNeedWordScore` | `paragraph_need_word_score` | `para.eval` 与 `para.eval.cn` 一律发送 1，`customParams` 也改不掉。其他内核 YES 时发送 1 |
 | `phoneme_output` | `phoneme_output` | 默认 YES，YES 时发送 1 |
-| `attachAudioUrl` | `attachAudioUrl` | YES 时发送 1。平台兼容接口目前不返回音频地址，此项暂不生效，录音只保存在本机，路径用 `getLastRecordPath` 获取 |
+| `attachAudioUrl` | `attachAudioUrl` | YES 时发送 1，平台在结果 JSON 末尾返回录音的下载地址 `audioUrl`，地址保留 7 天，到期删除。录音同时保存在本机，路径用 `getLastRecordPath` 获取 |
 | `phonemeOption` | `dict_type` | 设置后发送 `CMU`，`KK` 或 `IPA88` |
 | `dict_dialect` | `dict_dialect` | 原样发送 |
 | `customized_lexicon` | `customized_lexicon` | 字典序列化为 JSON 文本 |
@@ -291,7 +291,7 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 
 1. `result` 为平台兼容接口返回的评测结果，原样转交，常用取分字段与声通同名。只有一处补充：平台把逐字得分放在 `sentences[].details[].scores` 里，声通示例直接读取 `details[].overall`，所以 `details[]` 里缺少 `overall` 的条目在末尾补上取自 `scores.overall` 的 `overall`，条目没有 `pronunciation` 时一并补上取自 `scores.pronunciation` 的 `pronunciation`。原有的键不改不删，其余内容逐字节不变。
 2. `recordId` 为平台评测记录号，平台没有返回时不出现。
-3. `params` 只在 `getParam` 为 YES 时出现。`audioUrl` 只在平台结果带音频地址时出现，平台兼容接口目前不返回音频地址，结果 JSON 里没有 `audioUrl`，录音文件用 `getLastRecordPath` 获取。
+3. `params` 只在 `getParam` 为 YES 时出现。`audioUrl` 只在 `attachAudioUrl` 为 YES 时出现，位于 JSON 末尾，取值为平台返回的录音下载地址，原样转交。平台保留录音 7 天，到期删除，需要长期保存的录音在 7 天内下载，或用 `getLastRecordPath` 取本机录音。同一 tokenId 重复提交时平台返回同一个地址。
 4. `para.eval` 与 `para.eval.cn` 一律请求逐字得分，结果总带 `result.sentences[].details[]`。
 5. `dtLastResponse` 为本机时区收到结果的时刻，格式 `yyyy-MM-dd HH:mm:ss:SSS`。
 
@@ -339,7 +339,7 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 | 上传音频 | 可用 Speex 压缩 | 录音以 16 kHz 单声道 16 位 WAV 上传 |
 | 录音文件 | WAV 或 MP3 | 一律 WAV 编码，`recordName` 写 `.mp3` 时保留原文件名 |
 | 证书 | 离线证书 | 不需要证书，证书相关方法返回 YES |
-| 音频地址 | `attachAudioUrl` 返回录音的下载地址 | 平台兼容接口目前不返回，录音保存在本机，路径用 `getLastRecordPath` 获取 |
+| 音频地址 | `attachAudioUrl` 返回录音的下载地址 | 同样返回，字段为结果 JSON 末尾的 `audioUrl`，平台保留 7 天，到期删除 |
 | 鉴权 | 可用 `customized_sig` | 一律按 appKey 与 secretKey 签名，`secretKey` 必填 |
 | 结果 JSON | 声通评测字段 | 外层字段一致，`result` 为优谷雅言评测结果，`details[]` 条目补上 `overall` 与 `pronunciation` |
 | 并发 | 由引擎决定 | 一个引擎同一时间只做一次评测，上一次结果回调之前开始新评测回调 60008 |
@@ -410,9 +410,9 @@ python3 tools/headers-diff.py --original /path/to/STKouyuEngine.framework/Header
 
 | 部分 | 状态 |
 |---|---|
-| C 核心 | 签名，参数映射，multipart，WAV，VAD，重试判断，错误映射与结果 JSON 组装都在 `Sources/STKouyuEngine/core`。Linux 上用 gcc 13 按 C99 编译零警告，61 组单元测试 2891 项检查全部通过，AddressSanitizer 与 UndefinedBehaviorSanitizer 下同样通过，行覆盖率 98.39% |
-| 集成测试 | C 核心按 KYTestEngine 的请求方式连接平台模拟服务 `tools/mock-server/server.mjs`，20 个场景 115 项检查通过，覆盖 500 与 429 重试，读超时与平台处理中两种情形下同一 tokenId 的多次提交只计费一次，409 40901 等待后重试，每次请求换新的 nonce，段落内核的逐字得分与 details 补充，400 不重试，autoRetry，签名错误，以及本机错误不发请求 |
-| 沙箱测试 | 设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`ci/ios-stcompat.sh` 的 sandbox 步骤让同一套 C 核心经 HTTPS 连接真实平台，校验证书与主机名，依次跑四个用例。`sent.eval.cn` 句子评测得到数值型 `result.overall`，`para.eval.cn` 段落评测的 `details` 每项带 `overall` 与 `pronunciation`，平台不认识的 appKey 得到鉴权类 errId，`pinyin` 题缺 `refPinyin` 得到 40001，两个错误用例都只发一次请求，不触发评测。每次运行最多 6 次平台调用，密钥只经环境变量传给测试程序，不出现在命令行与日志里。没有密钥时这一步记为跳过。2026-10-08 实测四个用例 46 项检查全部通过，共 4 次平台调用。macOS 上 `Tests/STKouyuEngineTests/SandboxTests.swift` 经 Objective-C 接口跑同样四个用例，尚未运行 |
+| C 核心 | 签名，参数映射，multipart，WAV，VAD，重试判断，错误映射与结果 JSON 组装都在 `Sources/STKouyuEngine/core`。Linux 上用 gcc 13 按 C99 编译零警告，62 组单元测试 2955 项检查全部通过，AddressSanitizer 与 UndefinedBehaviorSanitizer 下同样通过，行覆盖率 98.39%。按 2026-10-08 录下的平台返回核对，平台返回的 `audioUrl` 原样进入结果 JSON 末尾，单句段落与多句段落的 `details` 补充方式相同 |
+| 集成测试 | C 核心按 KYTestEngine 的请求方式连接平台模拟服务 `tools/mock-server/server.mjs`，21 个场景 118 项检查通过，覆盖 500 与 429 重试，读超时与平台处理中两种情形下同一 tokenId 的多次提交只计费一次，409 40901 等待后重试，每次请求换新的 nonce，段落内核的逐字得分与 details 补充，`attachAudioUrl` 作为表单字段发送，400 不重试，autoRetry，签名错误，以及本机错误不发请求 |
+| 沙箱测试 | 设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`ci/ios-stcompat.sh` 的 sandbox 步骤让同一套 C 核心经 HTTPS 连接真实平台，校验证书与主机名，依次跑五个用例。`sent.eval.cn` 句子评测得到数值型 `result.overall`，结果 JSON 不带 `audioUrl`，`para.eval.cn` 段落评测的 `details` 每项带 `overall` 与 `pronunciation`，带 `attachAudioUrl` 的句子评测在结果 JSON 末尾得到平台返回的 https 下载地址 `audioUrl`，平台不认识的 appKey 得到鉴权类 errId，`pinyin` 题缺 `refPinyin` 得到 40001，两个错误用例都只发一次请求，不触发评测。每次运行最多 6 次平台调用，密钥只经环境变量传给测试程序，不出现在命令行与日志里。没有密钥时这一步记为跳过。2026-10-08 平台更新后实测五个用例 59 项检查全部通过，共 5 次平台调用。macOS 上 `Tests/STKouyuEngineTests/SandboxTests.swift` 经 Objective-C 接口跑其中四个用例，不含 `attachAudioUrl` 用例，尚未运行 |
 | 头文件 | 与声通公开头文件比对 5 个文件 227 项声明，差异为 0，参数名也一致 |
 | 包清单 | Linux 上用 Swift `6.0.3` 加载 `Package.swift`，`swift package describe` 识别出全部目标与源文件，没有警告。Linux 上不能编译 Objective-C 目标 |
 | Objective-C 层 | 已写完，尚未用 Apple SDK 编译，没有链接，没有运行。Linux 上用 libclang 18 按 Objective-C ARC 解析全部 `.m` 文件，目标为 iOS 12 与 macOS 10.15，按模块方式加载本包的 module map，对照手写的 Apple 接口桩声明做类型检查，20 个编译单元零错误零警告。桩声明与 Apple SDK 不一致的地方这项检查发现不了 |

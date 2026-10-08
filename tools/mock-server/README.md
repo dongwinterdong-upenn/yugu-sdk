@@ -16,7 +16,8 @@ node server.mjs --port 0 --processing-ms 50
 | 接口 | 说明 |
 |---|---|
 | `POST /api/v1/evaluate` | 原生整段评测，config 段必须是 `application/json`，否则 415 |
-| `POST /{coreType}` | 声通兼容整段评测，coreType 取声通命名 |
+| `POST /{coreType}` | 声通兼容整段评测，coreType 取声通命名。带 `attachAudioUrl=1` 时返回体顶层有 `audioUrl`，同一个幂等键重放时地址不变 |
+| `GET /rec/{yyyyMMdd}/{文件名}` | 下载 `audioUrl` 指向的录音，内容为上传的原始字节，`POST /__mock/reset` 后清空 |
 | `POST /api/v1/tts/generate` | 语音合成 |
 | `GET /api/v1/report/{recordId}` | 报告查询 |
 | `WS /api/v1/ws/evaluate` | 原生实时评测 |

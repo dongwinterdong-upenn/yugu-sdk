@@ -18,6 +18,7 @@ STKouyuEngine 声通 iOS 平替包的版本记录。版本号遵循语义化版�
 8. C 接口 `skegn_*` 由本包实现，直接调用 C 接口的代码不用改。
 9. 扩展配置头文件 `YuguCompat.h`，可设置平台地址，日志级别，日志接收方，重试次数与总时限。
 10. 头文件比对工具 `tools/headers-diff.py`，接入方可以用自己的声通 framework 核对接口。
+11. `attachAudioUrl` 为 YES 时，结果 JSON 末尾带平台返回的录音下载地址 `audioUrl`，平台保留 7 天，到期删除。
 
 ### 已知限制
 

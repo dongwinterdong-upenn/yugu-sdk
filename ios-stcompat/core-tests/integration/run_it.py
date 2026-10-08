@@ -173,6 +173,18 @@ def s_word_params_custom(c):
                                              "language": "en-US"}, "signed form fields %r" % (e and e[0].get("fields")))
 
 
+def s_attach_audio_url(c):
+    """attachAudioUrl=1 goes out as a signed form field, and the envelope's audioUrl is the response's.
+    The mock answers with compat_sent.eval.cn.json, captured without the flag, so there is none here;
+    the unit tests check the platform's audioUrl with compat_sent.eval.cn_attach_audio_url.json."""
+    reset()
+    r = driver("--audio", audio("zh_short.wav"), "--attach-audio-url")
+    e = entries_for(r["tokenId"])
+    c(r["outcome"] == "result", "outcome result %r" % r["json"].get("errId"))
+    c(e and e[0].get("fields", {}).get("attachAudioUrl") == "1", "attachAudioUrl=1 sent %r" % (e and e[0].get("fields")))
+    c("audioUrl" not in r["json"], "no audioUrl when the response has none")
+
+
 def s_retry_500_same_key(c):
     reset()
     faults(("/sent.eval.cn", "status:500"))
@@ -414,7 +426,7 @@ def s_paragraph_word_details(c):
 
 
 SCENARIOS = [
-    s_success_envelope, s_word_params_custom, s_retry_500_same_key, s_retry_429_retry_after, s_timeout_then_replay,
+    s_success_envelope, s_word_params_custom, s_attach_audio_url, s_retry_500_same_key, s_retry_429_retry_after, s_timeout_then_replay,
     s_slow_inflight_replay, s_inflight_conflict_40901, s_nonce_reuse_rejected, s_no_retry_400, s_retries_exhausted, s_auto_retry, s_auto_retry_custom_errid, s_drop_then_success,
     s_hang_then_success, s_fastapi_detail, s_auth_errors, s_local_errors_no_network, s_pinyin, s_fixture_passthrough,
     s_paragraph_word_details,

@@ -12,9 +12,9 @@ envelope, result alignment), over HTTPS to YUGU_SANDBOX_BASE with certificate ve
 Runs only when YUGU_SANDBOX_APPKEY and YUGU_SANDBOX_SECRET are set (YUGU_SANDBOX_BASE defaults to
 https://open.shengzhiai.com). Otherwise it writes a JUnit report with skipped cases and exits 77,
 so push builds never call the platform. The cases run one after another (the sandbox account
-allows 2 concurrent evaluations): two evaluations with one retry each, then two error paths the
-platform answers without evaluating, sent without retries. No autoRetry, and no case starts
-that could take the run over 6 platform calls.
+allows 2 concurrent evaluations): three evaluations, then two error paths the platform answers
+without evaluating, sent once. No autoRetry. A run makes at most 6 platform calls: an evaluation
+gets one retry only while every later case still has its call.
 
 The keys reach the driver through its environment, never through argv. Nothing printed or
 written carries them: applicationId is compared with the appKey, never shown, every line is
@@ -47,6 +47,7 @@ CHILD_ENV = None
 AUTH_CODES = set()
 LOG_LINES = []
 CALLS = {"used": 0}
+LATER = {"cases": 0}  # cases still to run after the current one, each needs one call
 
 
 def env_value(name):
@@ -111,12 +112,14 @@ class Check:
 
 
 def driver(*extra, retries=1, app_key=None, secret=None):
-    """One call through the C core: at most 1 + retries platform requests. app_key and secret
-    replace the sandbox keys, which otherwise come from the environment."""
+    """One call through the C core: 1 platform request plus at most `retries` retries, fewer when
+    the budget must keep one call for each later case. app_key and secret replace the sandbox keys,
+    which otherwise come from the environment."""
     remaining = MAX_CALLS - CALLS["used"]
-    if remaining < 1 + retries:
-        raise AssertionError("call budget of %d platform calls per run: %d left, this case may need %d" % (
-            MAX_CALLS, remaining, 1 + retries))
+    if remaining - LATER["cases"] < 1:
+        raise AssertionError("call budget of %d platform calls per run: %d left for this case and %d later ones" % (
+            MAX_CALLS, remaining, LATER["cases"]))
+    retries = max(0, min(retries, remaining - 1 - LATER["cases"]))
     cmd = [ARGS.driver, "--base-url", BASE, "--user-id", USER_ID, "--max-retries", str(retries),
            "--read-timeout-ms", "60000"]
     cmd += ["--app-key", app_key] if app_key is not None else ["--app-key-env", "YUGU_SANDBOX_APPKEY"]
@@ -134,7 +137,7 @@ def driver(*extra, retries=1, app_key=None, secret=None):
     return out
 
 
-def success_envelope(c, r, ref_text):
+def success_envelope(c, r, ref_text, extra_keys=()):
     j = r["json"]
     if not c(r["outcome"] == "result" and "errId" not in j, "platform answered with an error: %s, driver log: %s" % (
             describe(j), r["_stderr"].strip())):
@@ -147,7 +150,7 @@ def success_envelope(c, r, ref_text):
     c(j.get("refText") == ref_text, "refText")
     c(j.get("eof") == 1, "eof 1")
     c(DT.match(j.get("dtLastResponse", "")) is not None, "dtLastResponse format")
-    c(list(j.keys()) == ENVELOPE_KEYS, "envelope keys %r" % list(j.keys()))
+    c(list(j.keys()) == ENVELOPE_KEYS + list(extra_keys), "envelope keys %r" % list(j.keys()))
     c(isinstance(j.get("result"), dict), "result is an object")
     return isinstance(j.get("result"), dict)
 
@@ -194,6 +197,28 @@ def s_paragraph(c):
         result.get("overall"), len(sentences), len(details), r["attempts"], r["json"].get("recordId"))
 
 
+def url_shape(url):
+    """scheme, host and file type of a URL: the full download URL is not printed."""
+    if not isinstance(url, str):
+        return repr(type(url).__name__)
+    u = urllib.parse.urlsplit(url)
+    return "%s://%s/...%s" % (u.scheme, u.hostname, os.path.splitext(u.path)[1])
+
+
+def s_attach_audio_url(c):
+    """sent.eval.cn with attachAudioUrl=1: the envelope ends with the platform's audioUrl, an https URL."""
+    r = driver("--core-type", "sent.eval.cn", "--ref-text", "今天天气很好", "--audio", audio("zh_short.wav"),
+               "--attach-audio-url")
+    if not success_envelope(c, r, "今天天气很好", extra_keys=["audioUrl"]):
+        return "attempts=%d" % r["attempts"]
+    url = r["json"].get("audioUrl")
+    c(isinstance(url, str) and url.startswith("https://"), "audioUrl is an https URL: %s" % url_shape(url))
+    c(is_number(r["json"]["result"].get("overall")), "result.overall numeric")
+    names_record = isinstance(url, str) and r["json"].get("recordId", "") in url
+    return "audioUrl %s, names the recordId: %s, attempts=%d, recordId=%s" % (
+        url_shape(url), names_record, r["attempts"], r["json"].get("recordId"))
+
+
 def error_json(c, r, app_key):
     j = r["json"]
     c(r["outcome"] == "error" and "result" not in j, "expected an error JSON, got outcome %s recordId %s" % (
@@ -226,7 +251,7 @@ def s_pinyin_without_ref_pinyin(c):
     return "errId=%s, error=%s, attempts=%d" % (j.get("errId"), j.get("error"), r["attempts"])
 
 
-CASES = [s_sentence, s_paragraph, s_unknown_app_key, s_pinyin_without_ref_pinyin]
+CASES = [s_sentence, s_paragraph, s_attach_audio_url, s_unknown_app_key, s_pinyin_without_ref_pinyin]
 
 
 def write_junit(path, results, skipped=None):
@@ -282,7 +307,8 @@ def main():
     log("sandbox: %s://%s, appKey from YUGU_SANDBOX_APPKEY, at most %d platform calls, one at a time" % (
         u.scheme, u.hostname, MAX_CALLS))
     results = []
-    for fn in CASES:
+    for i, fn in enumerate(CASES):
+        LATER["cases"] = len(CASES) - i - 1
         c = Check()
         t0 = time.time()
         summary = ""

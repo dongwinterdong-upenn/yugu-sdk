@@ -157,7 +157,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | `slack` | `slack` | 不为 0 时发送 |
 | `needWordScoreInParagraph` | `paragraph_need_word_score=1` | `para.eval` 与 `para.eval.cn` 总是发送，其他内核设置为 true 时发送 |
 | `needPhonemeOutputInWord` | `phoneme_output=1` | |
-| `needAttachAudioUrlInResult` | `attachAudioUrl=1` | 照常发送，平台兼容接口目前不返回音频地址，见行为差异一节 |
+| `needAttachAudioUrlInResult` | `attachAudioUrl=1` | 结果 JSON 带平台返回的录音下载地址 `audioUrl`，地址保留 7 天 |
 | `dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron` | 同名 | 原样传递 |
 | `readtypeDiagnosis` | `readtype_diagnosis` | |
 | `output_rawtext`，`punctuate`，`itn`，`detect_nonscorable`，`vad_detction` | 同名 | 原样传递，评测引擎可能忽略 |
@@ -243,7 +243,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | `dtLastResponse` | 收到结果时的本地时间，格式 `yyyy-MM-dd HH:mm:ss:SSS` |
 | `result` | 平台兼容接口返回的 `result`。除段落逐字条目中补充的 `overall` 与 `pronunciation` 外，逐字节保留 |
 | `params` | 设置 `setNeedRequestParamsInResult(true)` 时出现，含 `app`，`audio` 与 `request` |
-| `audioUrl` | 平台结果带音频地址时出现，平台兼容接口目前不返回音频地址，回调 JSON 中没有这个字段 |
+| `audioUrl` | 设置 `setNeedAttachAudioUrlInResult(true)` 时出现，为平台返回的录音下载地址，平替层原样放入，地址保留 7 天。未设置时没有这个字段 |
 
 `result` 中的常用字段：
 
@@ -254,7 +254,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | `result.tone` | 声调，中文内核 |
 | `result.words[].scores.overall` | 字词得分 |
 | `result.words[].phonemes[].pronunciation` | 音素得分 |
-| `result.sentences[]` | 句子得分，段落内核 |
+| `result.sentences[]` | 句子得分，段落内核。参考文本只有一句时同样有一个句子 |
 | `result.sentences[].details[].overall` | 段落内核的逐字得分，平替层从 `scores.overall` 复制，与声通的取法一致 |
 | `result.sentences[].details[].scores.overall` | 段落内核的逐字得分，平台给出的位置 |
 | `result.warning` | 音频质量警告，码表见仓库根目录 [ERRORS.md](../ERRORS.md) |
@@ -323,7 +323,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 |---|---|---|
 | 评测位置 | 端侧引擎，支持离线 | 只在云端，`ENGINE_NATIVE` 与 `ENGINE_MULTI` 记录一条 WARN 日志后按云端运行，`getCurrentEngineType()` 返回 `cloud` |
 | MP3 录音 | 内置 Lame 编码器 | 不带 MP3 编码器，录音一律为 WAV。默认文件名为 `<tokenId>.wav`，显式设置的 `recordName` 以 `.mp3` 结尾时沿用该文件名，文件内容仍为 WAV。`SimpleLame` 的方法保留，返回 -1 |
-| 音频地址 | `attachAudioUrl` 开启时结果带音频下载地址 | 平台兼容接口目前不返回音频地址，`setNeedAttachAudioUrlInResult(true)` 暂不起作用，回调 JSON 中没有 `audioUrl`。录音保存在本地，`getLastRecordPath()` 返回路径 |
+| 音频地址 | `attachAudioUrl` 开启时结果带音频下载地址 | 同样返回，`setNeedAttachAudioUrlInResult(true)` 时结果 JSON 带平台返回的 `audioUrl`，地址保留 7 天，到期删除。录音同时保存在本地，`getLastRecordPath()` 返回路径 |
 | 实时反馈 | `realtime_feedback` 开启时有中间结果 | 没有中间结果，`onScore` 在评测结束时回调一次 |
 | 授权文件 | 需要 provision 文件 | 不需要，`updateProvision` 返回 true，`inquireProvision` 回调 `{"provision":"cloud","message":"cloud mode, no provision file needed"}` |
 | VAD | 引擎内置 | 本地能量 VAD，状态取值相同 |
@@ -361,7 +361,7 @@ api-compat-test/run.sh
 
 单元测试与 Robolectric 测试覆盖参数映射，结果与错误 JSON，errId 映射，WAV 读写，VAD，状态机，autoRetry，生命周期，回调线程与 `SkEgn` 接口。集成测试启动仓库中 `tools/mock-server` 的平台模拟服务，需要 Node 20 与 `tools/mock-server/node_modules`。`api-compat-test` 中的代码按声通接口编写，分别对声通 jar 与平替 AAR 用 javac 编译，两次都要通过。声通 jar 不随仓库分发，路径由环境变量 `ST_ORIGINAL_JAR` 指定，文件不存在时跳过这一项，同时给出提示。
 
-沙箱集成测试 `SandboxIntegrationTest` 按声通接入方的写法调用真实平台，覆盖句子评测，段落逐字得分与未知 appKey 的鉴权错误，每次运行最多 6 次平台调用。设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后运行，`YUGU_SANDBOX_BASE` 默认为 `https://open.shengzhiai.com`，平台地址经 `EngineSetting.setServerAddress` 设置。未设置密钥时这些测试跳过，`./gradlew test` 照常通过。
+沙箱集成测试 `SandboxIntegrationTest` 按声通接入方的写法调用真实平台，覆盖句子评测，段落逐字得分，未知 appKey 的鉴权错误与录音下载地址，每次运行最多 6 次平台调用。设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后运行，`YUGU_SANDBOX_BASE` 默认为 `https://open.shengzhiai.com`，平台地址经 `EngineSetting.setServerAddress` 设置。未设置密钥时这些测试跳过，`./gradlew test` 照常通过。
 
 示例应用 `compat-demo` 只使用 `com.stkouyu` 接口，appKey 与 secretKey 由 Gradle 属性传入：
 

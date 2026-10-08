@@ -164,6 +164,9 @@ public class SkEgnManagerTest extends CompatTestBase {
         assertEquals("https://open.shengzhiai.com/sent.eval.cn", call.request.url);
         assertEquals("test-app-key", call.header("X-App-Key"));
         assertTrue(call.bodyText().contains("filename=\"" + r.getString("tokenId") + ".wav\""));
+        // without needAttachAudioUrlInResult: no attachAudioUrl is sent and the callback has no audioUrl
+        assertFalse(call.bodyText().contains("name=\"attachAudioUrl\""));
+        assertFalse(r.has("audioUrl"));
         String path = m.getLastRecordPath();
         assertTrue(path.endsWith("/record/" + r.getString("tokenId") + ".wav"));
         Wav.Info info = Wav.parse(new File(path));
@@ -800,19 +803,28 @@ public class SkEgnManagerTest extends CompatTestBase {
         assertTrue(transport.calls().get(0).bodyText().contains("name=\"attachAudioUrl\""));
     }
 
-    /** Production returns no audioUrl on the compat path: the envelope has none, the recording stays local. */
+    /**
+     * Production with attachAudioUrl=1 returns the download link of the recording (kept 7 days) at
+     * the top level: the callback JSON carries exactly that link, the recording also stays local.
+     */
     @Test
-    public void attachAudioUrlIsAbsentOnTheCompatPath() throws Exception {
-        transport.defaultBody(Fixtures.text("spec/fixtures/platform/compat_sent.eval.cn_attach_audio_url.json"));
+    public void attachAudioUrlCarriesThePlatformLink() throws Exception {
+        String body = Fixtures.text("spec/fixtures/platform/compat_sent.eval.cn_attach_audio_url.json");
+        transport.defaultBody(body);
         mic(Fixtures.tone(1200, 5000));
         SkEgnManager m = initManager(null);
         m.startRecord(sent().setNeedAttachAudioUrlInResult(true), ev.recorder);
         Main.settle(80);
         m.stopRecord();
         awaitScore();
-        assertFalse(ev.result().has("audioUrl"));
-        assertTrue(transport.calls().get(0).bodyText().contains("name=\"attachAudioUrl\""));
-        assertTrue(new File(m.getLastRecordPath()).isFile());
+        JSONObject r = ev.result();
+        assertEquals(new JSONObject(body).getString("audioUrl"), r.getString("audioUrl"));
+        assertFalse(r.getJSONObject("result").has("audioUrl"));
+        assertTrue(transport.calls().get(0).bodyText().contains(
+                "name=\"attachAudioUrl\"\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n1\r\n"));
+        String path = m.getLastRecordPath();
+        assertTrue(path.endsWith("/record/" + r.getString("tokenId") + ".wav"));
+        assertTrue(Wav.parse(new File(path)).dataLength > 0);
     }
 
     /** Paragraph: word scores always requested, details[] get Shengtong-style overall and pronunciation. */

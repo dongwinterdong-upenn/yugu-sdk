@@ -13,7 +13,7 @@
  *        [--app-key K | --app-key-env VAR] [--secret S | --secret-env VAR] [--core-type T]
  *        [--ref-text S] [--ref-pinyin S] [--audio PATH] [--audio-synth-ms N] [--token T]
  *        [--auto-retry] [--err-id N]... [--max-retries N] [--read-timeout-ms N]
- *        [--connect-timeout-ms N] [--ca-file PEM] [--get-param] [--user-id U]
+ *        [--connect-timeout-ms N] [--ca-file PEM] [--get-param] [--attach-audio-url] [--user-id U]
  *        [--fault F] [--scale X] [--custom K=V]...
  *
  * --base-url goes through the same resolution as KYStartEngineConfig.server. https needs a build
@@ -683,6 +683,7 @@ typedef struct {
     int read_timeout_ms;
     int connect_timeout_ms;
     int get_param;
+    int attach_audio_url; /* KYTestConfig.attachAudioUrl */
     const char *user_id;
     const char *fault;
     const char *fixed_nonce; /* test only: reuse one nonce on every attempt */
@@ -793,6 +794,7 @@ int main(int argc, char **argv) {
             }
         } else if (strcmp(a, "--auto-retry") == 0) o.auto_retry = 1;
         else if (strcmp(a, "--get-param") == 0) o.get_param = 1;
+        else if (strcmp(a, "--attach-audio-url") == 0) o.attach_audio_url = 1;
         else {
             fprintf(stderr, "unknown or incomplete option %s\n", a);
             return 2;
@@ -877,6 +879,7 @@ int main(int argc, char **argv) {
     tp.ref_text = o.ref_text;
     tp.ref_pinyin = o.ref_pinyin;
     tp.phoneme_output = 1; /* KYTestConfig default */
+    tp.attach_audio_url = o.attach_audio_url;
     tp.scale = o.scale;
     tp.custom_params = &o.custom;
     ygst_fields_init(&fields);

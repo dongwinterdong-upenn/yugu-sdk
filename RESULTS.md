@@ -31,7 +31,7 @@ SDK 结果模型的总分访问器在 connected 模式下取 `connected_overall`
 | `duration` | string | 音频时长，单位秒 |
 | `warning` | array | 音频质量警告 `[{code, message}]`，码表见 `ERRORS.md` |
 | `words` | array | 逐字或逐词详情，见下表 |
-| `sentences` | array | 分句结果，段落题逐句给出 `sentence`，`index`，`overall`，`scores`，`span`，`paragraphNeedWordScore` 为 1 时带 `details` 逐词详情 |
+| `sentences` | array | 分句结果，段落题逐句给出 `sentence`，`index`，`overall`，`scores`，`span`，`paragraphNeedWordScore` 为 1 时带 `details` 逐词详情。参考文本只有一句时同样给出一个分句，分数与段落相同 |
 | `compositeReport` | object | 维度细分，例如 `emotionScore`，`stopConnScore`，`stressScore`，`intonationScore`，`nasalsScore` |
 
 `words` 每一项：

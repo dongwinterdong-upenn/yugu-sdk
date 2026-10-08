@@ -117,7 +117,7 @@ expected = A+6uVB/D7khxQEt8tzgCNjMUC1QtQQd1UF+NCYVYZqE=
 
 `POST /{coreType}`，路径取声通命名，已注册 `word.eval`，`word.eval.pro`，`sent.eval`，`sent.eval.pro`，`para.eval`，`alpha.eval`，`word.eval.cn`，`sent.eval.cn`，`para.eval.cn`，`pinyin`。`multipart/form-data`，`audio` 为文件段，业务参数为文本段，使用声通参数名：`refText`，`language`，`refPinyin`，`agegroup`，`scale`，`precision`，`slack`，`paragraph_need_word_score`，`phoneme_output`，`attachAudioUrl`，`dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron`，`output_rawtext`，`readtype_diagnosis` 等。另可带文本段 `request`，内容为 JSON，其顶层标量字段并入业务参数。兼容接口必须带 `X-App-Key`。
 
-成功时返回声通风格结果 `{"recordId": ..., "eof": 1, "result": {...}}`，`result` 内的字段与 3.1 节一致，段落题按 `paragraph_need_word_score` 决定是否带逐词详情。
+成功时返回声通风格结果 `{"recordId": ..., "eof": 1, "result": {...}}`，`result` 内的字段与 3.1 节一致，段落题按 `paragraph_need_word_score` 决定是否带逐词详情。请求带 `attachAudioUrl=1` 时顶层另有 `audioUrl`，为录音下载地址，保留 7 天，同一个幂等键重放时地址不变。
 
 ## 4 语音合成与报告
 
@@ -263,7 +263,7 @@ SDK 在上传前对 WAV 与 PCM 做预检，模式 OFF，WARN，REJECT，默认 
  "result": {"overall": 85}}
 ```
 
-错误时回调 `{"tokenId": "...", "errId": 20009, "error": "...", "eof": 1, "applicationId": "..."}`。可重试的失败在重试用尽后统一给 errId 20009，其余服务端错误把平台错误码作为 errId，平替层本地错误为 60001 到 60009，见 `ERRORS.md`。接入方式见 `SHENGTONG-MIGRATION.md`。
+请求带 `attachAudioUrl=1` 时，兼容接口的返回体顶层另有 `audioUrl`，为本次录音的下载地址，形如 `https://open.shengzhiai.com/rec/<yyyyMMdd>/<文件名>`，保留 7 天，平替层把该地址原样放进回调 JSON。错误时回调 `{"tokenId": "...", "errId": 20009, "error": "...", "eof": 1, "applicationId": "..."}`。可重试的失败在重试用尽后统一给 errId 20009，其余服务端错误把平台错误码作为 errId，平替层本地错误为 60001 到 60009，见 `ERRORS.md`。接入方式见 `SHENGTONG-MIGRATION.md`。
 
 ## 11 沙箱
 

@@ -430,6 +430,7 @@ components:
         recordId: {type: string}
         eof: {type: integer, enum: [1]}
         result: {$ref: '#/components/schemas/EvaluationScores'}
+        audioUrl: {type: string, format: uri, description: 请求带 attachAudioUrl=1 时出现，录音下载地址，保留 7 天}
     TtsRequest:
       type: object
       required: [text]

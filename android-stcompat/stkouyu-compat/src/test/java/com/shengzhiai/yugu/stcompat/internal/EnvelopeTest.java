@@ -43,7 +43,9 @@ public class EnvelopeTest {
         // byte for byte apart from the Shengtong-style keys added to sentences[].details[]
         assertOnlyAlignment(RawJson.members(body.trim()).get("result").trim(), resultText(json));
         assertFalse(e.has("params"));
+        // recorded without attachAudioUrl: the platform sends no audioUrl, so the envelope has none
         assertFalse(e.has("audioUrl"));
+        assertFalse(e.getJSONObject("result").has("audioUrl"));
     }
 
     @Test
@@ -82,13 +84,27 @@ public class EnvelopeTest {
         return s;
     }
 
-    /** Production: the compat endpoint returns no audioUrl even with attachAudioUrl=1, so the envelope has none. */
+    /**
+     * Production with attachAudioUrl=1: the compat body has a top-level audioUrl (download link of
+     * the recording, kept 7 days). The envelope carries exactly that value as its last key.
+     */
     @Test
-    public void attachAudioUrlFixtureHasNoAudioUrl() throws Exception {
+    public void attachAudioUrlFixtureCarriesThePlatformAudioUrl() throws Exception {
         String body = Fixtures.text("spec/fixtures/platform/compat_sent.eval.cn_attach_audio_url.json");
+        String platformUrl = new JSONObject(body).getString("audioUrl");
+        assertTrue(platformUrl, platformUrl.startsWith("https://"));
         String json = Envelope.success(TOKEN, "ak", "u", "今天天气很好", body, null, 0);
         JSONObject e = new JSONObject(json);
-        assertFalse(e.has("audioUrl"));
+        assertEquals(platformUrl, e.getString("audioUrl"));
+        // the raw JSON value is copied unchanged, not re-encoded
+        assertEquals(RawJson.members(body.trim()).get("audioUrl").trim(), RawJson.members(json).get("audioUrl").trim());
+        String last = null;
+        for (Iterator<String> keys = e.keys(); keys.hasNext(); ) {
+            last = keys.next();
+        }
+        assertEquals("audioUrl", last);
+        assertEquals("eval_9cd006ba7b68", e.getString("recordId"));
+        // the platform puts it at the top level only; result stays as sent apart from the alignment
         assertFalse(e.getJSONObject("result").has("audioUrl"));
         assertOnlyAlignment(RawJson.members(body.trim()).get("result").trim(), resultText(json));
     }
@@ -108,24 +124,49 @@ public class EnvelopeTest {
         assertEquals(2, sentences.length());
         assertEquals(6, sentences.getJSONObject(0).getJSONArray("details").length());
         assertEquals(9, sentences.getJSONObject(1).getJSONArray("details").length());
+        assertEquals(15, readLikeShengtong(sentences));
+        JSONObject first = sentences.getJSONObject(0).getJSONArray("details").getJSONObject(0);
+        assertEquals("今", first.getString("word"));
+        assertEquals(76, first.getInt("overall"));
+        assertOnlyAlignment(RawJson.members(body.trim()).get("result").trim(), resultText(json));
+    }
+
+    /** A paragraph whose reference text is one sentence comes back with one sentence, aligned the same way. */
+    @Test
+    public void singleSentenceParagraphIsAlignedLikeLongerOnes() throws Exception {
+        String body = Fixtures.text("spec/fixtures/platform/compat_para.eval.cn_single_sentence.json");
+        String json = Envelope.success(TOKEN, "ak", "u", "今天天气很好。", body, null, 0);
+        JSONObject r = new JSONObject(json).getJSONObject("result");
+        assertEquals(94.6, r.getDouble("overall"), 1e-9);
+        org.json.JSONArray sentences = r.getJSONArray("sentences");
+        assertEquals(1, sentences.length());
+        assertEquals(6, sentences.getJSONObject(0).getJSONArray("details").length());
+        assertEquals(6, readLikeShengtong(sentences));
+        JSONObject first = sentences.getJSONObject(0).getJSONArray("details").getJSONObject(0);
+        assertEquals("今", first.getString("word"));
+        assertEquals(78, first.getInt("overall"));
+        assertEquals(78, first.getInt("pronunciation"));
+        assertOnlyAlignment(RawJson.members(body.trim()).get("result").trim(), resultText(json));
+    }
+
+    /**
+     * Reads every sentences[].details[] item the way the public Shengtong sample does (overall
+     * unconditionally) and checks the values against scores. Returns the number of items read.
+     */
+    private static int readLikeShengtong(org.json.JSONArray sentences) throws Exception {
         int checked = 0;
         for (int i = 0; i < sentences.length(); i++) {
             org.json.JSONArray details = sentences.getJSONObject(i).getJSONArray("details");
             for (int j = 0; j < details.length(); j++) {
                 JSONObject d = details.getJSONObject(j);
-                // what the public Shengtong sample does, unconditionally
                 int overall = d.getInt("overall");
                 assertEquals(d.getJSONObject("scores").getInt("overall"), overall);
                 assertEquals(d.getJSONObject("scores").getInt("pronunciation"), d.getInt("pronunciation"));
-                d.getString("word");
+                assertFalse(d.getString("word").isEmpty());
                 checked++;
             }
         }
-        assertEquals(15, checked);
-        JSONObject first = sentences.getJSONObject(0).getJSONArray("details").getJSONObject(0);
-        assertEquals("今", first.getString("word"));
-        assertEquals(76, first.getInt("overall"));
-        assertOnlyAlignment(RawJson.members(body.trim()).get("result").trim(), resultText(json));
+        return checked;
     }
 
     @Test

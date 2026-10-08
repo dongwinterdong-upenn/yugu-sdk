@@ -186,7 +186,7 @@ extern NSString *const KYEngineNative;   // @"native"，平替层按云端评测
 // 不生效，align.eval 平台不支持
 @property (nonatomic, copy) NSString *refAudio;
 
-// 可选，YES 时发送 attachAudioUrl=1，默认 NO。平台兼容接口目前不返回音频地址，录音路径用 getLastRecordPath 获取
+// 可选，YES 时发送 attachAudioUrl=1，评测结果带 audioUrl 录音下载地址，保留 7 天，默认 NO
 @property (nonatomic, assign) BOOL attachAudioUrl;
 
 // 可选，设置后以 dict_type 发送 CMU、KK 或 IPA88

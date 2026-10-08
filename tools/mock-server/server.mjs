@@ -42,6 +42,7 @@ const state = {
   idem: new Map(),       // scope|key -> {status:'pending'|'done', fp, body, headers, waiters}
   nonces: new Map(),     // appKey|nonce -> first seen ms (the platform rejects reuse within 300 s)
   slowMs: 0,             // extra processing time of the next request, set by the slow: fault
+  recordings: new Map(), // /rec/<day>/<file> -> uploaded audio, for attachAudioUrl
   seq: 0,
 };
 
@@ -55,6 +56,7 @@ function reset() {
   state.idem = new Map();
   state.nonces = new Map();
   state.slowMs = 0;
+  state.recordings = new Map();
 }
 
 function takeFault(pathname, headerFault) {
@@ -233,6 +235,26 @@ function nativeResult(cfg = {}) {
   return r;
 }
 
+// attachAudioUrl (2026-10-08, same as production): the compat body gets a top-level audioUrl that
+// downloads the uploaded recording from this mock under /rec/<yyyyMMdd>/<recordId>-<32 hex>.<ext>.
+function wantsAudioUrl(params) {
+  let v = params ? params.attachAudioUrl : undefined;
+  if (v === undefined && params && typeof params.request === 'string') {
+    try { v = JSON.parse(params.request).attachAudioUrl; } catch (e) { v = undefined; }
+  }
+  const t = v === undefined || v === null ? '' : String(v).trim().toLowerCase();
+  return t === '1' || t === 'true';
+}
+function saveRecording(origin, recordId, filename, bytes) {
+  const day = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+  const m = /\.([a-z0-9]+)$/i.exec(filename || '');
+  const ext = m && ['wav', 'mp3', 'pcm', 'ogg', 'm4a', 'aac', 'opus', 'webm'].includes(m[1].toLowerCase()) ? m[1].toLowerCase() : 'bin';
+  const name = `${recordId}-${crypto.randomBytes(16).toString('hex')}.${ext}`;
+  const urlPath = `/rec/${day}/${name}`;
+  state.recordings.set(urlPath, Buffer.from(bytes));
+  return origin + urlPath;
+}
+
 function compatResult(coreType) {
   const name = fs.existsSync(path.join(FIXTURES, `compat_${coreType}.json`)) ? `compat_${coreType}.json` : 'compat_sent.eval.cn.json';
   const r = fixture(name);
@@ -318,6 +340,12 @@ async function handleHttp(req, res) {
     if (req.method === 'POST' && pathname === '/api/v1/evaluate') return await evaluateNative(req, res, body, entry);
     if (req.method === 'POST' && pathname === '/api/v1/tts/generate') return await tts(req, res, body, entry);
     if (req.method === 'GET' && pathname.startsWith('/api/v1/report/')) return report(req, res, decodeURIComponent(pathname.slice('/api/v1/report/'.length)));
+    if ((req.method === 'GET' || req.method === 'HEAD') && pathname.startsWith('/rec/')) {
+      const rec = state.recordings.get(pathname);
+      if (!rec) return platformError(res, 404, 40400, 'No static resource ' + pathname);
+      res.writeHead(200, { 'Content-Type': pathname.endsWith('.wav') ? 'audio/wav' : 'application/octet-stream', 'Content-Length': rec.length, 'Cache-Control': 'private, max-age=86400' });
+      return res.end(req.method === 'HEAD' ? undefined : rec);
+    }
     const ct = pathname.slice(1);
     if (req.method === 'POST' && COMPAT_CORE_TYPES.has(ct)) return await evaluateCompat(req, res, body, ct, entry);
     if (req.method === 'POST' && /^\/[a-z]+\.[a-z.]+$/.test(pathname)) return platformError(res, 403, 40300, '该 API Key 未授权调用此 coreType: ' + ct);
@@ -373,6 +401,7 @@ async function evaluateCompat(req, res, body, coreType, entry) {
   const result = await withIdempotency(auth.scope, entry.idempotencyKey, fp, async () => {
     await sleep(PROCESSING_MS + (req.slowMs || 0));
     const r = compatResult(coreType);
+    if (wantsAudioUrl(fields)) r.audioUrl = saveRecording(`http://${req.headers.host}`, r.recordId, audio.filename, audio.data);
     state.billing.push({ op: 'compat', key: auth.scope, idemKey: entry.idempotencyKey, recordId: r.recordId });
     return { status: 200, body: r };
   });
@@ -447,7 +476,7 @@ function attachWs(server) {
       return;
     }
     const target = fault && fault.startsWith('ws-silent') ? silentWss : wss;
-    target.handleUpgrade(req, socket, head, (ws) => wsSession(ws, { isNative, coreType: ct, auth, url, fault }));
+    target.handleUpgrade(req, socket, head, (ws) => wsSession(ws, { isNative, coreType: ct, auth, url, fault, host: req.headers.host }));
   });
 }
 
@@ -502,6 +531,7 @@ function wsSession(ws, ctx) {
     const result = await withIdempotency(ctx.auth.scope, idemKey, fp, async () => {
       await sleep(PROCESSING_MS + (fkind === 'ws-delay-result' ? Number(farg || 1000) : 0));
       const r = ctx.isNative ? nativeResult(params) : compatResult(ctx.coreType);
+      if (!ctx.isNative && wantsAudioUrl(params)) r.audioUrl = saveRecording(`http://${ctx.host}`, r.recordId, 'ws-audio.wav', buf);
       state.billing.push({ op: ctx.isNative ? 'ws-native' : 'ws-compat', key: ctx.auth.scope, idemKey, recordId: r.recordId, bytes: buf.length });
       return { status: 200, body: r };
     });

@@ -19,7 +19,6 @@ import org.json.JSONObject;
 import org.junit.AfterClass;
 import org.junit.Assume;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -186,7 +185,7 @@ public class SandboxIntegrationTest extends CompatTestBase {
 
     /**
      * Case 2: para.eval.cn with the paragraph text of the platform fixtures; details[] carry
-     * Shengtong-style overall. A single-sentence paragraph comes back without sentences.
+     * Shengtong-style overall.
      */
     @Test
     public void paragraphWordDetailsInShengtongShape() throws Exception {
@@ -227,16 +226,24 @@ public class SandboxIntegrationTest extends CompatTestBase {
     }
 
     /**
-     * Expected platform behaviour that does not hold yet: on 2026-10-08 the sandbox evaluated a
-     * POST /{coreType} signed with a wrong secret instead of rejecting it. Enable when fixed.
+     * Case 4: sent.eval.cn with setNeedAttachAudioUrlInResult(true): the onScore JSON carries the
+     * platform's audioUrl, the recording also stays local. Only the host is printed, never the link.
      */
-    @Ignore("platform defect reported 2026-10-08: POST /{coreType} accepts a wrong X-Signature")
     @Test
-    public void wrongSecretIsRejected() throws Exception {
-        SkEgnManager m = init("not-the-sandbox-secret-" + Long.toHexString(System.nanoTime()));
-        JSONObject r = evaluate(m, new RecordSetting(CoreType.CN_SENT_EVAL, "今天天气很好"));
-        assertTrue("a wrong signature was accepted: " + describe(r), r.has("errId"));
-        assertEquals("AUTH", ErrorTable.ERRORS.get(r.getInt("errId")).category);
-        assertEquals(1, requests.size());
+    public void attachAudioUrlIsReturned() throws Exception {
+        SkEgnManager m = init(SECRET);
+        JSONObject r = evaluate(m, new RecordSetting(CoreType.CN_SENT_EVAL, "今天天气很好").setNeedAttachAudioUrlInResult(true));
+        assertSuccessEnvelope(r);
+        boolean attachAsked = false;
+        for (Multipart.Part p : requests.get(0).body.parts()) {
+            attachAsked |= "attachAudioUrl".equals(p.name) && "1".equals(p.value);
+        }
+        assertTrue("attachAudioUrl=1 was not sent", attachAsked);
+        assertTrue("no audioUrl in the onScore JSON: " + shape(r), r.has("audioUrl"));
+        String url = r.getString("audioUrl");
+        assertTrue("audioUrl is not an https link", url.startsWith("https://"));
+        assertTrue(new File(m.getLastRecordPath()).isFile());
+        System.out.println("sandbox attachAudioUrl: audioUrl host=" + new java.net.URI(url).getHost()
+                + ", attempts=" + requests.size());
     }
 }

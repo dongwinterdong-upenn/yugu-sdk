@@ -165,29 +165,46 @@ static void classify_text(int status, const char *body, ygst_classification *c) 
     ygst_classify(&o, c);
 }
 
+/* A top-level member of a fixture body: its span, and the decoded text when it is a string. */
+static int fixture_member(const char *body, size_t len, const char *key, ygst_span *v, ygst_buf *text) {
+    ygst_span root;
+    if (text) ygst_buf_reset(text);
+    if (ygst_json_parse(body, len, &root) != 0 || ygst_json_member(root, key, v) != 1) return 0;
+    if (text && (ygst_json_type(*v) != 's' || ygst_json_string(*v, text) != 0)) return 0;
+    return 1;
+}
+
 static void test_classify_success_fixtures(void) {
     static const char *names[] = {"compat_word.eval.json", "compat_sent.eval.json", "compat_sent.eval.cn.json",
                                   "compat_para.eval.cn.json", "compat_sent_eval_cn.json",
-                                  "compat_sent.eval.cn_attach_audio_url.json", "compat_para.eval.cn_word_detail.json"};
+                                  "compat_sent.eval.cn_attach_audio_url.json", "compat_para.eval.cn_word_detail.json",
+                                  "compat_para.eval.cn_single_sentence.json"};
     size_t i;
     for (i = 0; i < sizeof names / sizeof names[0]; i++) {
         char rel[128];
         size_t len = 0;
         char *body;
         ygst_classification c;
-        ygst_span root, result;
+        ygst_span root, result, url_span;
+        ygst_buf url;
+        int with_flag = strstr(names[i], "attach_audio_url") != NULL;
         snprintf(rel, sizeof rel, "fixtures/platform/%s", names[i]);
         body = ygt_read_spec(rel, &len);
         CHECK(body != NULL);
         if (!body) continue;
         ygst_classification_init(&c);
+        ygst_buf_init(&url);
         classify_text(200, body, &c);
         CHECK_INT(c.success, 1);
         CHECK(strncmp(ygst_buf_cstr(&c.record_id), "eval_", 5) == 0);
-        CHECK_INT(c.has_audio_url, 0);
+        /* the platform sends audioUrl only for attachAudioUrl=1, and the classification takes it as sent */
+        CHECK_INT(fixture_member(body, len, "audioUrl", &url_span, &url), with_flag);
+        CHECK_INT(c.has_audio_url, with_flag);
+        if (with_flag) CHECK_STR(ygst_buf_cstr(&c.audio_url), ygst_buf_cstr(&url));
         CHECK_INT(ygst_json_parse(body, len, &root), 0);
         CHECK_INT(ygst_json_member(root, "result", &result), 1);
         CHECK(c.result.p == result.p && c.result.n == result.n);
+        ygst_buf_free(&url);
         ygst_classification_free(&c);
         free(body);
     }
@@ -195,6 +212,27 @@ static void test_classify_success_fixtures(void) {
 
 static int spans_equal(ygst_span a, ygst_span b) {
     return a.n == b.n && memcmp(a.p, b.p, a.n) == 0;
+}
+
+/* Every member of orig other than skip is in got with the same bytes, and got has as many members. */
+static int same_members_except(ygst_span orig, ygst_span got, const char *skip) {
+    ygst_span k, v, w;
+    size_t pos = 0;
+    int n_orig = 0, n_got = 0;
+    while (ygst_json_object_next(orig, &pos, &k, &v) == 1) {
+        ygst_buf name;
+        int ok;
+        ygst_buf_init(&name);
+        ygst_json_string(k, &name);
+        ok = strcmp(ygst_buf_cstr(&name), skip) == 0 ||
+             (ygst_json_member(got, ygst_buf_cstr(&name), &w) == 1 && spans_equal(v, w));
+        ygst_buf_free(&name);
+        if (!ok) return 0;
+        n_orig++;
+    }
+    pos = 0;
+    while (ygst_json_object_next(got, &pos, &k, &v) == 1) n_got++;
+    return n_orig == n_got;
 }
 
 /* Checks one aligned details item against the platform item: every platform member is still
@@ -227,98 +265,160 @@ static int check_aligned_detail(ygst_span orig, ygst_span got, int *added) {
     return 1;
 }
 
-/* Real responses captured 2026-10-08: attachAudioUrl=1 returns no audio URL, and para.eval.cn with
- * paragraph_need_word_score=1 carries sentences[].details[] whose scores sit under scores. */
-static void test_envelope_from_real_fixtures(void) {
+/* Envelope from a real para.eval.cn response with paragraph_need_word_score=1: outside
+ * sentences[].details[] the result is the platform's byte for byte, every details item gains
+ * overall and pronunciation from its scores and nothing else, the same for one sentence or many. */
+static void check_paragraph_fixture(const char *name, int want_sentences, int want_items, ygst_buf *first_text) {
+    char rel[128];
     size_t len = 0;
-    char *body = ygt_read_spec("fixtures/platform/compat_sent.eval.cn_attach_audio_url.json", &len);
+    char *body;
     ygst_classification c;
-    ygst_buf env;
-    ygst_span root, result, fx_root, fx_result, s_got, s_orig, d_got, d_orig, sg, so_, dg, do_;
+    ygst_buf env, aligned;
+    ygst_span root, result, fx_root, fx_result, s_got, s_orig, sg, so_, d_got, d_orig, dg, do_;
     size_t pos_g = 0, pos_o = 0;
-    int items = 0, added_total = 0;
-    ygst_classification_init(&c);
-    ygst_buf_init(&env);
+    int sentences = 0, items = 0, added_total = 0;
+    size_t extra = 0;
+    snprintf(rel, sizeof rel, "fixtures/platform/%s", name);
+    body = ygt_read_spec(rel, &len);
     CHECK(body != NULL);
     if (!body) return;
+    ygst_classification_init(&c);
+    ygst_buf_init(&env);
+    ygst_buf_init(&aligned);
     classify_text(200, body, &c);
     CHECK_INT(c.success, 1);
     CHECK_INT(c.has_audio_url, 0);
-    ygst_envelope_result(&env, "t", "\"eval_x\"", "ak", "", "", "d", c.result, NULL,
-                         c.has_audio_url ? ygst_buf_cstr(&c.audio_url) : NULL);
-    CHECK(strstr(ygst_buf_cstr(&env), "\"audioUrl\"") == NULL);
-    free(body);
-    ygst_buf_reset(&env);
-
-    body = ygt_read_spec("fixtures/platform/compat_para.eval.cn_word_detail.json", &len);
-    CHECK(body != NULL);
-    if (!body) return;
-    classify_text(200, body, &c);
-    CHECK_INT(c.success, 1);
     CHECK_INT(ygst_envelope_result(&env, "t", "\"eval_x\"", "ak", "", "", "d", c.result, NULL, NULL), 0);
     CHECK_INT(ygst_json_parse((const char *)env.data, env.len, &root), 0);
     CHECK_INT(ygst_json_member(root, "result", &result), 1);
     CHECK_INT(ygst_json_parse(body, len, &fx_root), 0);
     CHECK_INT(ygst_json_member(fx_root, "result", &fx_result), 1);
-    /* everything outside sentences is byte for byte the platform's */
-    {
-        static const char *const KEYS[] = {"overall", "pronunciation", "fluency", "integrity", "words",
-                                           "compositeReport", "yuguScores", "warning", "duration"};
-        size_t i;
-        for (i = 0; i < sizeof KEYS / sizeof KEYS[0]; i++) {
-            ygst_span a, b;
-            CHECK_INT(ygst_json_member(fx_result, KEYS[i], &a), 1);
-            CHECK_INT(ygst_json_member(result, KEYS[i], &b), 1);
-            CHECK(spans_equal(a, b));
-        }
-    }
+    CHECK(same_members_except(fx_result, result, "sentences"));
     CHECK_INT(ygst_json_member(result, "sentences", &s_got), 1);
     CHECK_INT(ygst_json_member(fx_result, "sentences", &s_orig), 1);
-    while (ygst_json_array_next(s_got, &pos_g, &sg) == 1 && ygst_json_array_next(s_orig, &pos_o, &so_) == 1) {
+    for (;;) {
         size_t dg_pos = 0, do_pos = 0;
-        ygst_span a, b;
+        ygst_span text;
+        int a = ygst_json_array_next(s_got, &pos_g, &sg);
+        int b = ygst_json_array_next(s_orig, &pos_o, &so_);
+        if (a != 1 || b != 1) {
+            CHECK(a != 1 && b != 1); /* as many sentences as the platform sent */
+            break;
+        }
+        if (sentences++ == 0 && first_text && ygst_json_member(sg, "text", &text) == 1) {
+            ygst_json_string(text, first_text);
+        }
         /* sentence members other than details are unchanged */
-        CHECK_INT(ygst_json_member(sg, "scores", &a), 1);
-        CHECK_INT(ygst_json_member(so_, "scores", &b), 1);
-        CHECK(spans_equal(a, b));
+        CHECK(same_members_except(so_, sg, "details"));
         CHECK_INT(ygst_json_member(sg, "details", &d_got), 1);
         CHECK_INT(ygst_json_member(so_, "details", &d_orig), 1);
-        while (ygst_json_array_next(d_got, &dg_pos, &dg) == 1 && ygst_json_array_next(d_orig, &do_pos, &do_) == 1) {
+        for (;;) {
             int added = -1;
+            ygst_span sc, x;
+            a = ygst_json_array_next(d_got, &dg_pos, &dg);
+            b = ygst_json_array_next(d_orig, &do_pos, &do_);
+            if (a != 1 || b != 1) {
+                CHECK(a != 1 && b != 1); /* as many details items as the platform sent */
+                break;
+            }
             CHECK(check_aligned_detail(do_, dg, &added));
             CHECK_INT(added, 2);
             added_total += added;
             items++;
+            CHECK_INT(ygst_json_member(do_, "scores", &sc), 1);
+            if (ygst_json_member(sc, "overall", &x) == 1) extra += strlen(",\"overall\":") + x.n;
+            if (ygst_json_member(sc, "pronunciation", &x) == 1) extra += strlen(",\"pronunciation\":") + x.n;
         }
     }
-    CHECK_INT(items, 15);
+    CHECK_INT(sentences, want_sentences);
+    CHECK_INT(items, want_items);
+    CHECK_INT(added_total, 2 * want_items);
     /* the aligned result is the platform result plus exactly the added members */
-    {
-        ygst_buf aligned;
-        size_t extra = 0;
-        ygst_buf_init(&aligned);
-        CHECK_INT(ygst_align_result(fx_result, &aligned), 30);
-        CHECK(aligned.len == result.n && memcmp(aligned.data, result.p, result.n) == 0);
-        pos_o = 0;
-        while (ygst_json_array_next(s_orig, &pos_o, &so_) == 1) {
-            size_t do_pos = 0;
-            ygst_json_member(so_, "details", &d_orig);
-            while (ygst_json_array_next(d_orig, &do_pos, &do_) == 1) {
-                ygst_span sc, x;
-                ygst_json_member(do_, "scores", &sc);
-                ygst_json_member(sc, "overall", &x);
-                extra += strlen(",\"overall\":") + x.n;
-                ygst_json_member(sc, "pronunciation", &x);
-                extra += strlen(",\"pronunciation\":") + x.n;
-            }
-        }
-        CHECK_INT(aligned.len, fx_result.n + extra);
-        ygst_buf_free(&aligned);
-    }
-    printf("     word_detail fixture: %d details items aligned, %d members added\n", items, added_total);
+    CHECK_INT(ygst_align_result(fx_result, &aligned), added_total);
+    CHECK(aligned.len == result.n && memcmp(aligned.data, result.p, result.n) == 0);
+    CHECK_INT(aligned.len, fx_result.n + extra);
+    printf("     %s: sentences %d, details items aligned %d, members added %d\n", name, sentences, items,
+           added_total);
+    ygst_buf_free(&aligned);
     ygst_buf_free(&env);
     ygst_classification_free(&c);
     free(body);
+}
+
+/* Real responses captured 2026-10-08. With attachAudioUrl=1 the platform answers with a top-level
+ * audioUrl, the download URL of the uploaded recording kept 7 days, and the envelope carries
+ * exactly that URL as its last member. The same sentence without the flag has no audioUrl. A
+ * para.eval.cn response with paragraph_need_word_score=1 carries sentences[].details[] whose
+ * scores sit under scores. */
+static void test_envelope_from_real_fixtures(void) {
+    size_t len = 0;
+    char *body = ygt_read_spec("fixtures/platform/compat_sent.eval.cn_attach_audio_url.json", &len);
+    ygst_classification c;
+    ygst_buf env, want, got, last;
+    ygst_span root, k, v, want_span;
+    size_t pos = 0;
+    char rid[64];
+    ygst_classification_init(&c);
+    ygst_buf_init(&env);
+    ygst_buf_init(&want);
+    ygst_buf_init(&got);
+    ygst_buf_init(&last);
+    CHECK(body != NULL);
+    if (!body) return;
+    CHECK_INT(fixture_member(body, len, "audioUrl", &want_span, &want), 1);
+    CHECK(strncmp(ygst_buf_cstr(&want), "https://", 8) == 0);
+    classify_text(200, body, &c);
+    CHECK_INT(c.success, 1);
+    CHECK_INT(c.has_audio_url, 1);
+    CHECK_STR(ygst_buf_cstr(&c.audio_url), ygst_buf_cstr(&want));
+    snprintf(rid, sizeof rid, "%.*s", (int)c.record_id_raw.n, c.record_id_raw.p ? c.record_id_raw.p : "");
+    CHECK_INT(ygst_envelope_result(&env, "t", rid, "ak", "u", "今天天气很好", "d", c.result, NULL,
+                                   c.has_audio_url ? ygst_buf_cstr(&c.audio_url) : NULL),
+              0);
+    CHECK_INT(ygst_json_parse((const char *)env.data, env.len, &root), 0);
+    CHECK_INT(ygst_json_member(root, "audioUrl", &v), 1);
+    CHECK(spans_equal(v, want_span)); /* the platform's bytes */
+    CHECK_INT(ygst_json_string(v, &got), 0);
+    CHECK_STR(ygst_buf_cstr(&got), ygst_buf_cstr(&want));
+    while (ygst_json_object_next(root, &pos, &k, &v) == 1) {
+        ygst_buf_reset(&last);
+        ygst_json_string(k, &last);
+    }
+    CHECK_STR(ygst_buf_cstr(&last), "audioUrl");
+    free(body);
+
+    body = ygt_read_spec("fixtures/platform/compat_sent.eval.cn.json", &len);
+    CHECK(body != NULL);
+    if (body) {
+        CHECK_INT(fixture_member(body, len, "audioUrl", &want_span, NULL), 0);
+        classify_text(200, body, &c);
+        CHECK_INT(c.success, 1);
+        CHECK_INT(c.has_audio_url, 0);
+        ygst_buf_reset(&env);
+        CHECK_INT(ygst_envelope_result(&env, "t", "\"eval_x\"", "ak", "u", "今天天气很好", "d", c.result, NULL,
+                                       c.has_audio_url ? ygst_buf_cstr(&c.audio_url) : NULL),
+                  0);
+        CHECK_INT(ygst_json_parse((const char *)env.data, env.len, &root), 0);
+        CHECK(ygst_json_member(root, "audioUrl", &v) != 1);
+        free(body);
+    }
+
+    check_paragraph_fixture("compat_para.eval.cn_word_detail.json", 2, 15, NULL);
+    ygst_buf_free(&last);
+    ygst_buf_free(&got);
+    ygst_buf_free(&want);
+    ygst_buf_free(&env);
+    ygst_classification_free(&c);
+}
+
+/* para.eval.cn with refText 今天天气很好。 captured 2026-10-08: one sentence, its 6 details items
+ * aligned as in a multi-sentence result. */
+static void test_envelope_single_sentence_paragraph(void) {
+    ygst_buf text;
+    ygst_buf_init(&text);
+    check_paragraph_fixture("compat_para.eval.cn_single_sentence.json", 1, 6, &text);
+    CHECK_STR(ygst_buf_cstr(&text), "今天天气很好。");
+    ygst_buf_free(&text);
 }
 
 static void align_text(const char *in, ygst_buf *out, int want_added) {
@@ -749,6 +849,7 @@ void suite_retry(void) {
     RUN("retry", test_classify_success_fixtures);
     RUN("retry", test_classify_audio_url);
     RUN("retry", test_envelope_from_real_fixtures);
+    RUN("retry", test_envelope_single_sentence_paragraph);
     RUN("retry", test_align_result_cases);
     RUN("retry", test_classify_errors);
     RUN("retry", test_classify_error_fixtures);

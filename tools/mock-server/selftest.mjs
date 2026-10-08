@@ -86,6 +86,26 @@ await check('compat REST', async () => {
   assert.ok(Array.isArray(j.result.words));
 });
 
+await check('compat attachAudioUrl returns a download link, same link on replay', async () => {
+  const fields = { refText: '今天天气很好', attachAudioUrl: '1' };
+  const key = 'k-' + crypto.randomBytes(8).toString('hex');
+  const urls = [];
+  for (let i = 0; i < 2; i++) {
+    const m = multipart(fields, null);
+    const r = await fetch(base + '/sent.eval.cn', { method: 'POST', body: m.body, headers: { 'Content-Type': m.type, 'Idempotency-Key': key, ...authHeaders(fields) } });
+    assert.equal(r.status, 200);
+    urls.push((await r.json()).audioUrl);
+  }
+  assert.match(urls[0], /\/rec\/[0-9]{8}\/eval_[A-Za-z0-9_]+-[0-9a-f]{32}\.wav$/);
+  assert.equal(urls[1], urls[0]);
+  const a = await fetch(urls[0]);
+  assert.equal(a.status, 200);
+  assert.ok(Buffer.from(await a.arrayBuffer()).equals(wav));
+  const plain = multipart({ refText: '今天天气很好' }, null);
+  const n = await fetch(base + '/sent.eval.cn', { method: 'POST', body: plain.body, headers: { 'Content-Type': plain.type, ...authHeaders({ refText: '今天天气很好' }) } });
+  assert.equal('audioUrl' in (await n.json()), false);
+});
+
 await check('config part without application/json is 415', async () => {
   const b = '----x';
   const body = Buffer.concat([Buffer.from(`--${b}\r\nContent-Disposition: form-data; name="config"\r\n\r\n${cfg}\r\n--${b}\r\nContent-Disposition: form-data; name="audio"; filename="a.wav"\r\n\r\n`), wav, Buffer.from(`\r\n--${b}--\r\n`)]);

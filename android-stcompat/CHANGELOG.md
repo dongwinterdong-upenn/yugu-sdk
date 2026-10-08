@@ -10,6 +10,7 @@
 
 - 声通 `17kouyu_1.0.0.jar` 的平替 AAR，`com.stkouyu` 包中全部公共与受保护的类，接口，方法，字段与常量与声通 jar 一致，常量取值不变，接入方替换依赖，删除 `.so` 文件后原有代码照常编译运行。
 - 评测在优谷雅言云平台完成，录音结束后经兼容接口 `POST /{coreType}` 上传，`onScore` 收到的结果 JSON 包含 `tokenId`，`recordId`，`applicationId`，`userId`，`refText`，`eof`，`dtLastResponse` 与平台返回的 `result`。
+- `setNeedAttachAudioUrlInResult(true)` 时发送 `attachAudioUrl=1`，结果 JSON 带平台返回的录音下载地址 `audioUrl`，地址保留 7 天，录音同时保存在本地。
 - 结果结构对齐声通：段落内核总是请求逐字得分，`result.sentences[].details[]` 中缺少 `overall` 的条目补充从 `scores` 复制的 `overall` 与 `pronunciation`，其余内容与平台返回一致。
 - 录音使用 `AudioRecord` 采集 16000 Hz 单声道 16 位 PCM，保存为 WAV 文件，支持暂停与继续，本地能量 VAD 给出 `vad_status` 与 `sound_intensity`，设置 `duration` 后按 `durationInterval` 回调 `onTick`，到时后自动停止。
 - 外部音频写入 `feed`，已有文件评测 `existsAudioTrans`，回放 `playback` 与 `playWithPath`，麦克风预备 `activeMic` 与 `releaseMic`，状态查询 `getEngineStatus`。
@@ -25,7 +26,6 @@
 
 - 只做云端评测，`ENGINE_NATIVE` 与 `ENGINE_MULTI` 按云端运行。
 - 不带 MP3 编码器，录音一律为 WAV，默认文件名为 `<tokenId>.wav`，显式设置的 `recordName` 以 `.mp3` 结尾时沿用该文件名，`SimpleLame` 的方法返回 -1。
-- 平台兼容接口目前不返回音频地址，`setNeedAttachAudioUrlInResult(true)` 暂不起作用，录音保存在本地。
 - 平台兼容通道没有中间结果，`realtime_feedback` 不发送。
 - 不需要授权文件，`updateProvision` 与 `inquireProvision` 直接返回成功。
 - 日志只写入本地文件，不上传。

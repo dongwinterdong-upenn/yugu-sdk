@@ -29,7 +29,8 @@
 | `compat_word.eval.json` | `word.eval` | 英文单词 |
 | `compat_para.eval.cn.json` | `para.eval.cn` | 未要求逐词详情 |
 | `compat_para.eval.cn_word_detail.json` | `para.eval.cn` | 带 `paragraph_need_word_score=1`，分句带 `details` 逐词详情 |
-| `compat_sent.eval.cn_attach_audio_url.json` | `sent.eval.cn` | 带 `attachAudioUrl=1`，平台当前不返回录音地址，返回体里没有录音地址字段 |
+| `compat_sent.eval.cn_attach_audio_url.json` | `sent.eval.cn` | 带 `attachAudioUrl=1`，返回体顶层带 `audioUrl`，为录音下载地址，保留 7 天 |
+| `compat_para.eval.cn_single_sentence.json` | `para.eval.cn` | 参考文本只有一句，带 `paragraph_need_word_score=1`，`sentences` 为一个分句 |
 
 ## 实时评测帧序列
 
