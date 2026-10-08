@@ -100,7 +100,7 @@ final class SandboxTests: XCTestCase {
         config.refText = refText
         config.audioPath = audio
         config.autoRetry = false
-        let token = engine.startEngine(with: config, result: { r in
+        let token = engine.start(with: config, result: { r in
             out = self.json(r)
             done.fulfill()
         }) { _, _ in }
@@ -135,7 +135,7 @@ final class SandboxTests: XCTestCase {
             let overall = (r["result"] as? [String: Any])?["overall"] as? NSNumber
             XCTAssertNotNil(overall, "result.overall is not numeric: " + describe(r))
             print("sandbox sent.eval.cn: overall=\(overall?.stringValue ?? "-") recordId=\(r["recordId"] ?? "-")")
-            engine.deleteEngine()
+            engine.delete()
         }
 
         // 2. para.eval.cn, zh_para.wav and its text: details[] carry overall the way Shengtong's do
@@ -159,7 +159,7 @@ final class SandboxTests: XCTestCase {
             }
             XCTAssertGreaterThan(details, 0, "no details in the paragraph result")
             print("sandbox para.eval.cn: sentences=\(sentences.count) details=\(details) recordId=\(r["recordId"] ?? "-")")
-            engine.deleteEngine()
+            engine.delete()
         }
 
         // 3. an appKey the platform does not know: an authentication errId, no evaluation
@@ -170,7 +170,7 @@ final class SandboxTests: XCTestCase {
             let errId = (r["errId"] as? NSNumber)?.intValue ?? 0
             XCTAssertTrue(authCodes(sb.spec).contains(errId), "errId \(errId) is not an authentication code: " + describe(r))
             print("sandbox unknown appKey: errId=\(errId) error=\(r["error"] ?? "-")")
-            engine.deleteEngine()
+            engine.delete()
         }
 
         // 4. pinyin without refPinyin: the platform's 400 40001 as errId 40001, no evaluation
@@ -180,7 +180,7 @@ final class SandboxTests: XCTestCase {
             XCTAssertEqual((r["errId"] as? NSNumber)?.intValue, 40001, describe(r))
             XCTAssertTrue((r["error"] as? String ?? "").contains("refPinyin"), describe(r))
             print("sandbox pinyin without refPinyin: " + describe(r))
-            engine.deleteEngine()
+            engine.delete()
         }
     }
 }

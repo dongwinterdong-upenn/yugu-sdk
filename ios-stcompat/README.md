@@ -128,12 +128,22 @@ engine.initEngine(KY_CloudEngine, startEngineConfig: config) { ok, message in pr
 let test = KYTestConfig()
 test.coreTypeNS = "sent.eval"
 test.refText = "How are you"
-let tokenId = engine.startEngine(with: test, result: { json in print(json ?? "") }) { ok, str in print(ok, str ?? "") }
-engine.stopEngine()
-engine.deleteEngine()
+let tokenId = engine.start(with: test, result: { json in print(json ?? "") }) { ok, str in print(ok, str ?? "") }
+engine.stop()
+engine.delete()
 ```
 
-Swift 里的方法名由编译器按头文件推导，与使用声通 framework 时相同。
+Swift 里的方法名由编译器按头文件推导，与使用声通 framework 时相同。编译器去掉方法名里与类名 `KYTestEngine` 重复的 `Engine`，也去掉参数名末尾的 `Block`，常用方法的 Swift 写法如下：
+
+| Objective-C | Swift |
+|---|---|
+| `initEngine:startEngineConfig:finishBlock:` | `initEngine(_:startEngineConfig:finish:)` |
+| `startEngineWithTestConfig:result:finishBlock:` | `start(with:result:finish:)` |
+| 带录音过程回调的 `startEngineWithTestConfig:` | `start(with:onStart:onStartFail:onPause:onTick:onRecording:onRecordEnd:onScoreBlock:finish:)` |
+| `stopEngine`，`cancelEngine`，`deleteEngine` | `stop()`，`cancel()`，`delete()` |
+| `getEngineStatus` | `getStatus()` |
+
+`onScoreBlock` 保留 `Block`，是编译器的推导结果。上面的示例与全部方法的 Swift 写法都写在 `Tests/STKouyuEngineTests` 里，随测试一起编译。
 
 ## 评测内核
 
