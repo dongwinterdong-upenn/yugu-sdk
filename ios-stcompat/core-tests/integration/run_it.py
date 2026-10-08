@@ -174,15 +174,20 @@ def s_word_params_custom(c):
 
 
 def s_attach_audio_url(c):
-    """attachAudioUrl=1 goes out as a signed form field, and the envelope's audioUrl is the response's.
-    The mock answers with compat_sent.eval.cn.json, captured without the flag, so there is none here;
-    the unit tests check the platform's audioUrl with compat_sent.eval.cn_attach_audio_url.json."""
+    """attachAudioUrl=1 goes out as a signed form field. Like the platform, the mock then answers with a
+    top-level audioUrl; the envelope carries that link unchanged and the link downloads the uploaded audio."""
     reset()
     r = driver("--audio", audio("zh_short.wav"), "--attach-audio-url")
     e = entries_for(r["tokenId"])
     c(r["outcome"] == "result", "outcome result %r" % r["json"].get("errId"))
     c(e and e[0].get("fields", {}).get("attachAudioUrl") == "1", "attachAudioUrl=1 sent %r" % (e and e[0].get("fields")))
-    c("audioUrl" not in r["json"], "no audioUrl when the response has none")
+    url = r["json"].get("audioUrl") or ""
+    c(re.search(r"/rec/[0-9]{8}/eval_[A-Za-z0-9_]+-[0-9a-f]{32}[.]wav$", url) is not None, "audioUrl from the mock %r" % url)
+    if url:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            body = resp.read()
+        with open(audio("zh_short.wav"), "rb") as f:
+            c(body == f.read(), "audioUrl downloads the uploaded audio")
 
 
 def s_retry_500_same_key(c):
