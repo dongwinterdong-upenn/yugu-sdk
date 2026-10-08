@@ -1,0 +1,50 @@
+# 与自建持续集成相同的步骤，仓库托管到 GitHub 时直接可用。自建流水线见 tools/ci/。
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 18 * * *'
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        step: [contract, java, android, android-stcompat, web, miniprogram, ios, ios-stcompat]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - uses: android-actions/setup-android@v3
+        if: startsWith(matrix.step, 'android')
+      - uses: swift-actions/setup-swift@v2
+        if: startsWith(matrix.step, 'ios')
+        with: {swift-version: '6.0'}
+      - name: run ${{ matrix.step }}
+        env:
+          CI_OUT: ${{ github.workspace }}/ci-out
+          YUGU_SANDBOX_APPKEY: ${{ secrets.YUGU_SANDBOX_APPKEY }}
+          YUGU_SANDBOX_SECRET: ${{ secrets.YUGU_SANDBOX_SECRET }}
+        run: bash ci/run-all.sh ${{ matrix.step }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ci-out-${{ matrix.step }}, path: ci-out}
+  macos:
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        step: [ios-macos, ios-stcompat-macos]
+    steps:
+      - uses: actions/checkout@v4
+      - name: run ${{ matrix.step }}
+        env:
+          CI_OUT: ${{ github.workspace }}/ci-out/${{ matrix.step }}
+        run: bash ci/${{ matrix.step }}.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ci-out-${{ matrix.step }}, path: ci-out}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Queue the nightly Yugu SDK build
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+Environment=HOME=/home/ubuntu
+Environment=CI_HOME=/home/ubuntu/yougu/sdk-ci
+ExecStart=/usr/bin/python3 -I /home/ubuntu/yougu/sdk-ci/bin/ci_runner.py enqueue --trigger nightly --ref main

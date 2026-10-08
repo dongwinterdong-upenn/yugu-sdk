@@ -1,0 +1,9 @@
+[Unit]
+Description=Start the Yugu SDK CI runner when a job is queued
+
+[Path]
+PathExistsGlob=/home/ubuntu/yougu/sdk-ci/queue/*.job
+Unit=yugu-sdk-ci.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+#!/bin/bash
+# 收到推送：main 分支排队构建，并把整个仓库同步到公开只读地址 https://open.shengzhiai.com/git/yugu-sdk.git
+PUBLIC=/home/ubuntu/yougu/frontend/prod-ygyx/index/git/yugu-sdk.git
+while read -r old new ref; do
+  if [ "$ref" = "refs/heads/main" ] && [ "$new" != "0000000000000000000000000000000000000000" ]; then
+    /usr/bin/python3 -I /home/ubuntu/yougu/sdk-ci/bin/ci_runner.py enqueue --trigger push --sha "$new" --ref main
+  fi
+done
+git push --quiet --mirror "$PUBLIC" && git --git-dir="$PUBLIC" update-server-info

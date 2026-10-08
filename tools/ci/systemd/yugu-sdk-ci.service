@@ -1,0 +1,18 @@
+[Unit]
+Description=Yugu SDK CI runner (drains /home/ubuntu/yougu/sdk-ci/queue)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/yougu/sdk-ci
+Environment=HOME=/home/ubuntu
+Environment=CI_HOME=/home/ubuntu/yougu/sdk-ci
+EnvironmentFile=-/home/ubuntu/yougu/sdk-ci/secrets/ci.env
+ExecStart=/usr/bin/python3 -I /home/ubuntu/yougu/sdk-ci/bin/ci_runner.py run
+Nice=10
+IOSchedulingClass=idle
+CPUQuota=400%
+MemoryMax=8G
+TimeoutStartSec=4h

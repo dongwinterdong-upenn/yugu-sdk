@@ -1,0 +1,10 @@
+{
+  "name": "yugu-mock-platform",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "优谷雅言平台模拟服务，供各端 SDK 集成测试注入故障与核对计费",
+  "license": "Apache-2.0",
+  "scripts": { "start": "node server.mjs --port 18900", "test": "node selftest.mjs" },
+  "dependencies": { "ws": "8.18.0" }
+}

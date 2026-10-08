@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly Yugu SDK build at 18:00 UTC (02:00 Beijing)
+
+[Timer]
+OnCalendar=*-*-* 18:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,82 @@
+{
+ "description": "跨端签名一致性向量。payload 为按 key 字典序拼接、丢弃 null 与空串后的原文，signature 为 Base64(HMAC_SHA256(payload, secret))。所有 SDK 的签名单测都要逐条命中。",
+ "cases": [
+  {
+   "name": "contract_vector",
+   "secret": "test_secret_key_123",
+   "params": {
+    "coreType": "sent.eval.cn",
+    "language": "zh-CN",
+    "refText": "北京你好"
+   },
+   "payload": "coreType=sent.eval.cn&language=zh-CN&refText=北京你好",
+   "signature": "A+6uVB/D7khxQEt8tzgCNjMUC1QtQQd1UF+NCYVYZqE="
+  },
+  {
+   "name": "native_config_part",
+   "secret": "test_secret_key_123",
+   "params": {
+    "config": "{\"coreType\":\"sentence\",\"referenceText\":\"今天天气很好\",\"language\":\"zh-CN\",\"slack\":0.2,\"scale\":100,\"includeReport\":false}"
+   },
+   "payload": "config={\"coreType\":\"sentence\",\"referenceText\":\"今天天气很好\",\"language\":\"zh-CN\",\"slack\":0.2,\"scale\":100,\"includeReport\":false}",
+   "signature": "VPCtiJ2Qq5u/+rADfmRI7PvVeqt9goHgbiWoztYW2ag="
+  },
+  {
+   "name": "compat_form",
+   "secret": "test_secret_key_123",
+   "params": {
+    "refText": "How are you",
+    "language": "en-US",
+    "paragraph_need_word_score": "1",
+    "refPinyin": ""
+   },
+   "payload": "language=en-US&paragraph_need_word_score=1&refText=How are you",
+   "signature": "YVajpFF/THZKqoMEJ1YgumyNifcelD4k6SgggXMZKao="
+  },
+  {
+   "name": "tts_json_body",
+   "secret": "test_secret_key_123",
+   "params": {
+    "text": "你好世界",
+    "language": "zh-CN",
+    "voice": "xiaoyan",
+    "format": "mp3",
+    "speed": "50",
+    "pitch": "50",
+    "volume": "50",
+    "style": null
+   },
+   "payload": "format=mp3&language=zh-CN&pitch=50&speed=50&text=你好世界&voice=xiaoyan&volume=50",
+   "signature": "OwKwMSazwAh1jmF/ro/dSSgMuJCt8RAFkmf7uZ9cEK4="
+  },
+  {
+   "name": "ws_handshake_query",
+   "secret": "test_secret_key_123",
+   "params": {
+    "appKey": "ak_test",
+    "timestamp": "1791447600",
+    "nonce": "0123456789abcdef",
+    "idempotencyKey": "3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c"
+   },
+   "payload": "appKey=ak_test&idempotencyKey=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c&nonce=0123456789abcdef&timestamp=1791447600",
+   "signature": "/nQKY6YLDY1o9QsZphE5etDBKxhUMyIjgqFEOlOFx8w="
+  },
+  {
+   "name": "empty_params",
+   "secret": "test_secret_key_123",
+   "params": {},
+   "payload": "",
+   "signature": "q5Q0Pi4Q+j7PNBaI2X6mF6yMN8+9u202Riw462d2xjc="
+  },
+  {
+   "name": "special_chars",
+   "secret": "s3cr3t/+=",
+   "params": {
+    "refText": "a&b=c d+e%20",
+    "x": "中文，标点。"
+   },
+   "payload": "refText=a&b=c d+e%20&x=中文，标点。",
+   "signature": "F83DtN5Yjyi12MyV2BPS68x5YGHRc5eR7c1CE2iWAaA="
+  }
+ ]
+}

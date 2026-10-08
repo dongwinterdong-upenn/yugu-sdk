@@ -1,0 +1,15 @@
+node_modules/
+build/
+.gradle/
+.build/
+.swiftpm/
+target/
+ci-out/
+coverage/
+*.profraw
+*.iml
+.idea/
+local.properties
+DerivedData/
+.DS_Store
+*.log

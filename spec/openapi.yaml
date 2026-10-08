@@ -1,0 +1,461 @@
+openapi: 3.0.3
+info:
+  title: 优谷雅言语音评测接口
+  version: "2.0.0"
+  description: |
+    五端 SDK 调用的 REST 接口。实时评测的 WebSocket 协议无法用 OpenAPI 3.0 描述，见 CONTRACT.md 第 5 节。
+    其他服务端语言可以用 openapi-generator 按本文件生成客户端，签名算法见 CONTRACT.md 第 2 节，生成的客户端需要在请求拦截器里补上签名头。
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.txt
+servers:
+  - url: https://open.shengzhiai.com
+security:
+  - signature: []
+    timestamp: []
+    nonce: []
+    appKey: []
+  - bearer: []
+tags:
+  - name: evaluation
+  - name: compat
+  - name: tts
+  - name: report
+paths:
+  /api/v1/evaluate:
+    post:
+      tags: [evaluation]
+      operationId: evaluate
+      summary: 原生整段评测
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio, config]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: 音频文件，建议 WAV，PCM 16 位，16 kHz，单声道
+                image:
+                  type: string
+                  format: binary
+                  description: 看图说话的图片，只在 coreType 为 open 且 taskType 为 picture 时上传
+                config:
+                  $ref: '#/components/schemas/EvaluateConfig'
+            encoding:
+              config:
+                contentType: application/json
+      responses:
+        '200':
+          description: 评测结果，不包信封
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationResponse'
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '415': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/Error'}
+        '502': {$ref: '#/components/responses/Error'}
+  /{coreType}:
+    post:
+      tags: [compat]
+      operationId: evaluateCompat
+      summary: 声通兼容整段评测
+      parameters:
+        - name: coreType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [word.eval, word.eval.pro, sent.eval, sent.eval.pro, para.eval, alpha.eval, word.eval.cn, sent.eval.cn, para.eval.cn, pinyin]
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio: {type: string, format: binary}
+                refText: {type: string, description: 参考文本}
+                language: {type: string, example: zh-CN}
+                refPinyin: {type: string, description: 拼音，pinyin 题必填}
+                agegroup: {type: string, enum: ['1', '2', '3']}
+                scale: {type: string}
+                precision: {type: string}
+                slack: {type: string}
+                paragraph_need_word_score: {type: string, enum: ['0', '1']}
+                phoneme_output: {type: string, enum: ['0', '1']}
+                attachAudioUrl: {type: string, enum: ['0', '1']}
+                dict_type: {type: string}
+                dict_dialect: {type: string, enum: [en_br, en_us]}
+                customized_lexicon: {type: string}
+                customized_pron: {type: string}
+                output_rawtext: {type: string, enum: ['0', '1']}
+                readtype_diagnosis: {type: string, enum: ['0', '1']}
+                request: {type: string, description: JSON 文本，顶层标量字段并入业务参数}
+      responses:
+        '200':
+          description: 声通风格结果
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompatResponse'
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/Error'}
+        '502': {$ref: '#/components/responses/Error'}
+  /api/v1/tts/generate:
+    post:
+      tags: [tts]
+      operationId: tts
+      summary: 语音合成
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TtsRequest'
+      responses:
+        '200':
+          description: 合成结果
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TtsResponse'
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/Error'}
+  /api/v1/report/{recordId}:
+    get:
+      tags: [report]
+      operationId: getReport
+      summary: 报告查询
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          schema: {type: string, example: eval_3fb45f4c8e71}
+      responses:
+        '200':
+          description: 报告详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: {type: integer, example: 0}
+                  message: {type: string}
+                  data: {type: object, additionalProperties: true}
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    appKey:
+      type: apiKey
+      in: header
+      name: X-App-Key
+    timestamp:
+      type: apiKey
+      in: header
+      name: X-Timestamp
+      description: Unix 时间戳，单位为秒
+    nonce:
+      type: apiKey
+      in: header
+      name: X-Nonce
+    signature:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: Base64(HMAC_SHA256(按 key 字典序拼接的业务参数, secretKey))，被签名参数见 CONTRACT.md 2.3 节
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: 幂等键，1 到 200 个可见 ASCII 字符。同一个键重发只评测一次，只计费一次，服务端保存首次结果 24 小时
+      schema: {type: string, maxLength: 200}
+  headers:
+    IdempotencyReplayed:
+      description: 值为 true 表示这是同一幂等键首次结果的重放
+      schema: {type: string, enum: ['true']}
+    RetryAfter:
+      description: 建议的重试等待秒数
+      schema: {type: integer}
+  responses:
+    Error:
+      description: 错误，错误码见 ERRORS.md
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Conflict:
+      description: 40901 同一幂等键仍在处理中，可重试；40902 额度不足；40903 幂等键用于不同请求
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: 限流，排队超时或沙箱当日次数用尽，错误码 42900，42901，42902，42903，3001 到 3003
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    EvaluateConfig:
+      type: object
+      required: [coreType, referenceText]
+      properties:
+        coreType: {type: string, enum: [word, sentence, passage, connected, open, alpha, pinyin]}
+        referenceText: {type: string, maxLength: 1000, description: 参考文本，open 时为题目}
+        language: {type: string, enum: [en-US, en-GB, zh-CN], default: en-US}
+        includeReport: {type: boolean, default: false}
+        includeStandardAudio: {type: boolean, default: false}
+        includeAsrText: {type: boolean, default: false}
+        slack: {type: number, minimum: -1, maximum: 1, default: 0}
+        scale: {type: integer, minimum: 1, maximum: 100, default: 100}
+        precision: {type: number, exclusiveMinimum: true, minimum: 0, maximum: 1, default: 1}
+        agegroup: {type: integer, enum: [1, 2, 3], default: 3}
+        toneWeight: {type: number, minimum: 0, maximum: 1, description: 保留参数，不改变总分}
+        refPinyin: {type: string, example: chong2 qing4}
+        phonemeOutput: {type: boolean}
+        taskType: {type: string, enum: [picture, situational, free]}
+        paragraphNeedWordScore: {type: integer, enum: [0, 1]}
+    Span:
+      type: object
+      description: 时间区间，单位 10 毫秒
+      properties:
+        start: {type: integer}
+        end: {type: integer}
+    Phoneme:
+      type: object
+      properties:
+        phoneme: {type: string}
+        phone: {type: string}
+        pronunciation: {type: integer, description: 音素得分}
+        span: {$ref: '#/components/schemas/Span'}
+    WordScore:
+      type: object
+      properties:
+        word: {type: string}
+        pinyin: {type: string}
+        rawpinyin: {type: string}
+        symbolpinyin: {type: string}
+        tone: {type: string, example: tone3}
+        charType: {type: integer, description: 0 为正常字词，1 为标点}
+        readType: {type: integer, description: 0 正常，1 增读，2 漏读，3 重复读}
+        read_status: {type: string, enum: [correct, mispronounced, skipped, inserted]}
+        scores:
+          type: object
+          properties:
+            overall: {type: integer}
+            pronunciation: {type: integer}
+            tone: {type: integer}
+            overall_pron: {type: integer}
+            prominence: {type: integer}
+            stress:
+              type: array
+              items:
+                type: object
+                properties:
+                  ref_stress: {type: integer}
+                  stress: {type: integer}
+                  overall: {type: integer}
+                  phonetic: {type: string}
+        span: {$ref: '#/components/schemas/Span'}
+        pause:
+          type: object
+          properties:
+            type: {type: integer}
+            duration: {type: integer}
+        phonemes:
+          type: array
+          items: {$ref: '#/components/schemas/Phoneme'}
+        phonics:
+          type: array
+          items:
+            type: object
+            properties:
+              spell: {type: string}
+              overall: {type: integer}
+        linkable: {type: boolean}
+      additionalProperties: true
+    Sentence:
+      type: object
+      properties:
+        sentence: {type: string}
+        index: {type: integer}
+        scores:
+          type: object
+          properties:
+            overall: {type: integer}
+            pronunciation: {type: integer}
+            fluency: {type: integer}
+            integrity: {type: integer}
+        details:
+          type: array
+          description: 逐词详情，段落题在 paragraphNeedWordScore 为 1 时返回
+          items: {$ref: '#/components/schemas/WordScore'}
+        span: {$ref: '#/components/schemas/Span'}
+    AudioWarning:
+      type: object
+      properties:
+        code: {type: integer, enum: [1001, 1002, 1003, 1004, 1005, 1009]}
+        message: {type: string}
+    EvaluationScores:
+      type: object
+      description: 各评测模式的取分字段。word 与 sentence 题看 overall，pronunciation，fluency，integrity，rhythm，中文另看 tone 与 rear_tone，段落题另看 sentences
+      properties:
+        overall: {type: number, description: 总分}
+        pronunciation: {type: integer, description: 发音准确度}
+        tone: {type: integer, description: 中文声调}
+        fluency: {type: integer, description: 流利度}
+        rhythm: {type: integer, description: 韵律}
+        integrity: {type: integer, description: 完整度}
+        accuracy: {type: integer}
+        reading_skill: {type: integer}
+        emotion: {type: integer}
+        speed: {type: integer, description: 语速，中文为字每分钟，英文为词每分钟}
+        rear_tone: {type: string, enum: [rise, fall, flat], description: 句末语调}
+        duration: {type: string, description: 音频时长秒}
+        numeric_duration: {type: number}
+        kernel_version: {type: string}
+        resource_version: {type: string}
+        warning:
+          type: array
+          items: {$ref: '#/components/schemas/AudioWarning'}
+        words:
+          type: array
+          items: {$ref: '#/components/schemas/WordScore'}
+        sentences:
+          type: array
+          items: {$ref: '#/components/schemas/Sentence'}
+        paragraphs:
+          type: array
+          items: {type: object, additionalProperties: true}
+        compositeReport:
+          type: object
+          additionalProperties: true
+          description: 维度细分，例如 emotionScore，stopConnScore，stressScore，intonationScore
+        yuguScores:
+          type: object
+          additionalProperties: true
+      additionalProperties: true
+    EvaluationResponse:
+      type: object
+      properties:
+        recordId: {type: string}
+        eof: {type: integer, enum: [1]}
+        result: {$ref: '#/components/schemas/EvaluationScores'}
+        report:
+          type: object
+          additionalProperties: true
+          properties:
+            summary: {type: string}
+            suggestions: {type: array, items: {type: string}}
+            dimensionScores:
+              type: object
+              properties:
+                accuracy: {type: integer, nullable: true}
+                fluency: {type: integer, nullable: true}
+                integrity: {type: integer, nullable: true}
+                affect: {type: integer, nullable: true}
+                speechRate: {type: integer, nullable: true}
+        asrText:
+          type: object
+          properties:
+            text: {type: string}
+            alignment:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+                properties:
+                  char: {type: string}
+                  index: {type: integer}
+                  read_status: {type: string}
+                  start_time: {type: integer}
+                  end_time: {type: integer}
+                  asr_pinyin: {type: string}
+                  gop_score: {type: number}
+        standardAudio:
+          type: object
+          properties:
+            url: {type: string}
+            format: {type: string}
+            duration: {type: string}
+        warnings:
+          type: array
+          items: {type: integer}
+    CompatResponse:
+      type: object
+      properties:
+        recordId: {type: string}
+        eof: {type: integer, enum: [1]}
+        result: {$ref: '#/components/schemas/EvaluationScores'}
+    TtsRequest:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        language: {type: string, enum: [zh-CN, en-US, en-GB], default: zh-CN}
+        voice: {type: string, example: xiaoyan, description: 中文 xiaoyan 或 xiaofeng，英文 female 或 male}
+        format: {type: string, enum: [mp3, wav, ogg], default: mp3}
+        speed: {type: integer, minimum: 0, maximum: 100, default: 50}
+        pitch: {type: integer, minimum: 0, maximum: 100, default: 50}
+        volume: {type: integer, minimum: 0, maximum: 100, default: 50}
+        style: {type: string, nullable: true}
+    TtsResponse:
+      type: object
+      properties:
+        code: {type: integer, example: 0}
+        message: {type: string}
+        data:
+          type: object
+          properties:
+            audioUrl: {type: string}
+            duration: {type: string}
+            format: {type: string}
+    ErrorEnvelope:
+      type: object
+      properties:
+        code: {type: integer, description: 错误码，见 ERRORS.md}
+        message: {type: string}
+        timestamp: {type: integer, format: int64}
