@@ -374,7 +374,8 @@ static NSString *YGSTCheckProgressOf(YGSTRealtimeRun *run) {
         EXPECT([words isKindOfClass:[NSArray class]] && words.count > 0, @"an eof 0 callback carries words");
         EXPECT(p[@"result"][@"progress"] != nil && p[@"result"][@"readUnits"] != nil, @"result passed through");
     }
-    EXPECT([kYGSTCustomerUnits hasPrefix:run.words], run.words);
+    // Apple's hasPrefix: answers NO for an empty prefix, and a round cut before any progress has no words
+    EXPECT(run.words.length == 0 || [kYGSTCustomerUnits hasPrefix:run.words], run.words);
     return nil;
 }
 
