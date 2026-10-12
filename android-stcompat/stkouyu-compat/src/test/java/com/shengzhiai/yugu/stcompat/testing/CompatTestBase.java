@@ -23,7 +23,10 @@ import java.util.Random;
 
 import static org.robolectric.Shadows.shadowOf;
 
-/** Fresh singletons, fake transport, instant back-off and microphone permission for every test. */
+/**
+ * Fresh singletons, fake transport, a realtime connector that refuses (no test reaches the network
+ * unless it installs its own), instant back-off and microphone permission for every test.
+ */
 public abstract class CompatTestBase {
     protected Application app;
     protected FakeTransport transport;
@@ -39,6 +42,7 @@ public abstract class CompatTestBase {
         CompatConfig.reset();
         transport = new FakeTransport();
         CompatConfig.setTransport(transport);
+        CompatConfig.setWsConnector(FakeWs.REFUSING);
         CompatConfig.setRandom(new Random(42));
         CompatConfig.setSleeper(new CompatClient.Sleeper() {
             @Override

@@ -68,13 +68,17 @@ const client = new YuguClient({ baseUrl: base, appKey: 'mock-app-key', secretKey
 const audio = fs.readFileSync(${JSON.stringify(wav)});
 const rest = await client.evaluate(audio, { coreType: 'sentence', referenceText: '今天天气很好', language: 'zh-CN' });
 const pcm = audio.subarray(78);
+let progress = 0;
 const stream = await new Promise((resolve, reject) => {
-  const s = client.streamEvaluate({ coreType: 'sentence', referenceText: '今天天气很好', language: 'zh-CN' }, { onResult: resolve, onError: reject });
+  const onPartial = (p) => {
+    if (p.hasProgress && p.totalUnits === 6 && p.progress.length === 6) progress += 1;
+  };
+  const s = client.streamEvaluate({ coreType: 'sentence', referenceText: '今天天气很好', language: 'zh-CN', realtimeFeedback: true }, { onResult: resolve, onError: reject, onPartial });
   for (let i = 0; i < pcm.length; i += 640) s.sendAudio(pcm.subarray(i, i + 640));
   s.end();
 });
 await client.close();
-console.log(JSON.stringify({ version: SDK_VERSION, rest: rest.overall, stream: stream.overall, key: rest.idempotencyKey, fn: typeof isRetryable, err: typeof YuguError }));
+console.log(JSON.stringify({ version: SDK_VERSION, rest: rest.overall, stream: stream.overall, progress, key: rest.idempotencyKey, fn: typeof isRetryable, err: typeof YuguError }));
 `,
 );
 fs.writeFileSync(
@@ -100,7 +104,11 @@ fs.writeFileSync(
 
 // 2. CommonJS and TypeScript need no server
 const cjs = run(process.execPath, ['cjs.cjs'], { cwd: work });
-check(cjs.status === 0 && /"version":"2\.0\.0"/.test(cjs.out) && /"client":"function"/.test(cjs.out), `require() of the package: ${cjs.out.trim()}`);
+const version = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8')).version;
+check(
+  cjs.status === 0 && cjs.out.includes(`"version":"${version}"`) && /"client":"function"/.test(cjs.out),
+  `require() of the package reports ${version}: ${cjs.out.trim()}`,
+);
 const tsc = run(process.execPath, [path.join(WEB, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.json'], { cwd: work });
 check(tsc.status === 0, `TypeScript resolves the published types: ${tsc.out.trim() || 'no errors'}`);
 for (const f of ['dist/yugu-sdk.mjs', 'dist/yugu-sdk.umd.js', 'dist/yugu-sdk.umd.min.js', 'types/index.d.ts', 'types/error-table.d.ts', 'README.md', 'CHANGELOG.md', 'LICENSE', 'NOTICE']) {
@@ -117,6 +125,8 @@ try {
   const base = `http://127.0.0.1:${mock.info.port}`;
   const esm = run(process.execPath, ['esm.mjs'], { cwd: work, env: { ...process.env, YUGU_BASE: base } });
   check(esm.status === 0 && /"rest":93\.7/.test(esm.out) && /"stream":93\.7/.test(esm.out), `ESM import, REST and streaming against the mock: ${esm.out.trim()}`);
+  // 61440 bytes of PCM: progress frames at 16000, 32000 and 48000 bytes plus one after end.
+  check(esm.status === 0 && /"progress":4\b/.test(esm.out), 'streaming with realtimeFeedback delivers reading progress to onPartial');
   if (demoDir) {
     const inst = run(process.execPath, [path.join(demoDir, 'scripts/install-tarball.mjs'), path.resolve(tarball)]);
     check(inst.status === 0, `demo installs the tarball offline: ${inst.out.trim()}`);

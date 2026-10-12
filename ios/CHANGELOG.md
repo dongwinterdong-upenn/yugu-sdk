@@ -2,6 +2,24 @@
 
 格式参照 Keep a Changelog，版本号规则见 SDK 总仓库的 `COMPATIBILITY.md`，由 1 版本升级的步骤见 `MIGRATION-2.0.md`。
 
+## 版本 `2.1.0`，2026-10-12
+
+### 新增
+
+- 实时评测朗读进度：`StreamPartial` 新增 `readUnits`，`matchedUnits`，`totalUnits`，`progress` 与 `hasProgress`。`progress` 取自进度帧的 `result.progress`，按原文顺序列出参考文本的每个字或词，元素为新类型 `ReadingWord`，含 `word`，`read` 与 `matched`。没有进度时三个数为 -1，`progress` 为空数组。帧格式见 SDK 总仓库 `CONTRACT.md` 5.5 节。
+- 原生实时评测新增选项 `EvaluateConfig.realtimeFeedback`，缺省为 `false`。打开后开始帧带 `"realtimeFeedback": true`，`onPartial` 回调朗读进度。不打开时开始帧与 `2.0.0` 一字不差，整段评测不发送这个字段。
+- 声通兼容实时评测的 `CompatParams.realtimeFeedback` 仍发送 `realtime_feedback`，进度帧在 `bytes` 之外带朗读进度，另带声通格式的增量 `words` 与空的 `recordId`，这两项保留在 `raw` 中，逐字状态只取 `result.progress`。
+- 断线重连后服务端从零重新计算进度。缓冲策略为 `.replay` 时，会话只回调 `readUnits` 与 `matchedUnits` 都不小于上一次回调的进度帧，界面上的进度不会倒退，没有回调的进度帧各写一条 DEBUG 日志。缓冲策略为 `.drop` 时，新的服务端会话只覆盖重连之后的音频，重连成功时清除记住的进度。不带进度的帧照常回调。
+
+### 变更
+
+- `onPartial` 在原生与声通兼容两种会话上都会回调，`end()` 之后到终评之前仍会收到进度帧。
+- 每个请求与握手带 `User-Agent: yugu-ios-sdk/2.1.0`，`YuguSDKInfo.version` 为 `2.1.0`。
+
+### 兼容性
+
+- 与 `2.0.0` 源码兼容。`EvaluateConfig` 的新参数带缺省值，原有构造写法不变，只读 `bytes` 的代码不受影响。
+
 ## 版本 `2.0.0`，2026-10-08
 
 ### 新增

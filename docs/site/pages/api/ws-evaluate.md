@@ -36,7 +36,7 @@ ref: CONTRACT.md#5 实时评测#5.1 原生实时评测
 
 | 帧字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `{"cmd":"start"}` | 文本帧 | 是 | 开始帧，接受原生整段评测 config 的全部字段，另带 `idempotencyKey` |
+| `{"cmd":"start"}` | 文本帧 | 是 | 开始帧，接受原生整段评测 config 的全部字段，另带 `idempotencyKey`，带 `"realtimeFeedback": true` 时打开朗读进度 |
 | 二进制帧 | 音频 | 是 | PCM 16 位小端，16 kHz，单声道，推荐 640 字节一帧，单帧不超过 128 KB |
 | `{"cmd":"audio","data":"<base64>"}` | 文本帧 | 否 | 音频的文本帧写法，与二进制帧二选一 |
 | `{"cmd":"end"}` | 文本帧 | 是 | 结束帧，发出后等待终评 |
@@ -48,6 +48,7 @@ ref: CONTRACT.md#5 实时评测#5.1 原生实时评测
 |---|---|---|---|
 | `{"event":"connected"}` | 文本帧 | 是 | 连接建立 |
 | `{"event":"started"}` | 文本帧 | 是 | 开始帧已受理，可以送音频 |
+| `{"eof":0}` | 文本帧 | 否 | 进度帧，开始帧带 `realtimeFeedback` 时下发，格式见[朗读进度](page:api-ws-progress)，不含评分 |
 | `{"event":"result"}` | 文本帧 | 是 | 终评，带 `recordId`，`eof: 1`，`result`，`report`，`asrText`，`warnings`，重放时带 `"replayed": true` |
 | `{"event":"error"}` | 文本帧 | 否 | 错误，带 `message`，原因是服务端业务错误时另带 `code` |
 | `{"event":"pong"}` | 文本帧 | 否 | 心跳回复，带服务端毫秒时间戳 `ts` |

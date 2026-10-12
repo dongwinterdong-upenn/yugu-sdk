@@ -4,7 +4,7 @@
 
 | 项目 | 说明 |
 |---|---|
-| Maven 坐标 | `com.shengzhiai.yugu:yugu-java-sdk:2.0.0` |
+| Maven 坐标 | `com.shengzhiai.yugu:yugu-java-sdk:2.1.0` |
 | 仓库地址 | `https://open.shengzhiai.com/maven/`，公开读取，无需认证 |
 | Java 版本 | Java 11 及更高版本 |
 | 运行时依赖 | `jackson-databind` 2.17，HTTP 与 WebSocket 使用 JDK 自带的 `java.net.http` |
@@ -27,7 +27,7 @@ Maven 项目在 `pom.xml` 中加入仓库与依赖：
   <dependency>
     <groupId>com.shengzhiai.yugu</groupId>
     <artifactId>yugu-java-sdk</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0</version>
   </dependency>
 </dependencies>
 ```
@@ -41,7 +41,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.shengzhiai.yugu:yugu-java-sdk:2.0.0'
+    implementation 'com.shengzhiai.yugu:yugu-java-sdk:2.1.0'
 }
 ```
 
@@ -54,7 +54,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.shengzhiai.yugu:yugu-java-sdk:2.0.0")
+    implementation("com.shengzhiai.yugu:yugu-java-sdk:2.1.0")
 }
 ```
 
@@ -86,7 +86,7 @@ dependencies {
     <dependency>
       <groupId>com.shengzhiai.yugu</groupId>
       <artifactId>yugu-java-sdk</artifactId>
-      <version>2.0.0</version>
+      <version>2.1.0</version>
     </dependency>
   </dependencies>
   <build>
@@ -154,8 +154,8 @@ YUGU_APP_KEY=沙箱appKey YUGU_SECRET_KEY=沙箱secretKey mvn -q compile exec:ja
 | `evaluateCompat(audio, CompatConfig)` | `POST /{coreType}` | 声通兼容整段评测，`coreType` 取 `CompatConfig.CORE_TYPES` 中的值 |
 | `tts(TtsRequest)` | `POST /api/v1/tts/generate` | 语音合成，返回音频地址 |
 | `getReport(recordId)` | `GET /api/v1/report/{recordId}` | 查询评测记录的报告 |
-| `streamEvaluate(EvaluateConfig, StreamListener)` | `wss://open.shengzhiai.com/api/v1/ws/evaluate` | 原生实时评测，返回 `StreamSession` |
-| `streamEvaluateCompat(CompatConfig, StreamListener)` | `wss://open.shengzhiai.com/{coreType}` | 声通兼容实时评测，可开启进度帧 |
+| `streamEvaluate(EvaluateConfig, StreamListener)` | `wss://open.shengzhiai.com/api/v1/ws/evaluate` | 原生实时评测，返回 `StreamSession`，可开启朗读进度 |
+| `streamEvaluateCompat(CompatConfig, StreamListener)` | `wss://open.shengzhiai.com/{coreType}` | 声通兼容实时评测，可开启朗读进度 |
 | `close()` | 无 | 释放客户端，取消未结束的实时会话 |
 
 每个 REST 方法都有一个带 `RequestOptions` 的重载，每个实时方法都有一个带 `StreamOptions` 的重载。整段评测与实时评测的结果都是 `EvalResult`：
@@ -350,7 +350,57 @@ EvalResult result = session.result().get(60, TimeUnit.SECONDS);
 
 心跳使用 WebSocket 协议层 ping，默认每 15 秒一次，30 秒内收不到 pong 或任何帧即判定连接中断。发送结束帧后默认最多等待终评 300 秒，超时触发重连，重连关闭时回调 90007。以上时间可在 `ClientOptions` 中调整，单个会话可用 `StreamOptions` 覆盖幂等键，重连策略，缓冲策略，终评超时与重放上限。
 
-声通兼容实时评测开启 `realtimeFeedback(true)` 后，服务端按收音进度下发进度帧，SDK 回调 `onPartial`，`StreamPartial.getBytes()` 为服务端已收到的字节数。原生实时评测没有进度帧。
+原生实时评测与声通兼容实时评测都可以开启朗读进度，服务端在收音过程中下发进度帧，SDK 回调 `onPartial`，说明见朗读进度一节。
+
+### 朗读进度
+
+原生实时评测调用 `EvaluateConfig.realtimeFeedback(true)`，声通兼容实时评测调用 `CompatConfig.realtimeFeedback(true)`。开启后服务端在收音过程中报告参考文本里哪些字或词已经读过，SDK 通过 `onPartial` 回调 `StreamPartial`，朗读状态取自进度帧的 `result.progress`。原生开始帧只在开启时带 `"realtimeFeedback": true`，未开启时开始帧与 `2.0.0` 相同。兼容参数帧带 `"realtime_feedback": true`。该选项只作用于实时评测，整段评测不发送。
+
+| 取值方法 | 含义 |
+|---|---|
+| `hasProgress()` | 这一帧带朗读进度时为 true |
+| `getProgress()` | 参考文本的全部单位，按原文顺序排列，元素为 `ReadingWord`，没有进度时为空列表 |
+| `getReadUnits()` | 已读的单位数，即当前朗读位置，没有进度时为 -1 |
+| `getMatchedUnits()` | 识别结果一致的单位数，没有进度时为 -1 |
+| `getTotalUnits()` | 单位总数，等于 `getProgress()` 的长度，没有进度时为 -1 |
+| `getBytes()` | 这一轮服务端已收到的音频字节数 |
+| `getRaw()` | 原始进度帧，含 SDK 未解析的字段 |
+
+`ReadingWord` 的 `getWord()` 为字或词，取自参考文本。`isRead()` 为 true 表示朗读位置已越过这个单位，`isMatched()` 为 true 表示识别结果与这个单位一致。两个 `ReadingWord` 的三个字段都相同时 `equals` 为 true。
+
+兼容通道的进度帧沿用声通 `realtime_feedback` 中间结果的结构，顶层 `recordId` 为空串，`result` 另带 `kernel_version`，`resource_version` 与声通式增量 `words`。增量 `words` 只含本帧新读到的字或词，覆盖第 `getReadUnits() - words.length` 到第 `getReadUnits() - 1` 个单位，从 0 计，每项结构同终评的 `words`。识别一致的单位各项分数为 100，`skipped` 为 0，不一致的各项分数为 0，`skipped` 为 1，分数下发之后不再更新，实际得分以终评为准。SDK 不解析这几个字段，需要时从 `getRaw()` 读取，朗读状态以 `getProgress()` 为准。断线重连后新会话的 `words` 从第一个单位重新下发，按位置去掉已经处理过的单位即可。原生通道的进度帧没有这几个字段。
+
+进度规则：
+
+1. 中文按字划分单位，去掉标点与空白。英文按空白分词，去掉词首词尾的标点，词内的撇号与连字符保留。原生开始帧的 `language` 以 zh 开头，或兼容 coreType 以 `.cn` 结尾或为 `pinyin` 时按字，其余按词。兼容参数帧带 `language` 时按 `language` 判断。
+2. 一轮之内 `isRead()` 与 `isMatched()` 只会由 false 变为 true，`isMatched()` 为 true 时 `isRead()` 也为 true。`isRead()` 为 true 而 `isMatched()` 为 false，表示朗读已越过这个位置但识别结果与参考文本不一致，可能是读错，漏读或识别误差，以终评为准。
+3. 进度一般比朗读晚 1 到 2 秒，随网络情况变化。调用 `end()` 之后会话处于 `ENDING`，最后一段音频的进度仍通过 `onPartial` 送达，`onResult` 总在最后。
+4. 进度只对 16 kHz，16 位，单声道 PCM 生效，一轮开头带 WAV 头的同样生效。参考文本为空，音频不是 PCM，或服务端当时无法跟踪时，`hasProgress()` 为 false，进度帧只有 `getBytes()`，终评不受影响。
+5. 断线重连后服务端在新会话上从零重新计算进度。缓冲策略为默认的 `REPLAY` 时，重放音频期间进度从零追上来，会话记住上一次回调的 `getReadUnits()` 与 `getMatchedUnits()`，只回调两者都不小于上一次的进度帧，界面上的进度不会倒退，丢弃的进度帧在 DEBUG 级别记一条日志。缓冲策略为 `DROP` 时新会话只评重连之后的音频，进度可能追不上重连前的位置，每次重连成功后记录清零，新会话的进度帧从零开始照常回调。没有进度的帧照常回调。每次调用 `streamEvaluate` 或 `streamEvaluateCompat` 得到的会话单独记录。
+6. 进度帧不含发音评分，终评与未开启时相同，不额外计费。
+
+按 `getProgress()` 给参考文本着色的示例，识别一致的字为绿色，已读但识别不一致的字为红色，未读的字为灰色：
+
+```java
+StreamSession session = client.streamEvaluate(
+        new EvaluateConfig(EvaluateConfig.CORE_SENTENCE, "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。", "zh-CN")
+                .realtimeFeedback(true),
+        new StreamListener() {
+            @Override public void onPartial(StreamPartial p) {
+                if (!p.hasProgress()) {
+                    return;
+                }
+                StringBuilder html = new StringBuilder();
+                for (ReadingWord w : p.getProgress()) {
+                    String color = w.isMatched() ? "green" : w.isRead() ? "red" : "gray";
+                    html.append("<span style=\"color:").append(color).append("\">").append(w.getWord()).append("</span>");
+                }
+                ui.showReference(html.toString(), p.getReadUnits() + "/" + p.getTotalUnits());
+            }
+            @Override public void onResult(EvalResult result) { ui.showScore(result.getOverall()); }
+            @Override public void onError(YuguException error) { ui.showError(error); }
+        });
+```
 
 ## 生命周期
 
@@ -461,7 +511,7 @@ YuguClient client = YuguClient.builder()
 | `eventListener` | 无 | 指标回调 |
 | `audioPrecheck` | `WARN` | 音频预检模式 |
 | `strictAudio` | false | 平台警告 1001 改为抛出异常 |
-| `userAgent` | `yugu-java-sdk/2.0.0` | `User-Agent` 请求头 |
+| `userAgent` | `yugu-java-sdk/2.1.0` | `User-Agent` 请求头 |
 | `reconnect` | `ReconnectPolicy.defaults()`，连续 8 次 | 实时会话重连策略 |
 | `audioBufferPolicy` | `REPLAY` | 实时会话断线时的音频处理 |
 | `pingIntervalMs` 与 `pongTimeoutMs` | 15000，30000 | 心跳 |
@@ -517,7 +567,7 @@ cd java
 
 问题：如何从 `1.0.0` 版本迁移。
 
-解答：坐标改为 `com.shengzhiai.yugu:yugu-java-sdk:2.0.0`，包名由 `tech.dragonai.yugu` 改为 `com.shengzhiai.yugu`，`YuguException` 改为非受检异常，流式接口的参数改为 `EvaluateConfig` 与 `CompatConfig`，回调接口的方法有调整。详细说明见 `CHANGELOG.md` 与仓库根目录的 `MIGRATION-2.0.md`。
+解答：坐标改为 `com.shengzhiai.yugu:yugu-java-sdk:2.1.0`，包名由 `tech.dragonai.yugu` 改为 `com.shengzhiai.yugu`，`YuguException` 改为非受检异常，流式接口的参数改为 `EvaluateConfig` 与 `CompatConfig`，回调接口的方法有调整。详细说明见 `CHANGELOG.md` 与仓库根目录的 `MIGRATION-2.0.md`。
 
 ## 版本与许可
 

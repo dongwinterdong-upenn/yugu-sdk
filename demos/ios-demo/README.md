@@ -30,7 +30,7 @@ SwiftUI 演示工程，覆盖录音后整段评测，边录边评的实时评测
    open YuguDemo.xcodeproj
    ```
 
-   Xcode 打开工程时自动拉取 `https://open.shengzhiai.com/git/yugu-ios-sdk.git` 的 `2.0.0` 版本。
+   Xcode 打开工程时自动拉取 `https://open.shengzhiai.com/git/yugu-ios-sdk.git` 的 `2.1.0` 版本。
 
 4. 在 YuguDemo 目标的 Signing and Capabilities 页选择开发团队，选择模拟器或真机，点击运行。
 

@@ -6,6 +6,7 @@ import com.shengzhiai.yugu.stcompat.internal.ErrorTable;
 import com.shengzhiai.yugu.stcompat.internal.HttpTransport;
 import com.shengzhiai.yugu.stcompat.internal.Multipart;
 import com.shengzhiai.yugu.stcompat.internal.UrlConnectionTransport;
+import com.shengzhiai.yugu.stcompat.internal.WsClient;
 import com.shengzhiai.yugu.stcompat.testing.CompatTestBase;
 import com.shengzhiai.yugu.stcompat.testing.Events;
 import com.shengzhiai.yugu.stcompat.testing.Fixtures;
@@ -42,13 +43,14 @@ import static org.junit.Assert.assertTrue;
  *
  * <p>Runs only when YUGU_SANDBOX_APPKEY and YUGU_SANDBOX_SECRET are set (YUGU_SANDBOX_BASE
  * defaults to https://open.shengzhiai.com); otherwise every case is skipped, so push builds never
- * call the platform. At most 6 platform calls per run: one retry per evaluation and a counting
- * transport that refuses further calls. Key values are never printed: failure messages carry
- * errId, error and recordId only, never the envelope (it contains applicationId).
+ * call the platform. At most 7 platform calls per run (REST requests and realtime connections):
+ * one retry per evaluation and a counting transport and connector that refuse further calls. Key
+ * values are never printed: failure messages carry errId, error and recordId only, never the
+ * envelope (it contains applicationId).
  */
 @RunWith(RobolectricTestRunner.class)
 public class SandboxIntegrationTest extends CompatTestBase {
-    static final int MAX_CALLS = 6;
+    static final int MAX_CALLS = 7;
     private static final String APP_KEY = env("YUGU_SANDBOX_APPKEY");
     private static final String SECRET = env("YUGU_SANDBOX_SECRET");
     private static final String BASE = env("YUGU_SANDBOX_BASE") != null ? env("YUGU_SANDBOX_BASE") : "https://open.shengzhiai.com";
@@ -56,6 +58,7 @@ public class SandboxIntegrationTest extends CompatTestBase {
 
     private final Events ev = new Events();
     private final List<HttpTransport.Request> requests = Collections.synchronizedList(new ArrayList<HttpTransport.Request>());
+    private final AtomicInteger wsConnects = new AtomicInteger();
 
     private static String env(String name) {
         String v = System.getenv(name);
@@ -77,6 +80,14 @@ public class SandboxIntegrationTest extends CompatTestBase {
                 requests.add(request);
                 return real.execute(request, token);
             }
+        });
+        // realtime connections count against the same budget
+        CompatConfig.setWsConnector((url, headers, connectTimeoutMs, readTimeoutMs, listener) -> {
+            if (CALLS.incrementAndGet() > MAX_CALLS) {
+                throw new IOException("sandbox call budget of " + MAX_CALLS + " platform calls per run is used up");
+            }
+            wsConnects.incrementAndGet();
+            return WsClient.CONNECTOR.connect(url, headers, connectTimeoutMs, readTimeoutMs, listener);
         });
         // one retry at most per evaluation keeps the run within the call budget
         YuguCompat.setRetryPolicy(1, 500, 2.0, 2000, 0.3);
@@ -245,5 +256,69 @@ public class SandboxIntegrationTest extends CompatTestBase {
         assertTrue(new File(m.getLastRecordPath()).isFile());
         System.out.println("sandbox attachAudioUrl: audioUrl host=" + new java.net.URI(url).getHost()
                 + ", attempts=" + requests.size());
+    }
+
+    /**
+     * Case 5: realtime_feedback 1 with the customer sentence (zh_progress.wav) fed at real-time
+     * pace through setIsStream(true), as a Shengtong integrator does: eof 0 intermediate results
+     * with the newly read characters arrive before the one eof 1 result, over the realtime channel.
+     */
+    @Test
+    public void realtimeFeedbackWithTheCustomerSentence() throws Exception {
+        String refText = "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。";
+        String units = "我是中国人我是中国人我们都是中国人中华民族是一家人";
+        SkEgnManager m = init(SECRET);
+        RecordSetting s = new RecordSetting(CoreType.CN_SENT_EVAL, refText);
+        s.setRealtime_feedback(1);
+        s.setIsStream(true);
+        m.startRecord(s, ev.recorder);
+        byte[] pcm = Fixtures.pcm("spec/fixtures/audio/zh_progress.wav");
+        long t0 = System.nanoTime();
+        for (int i = 0; i < pcm.length; i += 3200) {
+            int n = Math.min(3200, pcm.length - i);
+            byte[] chunk = new byte[n];
+            System.arraycopy(pcm, i, chunk, 0, n);
+            m.feed(chunk, n);
+            // real time: 3200 bytes are 100 ms of 16 kHz 16 bit mono
+            long due = t0 + (i + n) / 32L * 1000000L;
+            long wait = (due - System.nanoTime()) / 1000000L;
+            if (wait > 0) {
+                Thread.sleep(wait);
+            }
+            Main.idle();
+        }
+        int whileReading = ev.intermediate().size();
+        m.stopRecord();
+        Main.await("final onScore from the sandbox", 180000, () -> ev.json != null);
+        Main.settle(50);
+        assertTrue("callbacks off the main thread", ev.offMain.isEmpty());
+        JSONObject r = new JSONObject(ev.json);
+        assertFalse("platform answered with an error: " + describe(r), r.has("errId"));
+        assertEquals(1, r.getInt("eof"));
+        assertTrue(r.getJSONObject("result").get("overall") instanceof Number);
+        assertEquals("exactly one final", 1, ev.count("onScore"));
+        assertEquals("the final is the last callback", "onScore", ev.log.get(ev.log.size() - 1));
+        List<JSONObject> mid = ev.intermediate();
+        assertTrue("no intermediate result with words before the final", mid.size() > 0);
+        StringBuilder read = new StringBuilder();
+        for (JSONObject o : mid) {
+            assertEquals(0, o.getInt("eof"));
+            assertEquals(r.getString("tokenId"), o.getString("tokenId"));
+            assertEquals("", o.getString("recordId"));
+            JSONObject res = o.getJSONObject("result");
+            JSONArray w = res.getJSONArray("words");
+            assertTrue(w.length() > 0);
+            for (int i = 0; i < w.length(); i++) {
+                read.append(w.getJSONObject(i).getString("word"));
+            }
+            assertEquals(read.length(), res.getInt("readUnits"));
+            assertEquals(25, res.getJSONArray("progress").length());
+        }
+        assertTrue("newly read words in reference order: " + read, units.startsWith(read.toString()));
+        assertTrue("realtime channel used", wsConnects.get() >= 1);
+        assertEquals("no REST upload", 0, requests.size());
+        System.out.println("sandbox realtime_feedback: intermediate results=" + mid.size() + " (" + whileReading
+                + " while reading), words read=" + read.length() + " of 25, final overall="
+                + r.getJSONObject("result").get("overall") + ", connections=" + wsConnects.get());
     }
 }

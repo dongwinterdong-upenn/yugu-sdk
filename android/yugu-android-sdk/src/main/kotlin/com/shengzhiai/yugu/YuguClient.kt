@@ -239,6 +239,8 @@ public class YuguClient private constructor(builder: Builder) : Closeable {
     /**
      * 原生实时评测 `WS /api/v1/ws/evaluate`。连接后自动发送开始帧
      * `{"cmd":"start", ...config, "idempotencyKey": ...}`，音频以二进制帧发送。
+     * [EvaluateConfig.realtimeFeedback] 为 true 时开始帧另带 `"realtimeFeedback": true`，
+     * 朗读进度通过 [StreamListener.onPartial] 回调。
      * 返回时会话已开始连接，状态变化与结果通过 [listener] 回调。
      */
     @JvmOverloads
@@ -249,15 +251,14 @@ public class YuguClient private constructor(builder: Builder) : Closeable {
     ): StreamSession {
         lifecycle.ensureOpen()
         config.validate()
-        val frame = LinkedHashMap<String, Any?>()
-        frame["cmd"] = "start"
-        frame.putAll(config.toMap())
-        return openSession("/api/v1/ws/evaluate", frame, listener, options)
+        return openSession("/api/v1/ws/evaluate", config.startFrame(), listener, options)
     }
 
     /**
      * 声通兼容实时评测 `WS /{coreType}`。连接后自动发送参数帧
      * `{"refText": ..., "language": ..., "idempotencyKey": ...}`。
+     * [CompatConfig.realtimeFeedback] 为 true 时参数帧另带 `"realtime_feedback": true`，
+     * 朗读进度通过 [StreamListener.onPartial] 回调。
      */
     @JvmOverloads
     public fun streamEvaluateCompat(
@@ -488,7 +489,7 @@ public class YuguClient private constructor(builder: Builder) : Closeable {
         /** 为 true 时整段评测结果带 1001 警告即抛 [AudioQualityException]，默认 false。 */
         public fun strictAudio(enabled: Boolean): Builder = apply { strictAudio = enabled }
 
-        /** `User-Agent`，默认 `yugu-android-sdk/2.0.0`。 */
+        /** `User-Agent`，默认 `yugu-android-sdk/2.1.0`。 */
         public fun userAgent(ua: String): Builder = apply { userAgent = ua }
 
         /** 实时评测重连策略。 */

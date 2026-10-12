@@ -2,6 +2,7 @@ package com.shengzhiai.yugu
 
 import com.shengzhiai.yugu.internal.JObj
 import com.shengzhiai.yugu.internal.Json
+import kotlin.jvm.internal.DefaultConstructorMarker
 
 /** 原生评测的 coreType。 */
 public object CoreType {
@@ -56,6 +57,8 @@ public object TaskType {
 /**
  * 原生评测配置，对应 `config` 段的 JSON，也用作原生实时评测的开始帧。值为 null 的字段不发送，
  * 由平台取默认值。[extra] 中的字段原样追加，用于平台新增而 SDK 尚未列出的字段。
+ * [realtimeFeedback] 只对原生实时评测有效，为 true 时开始帧带 `"realtimeFeedback": true`，
+ * 服务端在收音过程中下发朗读进度，整段评测的 `config` 段不带该字段。
  */
 public data class EvaluateConfig @JvmOverloads constructor(
     val coreType: String,
@@ -78,9 +81,21 @@ public data class EvaluateConfig @JvmOverloads constructor(
     val taskType: String? = null,
     val paragraphNeedWordScore: Int? = null,
     val extra: Map<String, Any?> = emptyMap(),
+    // Last parameter (2.1.0), so every @JvmOverloads constructor of 2.0.0 keeps its signature.
+    /** 原生实时评测打开朗读进度，默认 false，整段评测不使用。 */
+    val realtimeFeedback: Boolean = false,
 ) {
     /** 序列化后的 `config` 段原文，即签名所用的文本。 */
     public fun toJson(): String = Json.write(toMap())
+
+    /** Native WS start frame: 2.0.0 frame plus `"realtimeFeedback": true` only when enabled. */
+    internal fun startFrame(): LinkedHashMap<String, Any?> {
+        val m = LinkedHashMap<String, Any?>()
+        m["cmd"] = "start"
+        m.putAll(toMap())
+        if (realtimeFeedback) m["realtimeFeedback"] = true
+        return m
+    }
 
     internal fun toMap(): LinkedHashMap<String, Any?> {
         val m = LinkedHashMap<String, Any?>()
@@ -115,6 +130,63 @@ public data class EvaluateConfig @JvmOverloads constructor(
         }
     }
 
+    // ---- Binary compatibility with 2.0.0. Adding realtimeFeedback changed the JVM signatures that
+    // Kotlin code compiled against 2.0.0 calls: the synthetic default-argument constructor, copy and
+    // copy$default. These two hidden members keep exactly those signatures linkable. HIDDEN makes
+    // them synthetic, so neither Kotlin nor Java sources can see or call them.
+
+    /** 2.0.0 default-argument constructor: a defaulted argument arrives as null, only [extra] defaults to non-null. */
+    @Deprecated("Binary compatibility with 2.0.0", level = DeprecationLevel.HIDDEN)
+    @Suppress("UNUSED_PARAMETER")
+    public constructor(
+        coreType: String,
+        referenceText: String,
+        language: String?,
+        includeReport: Boolean?,
+        includeStandardAudio: Boolean?,
+        includeAsrText: Boolean?,
+        slack: Double?,
+        scale: Int?,
+        precision: Double?,
+        agegroup: Int?,
+        toneWeight: Double?,
+        refPinyin: String?,
+        phonemeOutput: Boolean?,
+        taskType: String?,
+        paragraphNeedWordScore: Int?,
+        extra: Map<String, Any?>?,
+        defaults: Int,
+        marker: DefaultConstructorMarker?,
+    ) : this(
+        coreType, referenceText, language, includeReport, includeStandardAudio, includeAsrText, slack, scale, precision,
+        agegroup, toneWeight, refPinyin, phonemeOutput, taskType, paragraphNeedWordScore,
+        if (defaults and (1 shl 15) != 0 || extra == null) emptyMap() else extra,
+    )
+
+    /** 2.0.0 copy and, through its default arguments, copy$default. Keeps [realtimeFeedback]. */
+    @Deprecated("Binary compatibility with 2.0.0", level = DeprecationLevel.HIDDEN)
+    public fun copy(
+        coreType: String = this.coreType,
+        referenceText: String = this.referenceText,
+        language: String? = this.language,
+        includeReport: Boolean? = this.includeReport,
+        includeStandardAudio: Boolean? = this.includeStandardAudio,
+        includeAsrText: Boolean? = this.includeAsrText,
+        slack: Double? = this.slack,
+        scale: Int? = this.scale,
+        precision: Double? = this.precision,
+        agegroup: Int? = this.agegroup,
+        toneWeight: Double? = this.toneWeight,
+        refPinyin: String? = this.refPinyin,
+        phonemeOutput: Boolean? = this.phonemeOutput,
+        taskType: String? = this.taskType,
+        paragraphNeedWordScore: Int? = this.paragraphNeedWordScore,
+        extra: Map<String, Any?> = this.extra,
+    ): EvaluateConfig = EvaluateConfig(
+        coreType, referenceText, language, includeReport, includeStandardAudio, includeAsrText, slack, scale, precision,
+        agegroup, toneWeight, refPinyin, phonemeOutput, taskType, paragraphNeedWordScore, extra, realtimeFeedback,
+    )
+
     /** Java 调用方使用的构建器。 */
     public class Builder(private val coreType: String, private val referenceText: String) {
         private var language: String? = null
@@ -131,6 +203,7 @@ public data class EvaluateConfig @JvmOverloads constructor(
         private var taskType: String? = null
         private var paragraphNeedWordScore: Int? = null
         private val extra = LinkedHashMap<String, Any?>()
+        private var realtimeFeedback: Boolean = false
 
         public fun language(v: String?): Builder = apply { language = v }
         public fun includeReport(v: Boolean?): Builder = apply { includeReport = v }
@@ -147,10 +220,13 @@ public data class EvaluateConfig @JvmOverloads constructor(
         public fun paragraphNeedWordScore(v: Int?): Builder = apply { paragraphNeedWordScore = v }
         public fun extra(key: String, value: Any?): Builder = apply { extra[key] = value }
 
+        /** 原生实时评测打开朗读进度。 */
+        public fun realtimeFeedback(v: Boolean): Builder = apply { realtimeFeedback = v }
+
         public fun build(): EvaluateConfig = EvaluateConfig(
             coreType, referenceText, language, includeReport, includeStandardAudio, includeAsrText,
             slack, scale, precision, agegroup, toneWeight, refPinyin, phonemeOutput, taskType,
-            paragraphNeedWordScore, LinkedHashMap(extra),
+            paragraphNeedWordScore, LinkedHashMap(extra), realtimeFeedback,
         )
     }
 
@@ -164,7 +240,7 @@ public data class EvaluateConfig @JvmOverloads constructor(
 /**
  * 声通兼容评测配置，用于兼容 REST `POST /{coreType}` 与兼容实时评测 `WS /{coreType}`。
  * [params] 为其余表单字段，例如 `agegroup`，`scale`，`paragraph_need_word_score`，原样发送。
- * [realtimeFeedback] 只对实时评测有效，开启后服务端下发进度中间帧。
+ * [realtimeFeedback] 只对实时评测有效，开启后参数帧带 `"realtime_feedback": true`，服务端在收音过程中下发朗读进度。
  */
 public data class CompatConfig @JvmOverloads constructor(
     val coreType: String,
@@ -458,13 +534,50 @@ public class EvalResult internal constructor(
             "warnings=${warnings.map { it.code }}, localWarnings=${localWarnings.map { it.code }}, replayed=$replayed)"
 }
 
-/** 兼容实时评测的进度中间帧 `{"eof":0,"result":{"bytes":n}}`。 */
+/**
+ * 朗读进度里的一个单位，中文为一个字，英文为一个词，取自参考文本，去掉标点。
+ *
+ * - [read]：朗读位置已越过这个单位。
+ * - [matched]：识别结果与这个单位一致，为 true 时 [read] 也为 true。[read] 为 true 而 [matched] 为 false
+ *   表示朗读已越过但识别结果不一致，可能是读错，漏读或识别误差，以终评为准。
+ */
+public data class ReadingWord(val word: String, val read: Boolean, val matched: Boolean)
+
+/**
+ * 实时评测的中间帧 `{"eof":0,"result":{...}}`，开启 `realtimeFeedback` 后在收音过程中下发。
+ *
+ * - [bytes]：服务端这一轮已收到的音频字节数。
+ * - [hasProgress]：帧里带朗读进度 `result.progress` 时为 true。参考文本为空，音频不是 16 kHz，16 位，单声道 PCM，
+ *   或服务端无法跟踪进度时为 false，此时只有 [bytes]。
+ * - [progress]：参考文本逐字或逐词的朗读状态，按原文顺序，取自 `result.progress`，帧里没有时为空列表。
+ * - [readUnits]，[matchedUnits]，[totalUnits]：已读的单位数，识别一致的单位数与单位总数，帧里没有时为 -1。
+ * - [raw]：整个中间帧。声通兼容通道的进度帧另带声通格式的增量 `result.words`，SDK 不解析，需要时从这里读取。
+ */
 public class PartialResult internal constructor(
-    /** 服务端已收到的音频字节数。 */
+    /** 服务端这一轮已收到的音频字节数。 */
     public val bytes: Long?,
+    /** 已读的单位数，帧里没有时为 -1。 */
+    public val readUnits: Int,
+    /** 识别结果一致的单位数，帧里没有时为 -1。 */
+    public val matchedUnits: Int,
+    /** 单位总数，等于 [progress] 的长度，帧里没有时为 -1。 */
+    public val totalUnits: Int,
+    /** 逐字或逐词的朗读状态，帧里没有时为空列表。 */
+    public val progress: List<ReadingWord>,
+    /** 帧里是否带朗读进度，即是否带 `result.progress`。 */
+    @get:JvmName("hasProgress")
+    public val hasProgress: Boolean,
     public val raw: Map<String, Any?>,
 ) {
-    override fun toString(): String = "PartialResult(bytes=$bytes)"
+    /** The 2.0.0 constructor signature, a partial without progress. */
+    internal constructor(bytes: Long?, raw: Map<String, Any?>) : this(bytes, -1, -1, -1, emptyList(), false, raw)
+
+    override fun toString(): String =
+        if (hasProgress) {
+            "PartialResult(bytes=$bytes, readUnits=$readUnits, matchedUnits=$matchedUnits, totalUnits=$totalUnits)"
+        } else {
+            "PartialResult(bytes=$bytes)"
+        }
 }
 
 /** 语音合成结果。[resolvedUrl] 已按基址拼好，可直接播放。 */
@@ -545,6 +658,25 @@ internal object ResultParser {
             raw = root.map,
             resultRaw = result.map,
             rawJson = rawJson,
+        )
+    }
+
+    /**
+     * Partial frame `{"eof":0,"result":{...}}` (CONTRACT 5.5). The per-unit state is `result.progress`
+     * on both channels, present only while the platform tracks reading progress for the round; absent
+     * counts are -1. Compat frames also carry Shengtong-shaped incremental `result.words`, which is
+     * never read here and stays available in raw.
+     */
+    fun partial(root: JObj): PartialResult {
+        val result = root.obj("result") ?: JObj(emptyMap())
+        return PartialResult(
+            bytes = result.long("bytes"),
+            readUnits = result.int("readUnits") ?: -1,
+            matchedUnits = result.int("matchedUnits") ?: -1,
+            totalUnits = result.int("totalUnits") ?: -1,
+            progress = result.objList("progress").map { ReadingWord(it.str("word") ?: "", it.bool("read") == true, it.bool("matched") == true) },
+            hasProgress = result.list("progress") != null,
+            raw = root.map,
         )
     }
 

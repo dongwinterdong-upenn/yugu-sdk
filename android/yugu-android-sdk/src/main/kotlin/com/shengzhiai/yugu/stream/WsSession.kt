@@ -97,6 +97,13 @@ internal class WsSession(
     private var resultTimer: ScheduledFuture<*>? = null
     private var reconnectTimer: ScheduledFuture<*>? = null
     private var warnedIgnoredAudio = false
+    /**
+     * Counts of the last delivered progress partial. They survive REPLAY reconnects, are reset by a
+     * successful DROP reconnect and belong to this logical session only: every streamEvaluate call
+     * creates a new WsSession, so they start at -1.
+     */
+    private var lastReadUnits = -1
+    private var lastMatchedUnits = -1
 
     // ------------------------------------------------------------------------- public API
 
@@ -306,16 +313,35 @@ internal class WsSession(
                 else -> {
                     val eof = obj.int("eof")
                     when {
-                        eof == 0 -> {
-                            val partial = PartialResult(obj.obj("result")?.long("bytes"), obj.map)
-                            post { listener.onPartial(partial) }
-                        }
+                        eof == 0 -> onPartialLocked(obj)
                         eof == 1 || obj.has("result") -> onFinalLocked(obj, text)
                         else -> log.d { "[$sessionId] ignored frame ${text.take(120)}" }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Partial frames arrive in STARTED and, until the final frame, in ENDING. A progress partial is
+     * delivered only when neither count is below the last delivered one: after a REPLAY reconnect the
+     * new server session recomputes progress from zero while the replayed audio arrives (CONTRACT 5.5).
+     * Partials without progress are always delivered.
+     */
+    private fun onPartialLocked(obj: JObj) {
+        val partial: PartialResult = ResultParser.partial(obj)
+        if (partial.hasProgress) {
+            if (partial.readUnits < lastReadUnits || partial.matchedUnits < lastMatchedUnits) {
+                log.d {
+                    "[$sessionId] dropped progress readUnits=${partial.readUnits} matchedUnits=${partial.matchedUnits}, " +
+                        "last delivered readUnits=$lastReadUnits matchedUnits=$lastMatchedUnits"
+                }
+                return
+            }
+            lastReadUnits = partial.readUnits
+            lastMatchedUnits = partial.matchedUnits
+        }
+        post { listener.onPartial(partial) }
     }
 
     private fun onConnectedLocked() {
@@ -349,6 +375,12 @@ internal class WsSession(
         everStarted = true
         if (reconnecting) {
             reconnecting = false
+            if (bufferPolicy == AudioBufferPolicy.DROP) {
+                // the new server session covers only audio sent from now on, so its progress is
+                // delivered as it comes instead of being compared with the old session's
+                lastReadUnits = -1
+                lastMatchedUnits = -1
+            }
             val dropped = droppedBytes
             droppedBytes = 0
             val attempt = consecutiveAttempts

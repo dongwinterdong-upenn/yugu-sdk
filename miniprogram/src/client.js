@@ -289,7 +289,10 @@ export class YuguClient {
     });
   }
 
-  /** Native streaming evaluation over WS /api/v1/ws/evaluate. Connects on the next microtask. */
+  /**
+   * Native streaming evaluation over WS /api/v1/ws/evaluate. params.realtimeFeedback asks the platform
+   * for reading progress through onPartial. Connects on the next microtask.
+   */
   streamEvaluate(params, listener, options) {
     this._ensureOpen('streamEvaluate');
     const p = params || {};
@@ -298,6 +301,9 @@ export class YuguClient {
     Object.keys(config).forEach((k) => {
       frame[k] = config[k];
     });
+    // CONTRACT 5.5. The key goes out only when enabled, so the default start frame stays the 2.0.0 one
+    // byte for byte. It is not an evaluate config field: REST evaluate never sends it.
+    if (p.realtimeFeedback) frame.realtimeFeedback = true;
     return this._openSession('native', PATH_WS_NATIVE, frame, listener, options, p.sampleRate);
   }
 

@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'YuguSDK'
-  s.version          = '2.0.0'
+  s.version          = '2.1.0'
   s.summary          = 'Yugu speech evaluation SDK for iOS: REST and streaming evaluation, retry, idempotency, recorder.'
   s.description      = <<-DESC
     Client of the Yugu speech evaluation platform (open.shengzhiai.com): native and engine compatible

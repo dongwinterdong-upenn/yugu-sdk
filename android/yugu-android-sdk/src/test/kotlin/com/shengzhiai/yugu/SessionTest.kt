@@ -1,6 +1,7 @@
 package com.shengzhiai.yugu
 
 import com.shengzhiai.yugu.internal.JObj
+import com.shengzhiai.yugu.internal.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -23,6 +24,7 @@ import java.util.Random
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Session state machine, frames, handshake and buffer policies against a scripted WS peer. */
 class SessionTest {
@@ -177,6 +179,8 @@ class SessionTest {
             assertEquals(setOf("idempotencyKey", "appKey", "timestamp", "nonce", "signature"), q.keys)
             assertEquals(s.idempotencyKey, q["idempotencyKey"])
             assertEquals(Signer.sign(q - "signature", "mock-secret-key"), q["signature"])
+            // onClosed fires once the close frame is sent; the peer sees it on its own thread
+            assertTrue(p.closed.await(5, TimeUnit.SECONDS))
             assertEquals(1000, p.closeCode)
             assertEquals(
                 listOf("IDLE->CONNECTING", "CONNECTING->CONNECTED", "CONNECTED->STARTED", "STARTED->ENDING", "ENDING->COMPLETED", "COMPLETED->CLOSED"),
@@ -849,6 +853,217 @@ class SessionTest {
             assertTrue(done.await(10, TimeUnit.SECONDS))
             assertTrue(logger.text().contains("回调抛出异常"))
         }
+    }
+
+    // ------------------------------------------------------------------- reading progress (2.1.0)
+
+    private val sentence = "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。"
+    private val units = "我是中国人我是中国人我们都是中国人中华民族是一家人".map { it.toString() }
+
+    /**
+     * Progress frame of CONTRACT 5.5 over [units]: the first [read] units read and matched. The compat
+     * shape adds `"recordId": ""` and Shengtong-shaped `result.words` with the units read since [previous].
+     */
+    private fun progressFrame(bytes: Int, read: Int, compat: Boolean = false, previous: Int = 0): String {
+        val progress = units.mapIndexed { i, w -> mapOf("word" to w, "read" to (i < read), "matched" to (i < read)) }
+        val result = linkedMapOf<String, Any?>("bytes" to bytes, "readUnits" to read, "matchedUnits" to read, "totalUnits" to units.size)
+        val frame = linkedMapOf<String, Any?>("eof" to 0)
+        if (compat) {
+            frame["recordId"] = ""
+            result["kernel_version"] = "1.0.0"
+            result["resource_version"] = "1.0.0"
+            result["words"] = (previous until read).map { i ->
+                mapOf(
+                    "charType" to 0, "word" to units[i],
+                    "scores" to mapOf("pronunciation" to 100, "skipped" to 0, "tone" to 100, "overall" to 100, "overall_pron" to 100),
+                    "word_parts" to listOf(mapOf("beginIndex" to 0, "charType" to 0, "endIndex" to 0, "part" to units[i])),
+                )
+            }
+        }
+        result["progress"] = progress
+        frame["result"] = result
+        return Json.write(frame)
+    }
+
+    @Test
+    fun nativeStartFrameCarriesRealtimeFeedbackOnlyWhenEnabled() {
+        val plain = peer(Peer())
+        val live = peer(Peer())
+        builder().build().use { c ->
+            for ((cfg, p) in listOf(config to plain, config.copy(realtimeFeedback = true) to live)) {
+                val l = RecordingListener()
+                val s = c.streamEvaluate(cfg, l)
+                l.session = s
+                streamPcm(s, pcm)
+                s.end()
+                assertTrue(l.awaitClosed(10))
+                assertClean(l)
+                assertNotNull(l.result)
+                val flag = if (cfg.realtimeFeedback) ",\"realtimeFeedback\":true" else ""
+                assertEquals(
+                    "{\"cmd\":\"start\",\"coreType\":\"sentence\",\"referenceText\":\"今天天气很好\",\"language\":\"zh-CN\"$flag," +
+                        "\"idempotencyKey\":\"${s.idempotencyKey}\"}",
+                    p.texts[0],
+                )
+            }
+        }
+    }
+
+    @Test
+    fun recordedProgressReachesOnPartialInOrderAlsoAfterEnd() {
+        val audio = TestEnv.fixturePcm("audio/zh_progress.wav")
+        for (name in listOf("ws_native_sentence_progress_frames.json", "ws_compat_sent_eval_cn_progress_misread_frames.json")) {
+            @Suppress("UNCHECKED_CAST")
+            val frames = (Json.parse(TestEnv.fixtureText("platform/$name")) as List<Map<String, Any?>>).map { JObj(it["frame"] as Map<String, Any?>) }
+            val progress = frames.filter { it.int("eof") == 0 }
+            val sent = AtomicInteger()
+            fun sendUpTo(p: Peer, bytes: Long) {
+                while (sent.get() < progress.size && progress[sent.get()].obj("result")!!.long("bytes")!! <= bytes) {
+                    p.send(Json.write(progress[sent.getAndIncrement()].map))
+                }
+            }
+            // recorded frames go out once their byte count is reached, the rest after end, then the final frame
+            peer(Peer(onBinary = { p, n -> sendUpTo(p, n.toLong()) }, onEnd = { p ->
+                sendUpTo(p, Long.MAX_VALUE)
+                p.send(Json.write(frames.last().map))
+            }))
+            builder().build().use { c ->
+                val l = RecordingListener()
+                val s = if (name.startsWith("ws_native")) {
+                    c.streamEvaluate(EvaluateConfig(CoreType.SENTENCE, sentence, Language.ZH_CN, realtimeFeedback = true), l)
+                } else {
+                    c.streamEvaluateCompat(CompatConfig(CompatCoreType.SENT_EVAL_CN, sentence, realtimeFeedback = true), l)
+                }
+                l.session = s
+                streamPcm(s, audio)
+                s.end()
+                assertTrue(l.awaitClosed(10))
+                assertClean(l)
+                assertNotNull("$name error ${l.error}", l.result)
+                assertEquals(name, progress.map { it.obj("result")!!.int("readUnits") }, l.partials.map { it.readUnits })
+                assertTrue(name, l.partials.all { it.hasProgress && it.totalUnits == 25 && it.progress.map { w -> w.word } == units })
+                val ending = l.events.indexOf("state:STARTED->ENDING")
+                val lastPartial = l.events.lastIndexOf("partial")
+                assertTrue("$name progress after end: ${l.events}", ending in 0 until lastPartial)
+                assertTrue(lastPartial < l.events.indexOf("result"))
+            }
+        }
+    }
+
+    @Test
+    fun progressThatRegressesAfterAReplayReconnectIsDropped() {
+        val step = 6400
+        val compatResult = TestEnv.fixtureText("platform/compat_sent.eval.cn.json")
+        fun progress(n: Int) = progressFrame(n, 2 * (n / step), compat = true, previous = 2 * (n / step) - 2)
+        // compat channel, first connection: progress 2, 4, ... 18 while audio arrives, then an abnormal close after end
+        peer(Peer(onBinary = { p, n -> if (n % step == 0) p.send(progress(n)) }, onEnd = { it.ws.close(1011, "drop") }))
+        // second connection: progress restarts from zero while the audio is replayed, bytes-only frames in between
+        val second = peer(Peer(
+            onBinary = { p, n ->
+                if (n % step == 0) {
+                    p.send(progress(n))
+                    p.send("""{"eof":0,"result":{"bytes":$n}}""")
+                }
+            },
+            onEnd = { p ->
+                p.send(progressFrame(p.bytes().size, 24, compat = true, previous = 2 * (p.bytes().size / step)))
+                p.send(compatResult)
+            },
+        ))
+        builder().build().use { c ->
+            val l = RecordingListener()
+            val s = c.streamEvaluateCompat(CompatConfig(CompatCoreType.SENT_EVAL_CN, sentence, realtimeFeedback = true), l)
+            l.session = s
+            streamPcm(s, pcm)
+            s.end()
+            assertTrue(l.awaitClosed(10))
+            assertClean(l)
+            assertNotNull("error ${l.error}", l.result)
+            assertEquals("sent.eval.cn", l.result!!.coreType)
+            assertEquals(1, l.reconnected.size)
+            assertArrayEquals(pcm, second.bytes())
+            val steps = pcm.size / step // 9 for zh_short.wav
+            val first = (1..steps).map { 2 * it }
+            val progress = l.partials.filter { it.hasProgress }
+            // first connection in full, then the replay only from the level already shown, then the frame after end
+            assertEquals(first + listOf(2 * steps, 24), progress.map { it.readUnits })
+            assertEquals(progress.map { it.readUnits }, progress.map { it.matchedUnits })
+            assertTrue(progress.zipWithNext().all { (a, b) -> b.readUnits >= a.readUnits && b.matchedUnits >= a.matchedUnits })
+            // the compat shape reaches raw unchanged, the per-unit state comes from result.progress only
+            assertTrue(progress.all { it.raw["recordId"] == "" && it.progress.size == units.size })
+            // partials without progress are delivered as before, also while progress is being dropped
+            val bytesOnly = l.partials.filter { !it.hasProgress }
+            assertEquals((1..steps).map { (it * step).toLong() }, bytesOnly.map { it.bytes })
+            assertTrue(bytesOnly.all { it.readUnits == -1 && it.totalUnits == -1 && it.progress.isEmpty() })
+            val dropped = logger.lines.filter { it.contains("dropped progress") }
+            assertEquals(steps - 1, dropped.size)
+            assertTrue(dropped.all { it.startsWith("DEBUG ") })
+            assertTrue(dropped[0], dropped[0].contains("readUnits=2 matchedUnits=2, last delivered readUnits=${2 * steps}"))
+        }
+    }
+
+    @Test
+    fun dropPolicyDeliversTheNewSessionProgressAfterAReconnect() {
+        // first connection: progress reaches 6 after 3200 bytes, then the link dies before end
+        peer(Peer(onBinary = { p, n ->
+            if (n == 3200) {
+                p.send(progressFrame(n, 6))
+                p.ws.close(1011, "drop")
+            }
+        }))
+        // the new server session covers only later audio and reports its own progress from zero
+        peer(Peer(
+            onBinary = { p, n ->
+                if (n == 640) p.send(progressFrame(n, 1))
+                if (n == 6400) p.send(progressFrame(n, 3))
+            },
+            onEnd = { p ->
+                p.send(progressFrame(p.bytes().size, 4))
+                p.send(resultFrame)
+            },
+        ))
+        builder().audioBufferPolicy(AudioBufferPolicy.DROP).build().use { c ->
+            val l = RecordingListener()
+            val s = c.streamEvaluate(config.copy(realtimeFeedback = true), l)
+            l.session = s
+            assertTrue(l.started.await(5, TimeUnit.SECONDS))
+            streamPcm(s, pcm.copyOf(3200))
+            val deadline = System.nanoTime() + 5_000_000_000L
+            while (l.reconnected.isEmpty() && System.nanoTime() < deadline) Thread.sleep(5)
+            assertEquals(1, l.reconnected.size)
+            streamPcm(s, pcm.copyOfRange(3200, pcm.size))
+            s.end()
+            assertTrue(l.awaitClosed(10))
+            assertClean(l)
+            assertNotNull("error ${l.error}", l.result)
+            // DROP resets the remembered progress at the reconnect: 1 and 3 are delivered although below 6
+            assertEquals(listOf(6, 1, 3, 4), l.partials.map { it.readUnits })
+            assertFalse(logger.text().contains("dropped progress"))
+        }
+    }
+
+    @Test
+    fun progressMemoryBelongsToOneLogicalSession() {
+        repeat(2) {
+            peer(Peer(onBinary = { p, n -> if (n == 6400) p.send(progressFrame(n, 0)) }, onEnd = { p ->
+                p.send(progressFrame(p.bytes().size, 24))
+                p.send(resultFrame)
+            }))
+        }
+        builder().build().use { c ->
+            repeat(2) {
+                val l = RecordingListener()
+                val s = c.streamEvaluate(config.copy(realtimeFeedback = true), l)
+                l.session = s
+                streamPcm(s, pcm)
+                s.end()
+                assertTrue(l.awaitClosed(10))
+                assertClean(l)
+                // a new session starts from zero although the previous one ended at 24
+                assertEquals(listOf(0, 24), l.partials.map { it.readUnits })
+            }
+        }
+        assertFalse(logger.text().contains("dropped progress"))
     }
 
     @Test

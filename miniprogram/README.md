@@ -5,7 +5,7 @@
 | 项 | 内容 |
 |---|---|
 | 包名 | `@shengzhiai/yugu-miniprogram-sdk` |
-| 当前版本 | `2.0.0`，2026-10-08 |
+| 当前版本 | `2.1.0`，2026-10-12 |
 | npm 源 | `https://open.shengzhiai.com/npm/`，匿名只读 |
 | 服务基址 | `https://open.shengzhiai.com`，`wss://open.shengzhiai.com` |
 | 基础库 | `2.20.1` 及以上 |
@@ -21,7 +21,7 @@
 
 ```bash
 echo "@shengzhiai:registry=https://open.shengzhiai.com/npm/" >> .npmrc
-npm install @shengzhiai/yugu-miniprogram-sdk@2.0.0
+npm install @shengzhiai/yugu-miniprogram-sdk@2.1.0
 ```
 
 工程里还没有 `package.json` 时先执行 `npm init -y`。npm 源不需要账号，已发布的版本不会被覆盖，退回历史版本时把版本号换成目标版本重新安装即可。
@@ -117,8 +117,8 @@ secretKey 写进小程序包就可能被反编译取得，正式环境不要在�
 | `client.evaluateCompat(coreType, params, options)` | 声通兼容整段评测 `POST /{coreType}`，返回 `Promise<EvalResult>`，需要签名鉴权，用 token 时在发请求前以错误码 90010 失败 |
 | `client.tts(params, options)` | 语音合成，返回 `Promise<TtsResult>`，`fullUrl` 可直接交给 `InnerAudioContext` |
 | `client.getReport(recordId, options)` | 报告查询，返回报告数据 |
-| `client.streamEvaluate(params, listener, options)` | 原生实时评测，返回 `StreamSession` |
-| `client.streamEvaluateCompat(coreType, params, listener, options)` | 声通兼容实时评测，返回 `StreamSession` |
+| `client.streamEvaluate(params, listener, options)` | 原生实时评测，返回 `StreamSession`，参数 `realtimeFeedback` 打开朗读进度 |
+| `client.streamEvaluateCompat(coreType, params, listener, options)` | 声通兼容实时评测，返回 `StreamSession`，参数 `realtimeFeedback` 打开朗读进度 |
 | `client.createRecorder(options)` | 创建录音器，`client.close()` 时一并释放 |
 | `client.close()` | 关闭客户端，可重复调用 |
 | `client.isClosed()` | 是否已关闭 |
@@ -138,7 +138,7 @@ secretKey 写进小程序包就可能被反编译取得，正式环境不要在�
 | `createAbortController()` | 小程序环境的取消控制器 |
 | `parseEvalResult(json)` | 把平台原始结果转为 `EvalResult` |
 
-`evaluate` 的参数为 `coreType`，`referenceText`，`language`，`includeReport`，`includeStandardAudio`，`includeAsrText`，`slack`，`scale`，`precision`，`agegroup`，`toneWeight`，`refPinyin`，`phonemeOutput`，`taskType`，`paragraphNeedWordScore` 与音频 `audio`，含义见 `CONTRACT.md` 第 3.1 节。契约之外的新字段放在 `extra` 里原样透传。看图说话题用 `image` 传图片。`evaluateCompat` 用声通参数名 `refText`，`language`，`refPinyin`，其余表单字段放在 `fields` 里。
+`evaluate` 的参数为 `coreType`，`referenceText`，`language`，`includeReport`，`includeStandardAudio`，`includeAsrText`，`slack`，`scale`，`precision`，`agegroup`，`toneWeight`，`refPinyin`，`phonemeOutput`，`taskType`，`paragraphNeedWordScore` 与音频 `audio`，含义见 `CONTRACT.md` 第 3.1 节。契约之外的新字段放在 `extra` 里原样透传。看图说话题用 `image` 传图片。`evaluateCompat` 用声通参数名 `refText`，`language`，`refPinyin`，其余表单字段放在 `fields` 里。`streamEvaluate` 的参数与 `evaluate` 相同，不带音频，另有 `realtimeFeedback`，`streamEvaluateCompat` 的参数为 `refText`，`language`，`refPinyin`，`realtimeFeedback` 与 `fields`，`realtimeFeedback` 的用法见“朗读进度”。
 
 ## 客户端配置
 
@@ -157,7 +157,7 @@ secretKey 写进小程序包就可能被反编译取得，正式环境不要在�
 | `eventListener` | 无 | 指标回调，见“日志与指标” |
 | `audioPrecheck` | `WARN` | 音频预检模式 `OFF`，`WARN`，`REJECT` |
 | `strictAudio` | `false` | 评测结果带警告 1001 时抛出 `AudioQualityException` |
-| `userAgent` | `yugu-miniprogram-sdk/2.0.0` | 通过请求头 `X-Yugu-SDK` 发送，小程序不能改写 `User-Agent` |
+| `userAgent` | `yugu-miniprogram-sdk/2.1.0` | 通过请求头 `X-Yugu-SDK` 发送，小程序不能改写 `User-Agent` |
 | `reconnect` | 见“实时评测” | 部分覆盖重连策略，`false` 关闭重连 |
 | `audioBufferPolicy` | `REPLAY` | 实时评测音频缓冲策略 `REPLAY`，`DROP`，`FAIL` |
 | `heartbeatIntervalMs` | 15000 | 应用层心跳间隔，0 关闭心跳 |
@@ -340,7 +340,7 @@ try {
 | `onStateChanged(oldState, newState)` | 每次状态变化 |
 | `onConnected()` | 首次连接成功 |
 | `onStarted()` | 首次服务端会话开始 |
-| `onPartial({ bytes })` | 声通兼容评测打开 `realtimeFeedback` 后的进度帧，不含评分 |
+| `onPartial(partial)` | 打开 `realtimeFeedback` 后的朗读进度，原生与声通兼容两条通道都有，`end()` 之后到终评之前仍会回调，不含发音评分，字段见“朗读进度” |
 | `onReconnecting(attempt, delayMs, cause)` | 断线后开始等待重连 |
 | `onReconnected(attempt, info)` | 重连成功，`info` 含 `droppedBytes` 与 `replayedBytes` |
 | `onWarning(warning)` | `end()` 时对这一轮音频的预检发现 |
@@ -368,6 +368,67 @@ try {
 4. 发出结束帧后服务端在评测，SDK 不再发心跳，改由 `resultTimeoutMs` 判断，默认 300 秒。
 
 单个会话可以用 `streamEvaluate` 的第三个参数覆盖 `idempotencyKey`，`reconnect`，`audioBufferPolicy`，`heartbeatIntervalMs`，`heartbeatTimeoutMs`，`resultTimeoutMs`，`connectTimeoutMs`，`replayBufferLimitBytes`，`audioPrecheck` 与附加握手参数 `query`。`end()` 之后再调用 `sendAudio` 会被忽略，返回 `false`，同时记录一条 WARN 日志。
+
+### 朗读进度
+
+学员朗读的过程中，平台按参考文本逐字或逐词报告哪些单位已经读过，界面可以边读边标出进度。原生实时评测在 `streamEvaluate` 的参数里写 `realtimeFeedback: true`，开始帧随之带 `"realtimeFeedback": true`，不写时开始帧与 `2.0.0` 逐字节相同。声通兼容实时评测在 `streamEvaluateCompat` 的参数里写 `realtimeFeedback: true`，参数帧带 `"realtime_feedback": true`。两条通道的 `result.progress` 格式相同，都经 `onPartial` 回调，进度帧不含发音评分，终评与计费不变，帧格式见 `CONTRACT.md` 5.5 节。
+
+| 字段 | 说明 |
+|---|---|
+| `bytes` | 这一轮服务端已收到的音频字节数，含义与 `2.0.0` 相同 |
+| `readUnits` | `read` 为 `true` 的单位数，帧里没有朗读进度时为 `-1` |
+| `matchedUnits` | `matched` 为 `true` 的单位数，帧里没有朗读进度时为 `-1` |
+| `totalUnits` | 单位总数，等于 `progress` 的长度，帧里没有朗读进度时为 `-1` |
+| `progress` | 参考文本的全部单位，取自帧里的 `result.progress`，按原文顺序排列，每项为 `{ word, read, matched }`，帧里没有朗读进度时为空数组 |
+| `progress[].word` | 字或词，取自参考文本。中文按字，去掉标点与空白，英文按空白分词，去掉词首词尾的标点 |
+| `progress[].read` | 朗读位置已越过这个单位 |
+| `progress[].matched` | 识别结果与这个单位一致，为 `true` 时 `read` 也为 `true` |
+| `hasProgress` | 帧里带 `result.progress` 时为 `true`，只有 `bytes` 时为 `false` |
+| `raw` | 平台发来的原始帧 |
+
+- 同一个服务端会话里，`read` 与 `matched` 只会由 `false` 变为 `true`。`read` 为 `true` 而 `matched` 为 `false`，表示朗读已越过这个位置，但识别结果与参考文本不一致，可能是读错，漏读或识别误差，以终评为准。
+- 进度变化时平台立即下发一帧，此外每收约 0.5 秒音频下发一帧，进度一般比朗读晚 1 到 2 秒，随网络情况变化。`end()` 之后会话处于 `ENDING`，引擎对最后一段音频的识别结果仍以进度回调送达，终评总是这一轮的最后一个回调。
+- 朗读进度只对 16 kHz，16 位，单声道 PCM 生效，录音器的默认配置 `sampleRate: 16000`，`numberOfChannels: 1`，`format: 'PCM'` 配合 `pipeTo` 即满足要求。参考文本为空，音频不是这种格式，或平台当时无法跟踪进度时，进度帧只有 `bytes`，`hasProgress` 为 `false`，终评不受影响。
+- 声通兼容通道的进度帧另带 `"recordId": ""`，`kernel_version`，`resource_version` 与声通格式的 `words`，`words` 只含上一帧之后新读过的单位，供按声通文档解析的代码使用。SDK 不解析这几项，逐字状态只取 `result.progress`，需要时从 `raw.result.words` 读取。断线重连后服务端从第一个单位重新下发 `words`，逐字状态以 `progress` 为准。原生通道的进度帧没有 `words`。
+- 断线重连：平台不支持会话续传，新的服务端会话在重放音频期间从零重新算出进度。会话记住上一次回调的 `readUnits` 与 `matchedUnits`，只回调两个数都不小于上一次的进度帧，其余丢弃，记一条 DEBUG 日志，默认的 `REPLAY` 策略下界面上的进度不会倒退。只有 `bytes` 的帧照常回调，每个新会话从零开始记。`DROP` 策略下新会话只评重连之后的音频，每次重连成功后会话清空记住的进度，之后的进度从新会话算起，可能小于断线前回调过的值。
+
+示例：按 `progress` 给参考文本逐字着色，未读为灰色，已对上为绿色，读过但没对上为红色。第一个进度帧就列出全部单位，可以直接用来排版参考文本。`this.client` 与 `this.recorder` 的创建与释放见“生命周期”。
+
+```js
+Page({
+  data: { units: [], overall: null },
+
+  start() {
+    this.session = this.client.streamEvaluate(
+      { coreType: 'sentence', referenceText: '我是中国人，我是中国人。我们都是中国人。中华民族是一家人。', language: 'zh-CN', realtimeFeedback: true },
+      {
+        onPartial: (p) => {
+          if (!p.hasProgress) return;
+          this.setData({
+            units: p.progress.map((w, i) => ({ i, text: w.word, state: w.matched ? 'matched' : w.read ? 'mismatched' : 'unread' })),
+          });
+        },
+        onResult: (result) => this.setData({ overall: result.overall }),
+        onError: (err) => wx.showToast({ title: err.message, icon: 'none' }),
+      },
+    );
+    this.recorder.pipeTo(this.session);
+    this.recorder.start();
+  },
+});
+```
+
+```html
+<view class="ref-text">
+  <text wx:for="{{units}}" wx:key="i" class="unit {{item.state}}">{{item.text}}</text>
+</view>
+```
+
+```css
+.unit.unread { color: #999999; }
+.unit.matched { color: #1a7f37; }
+.unit.mismatched { color: #cf222e; }
+```
 
 ## 生命周期
 
@@ -521,7 +582,7 @@ npm run typecheck   # 用 strict 配置检查 TypeScript 声明
 bash ../ci/miniprogram.sh
 ```
 
-集成测试启动仓库自带的平台模拟服务 `tools/mock-server`，覆盖整段评测，重试，幂等，实时评测断线与重连，不连接生产环境。覆盖率报告在 `coverage/index.html`。设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后另跑沙箱联调用例，见 `SANDBOX.md`。
+集成测试启动仓库自带的平台模拟服务 `tools/mock-server`，覆盖整段评测，重试，幂等，实时评测断线与重连，朗读进度，不连接生产环境。覆盖率报告在 `coverage/index.html`。设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后另跑沙箱联调用例，见 `SANDBOX.md`。
 
 ## 常见问题
 

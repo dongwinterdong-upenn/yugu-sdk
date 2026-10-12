@@ -382,8 +382,10 @@ int ygst_error_message(const ygst_classification *c, int err_id, int attempts, y
     const char *m = c->message.data ? (const char *)c->message.data : "";
     if (err_id == YGST_ERRID_RETRYABLE) {
         const char *base = ygst_compat_message(YGST_ERRID_RETRYABLE);
+        size_t mark;
         ygst_buf_append_str(out, base ? base : "");
         ygst_buf_append_str(out, ": ");
+        mark = out->len;
         if (c->http_status > 0) {
             ygst_buf_append_str(out, "HTTP ");
             ygst_buf_append_int(out, c->http_status);
@@ -391,7 +393,7 @@ int ygst_error_message(const ygst_classification *c, int err_id, int attempts, y
                 ygst_buf_append_str(out, " code=");
                 ygst_buf_append_int(out, c->biz_code);
             }
-        } else {
+        } else if (c->local_code) {
             const ygst_error_entry *e = ygst_local_find(c->local_code);
             if (e) {
                 ygst_buf_append_str(out, e->name);
@@ -399,9 +401,13 @@ int ygst_error_message(const ygst_classification *c, int err_id, int attempts, y
                 ygst_buf_append_str(out, "code=");
                 ygst_buf_append_int(out, c->local_code);
             }
+        } else if (c->biz_code) {
+            /* a WebSocket error frame: a business code without an HTTP status */
+            ygst_buf_append_str(out, "code=");
+            ygst_buf_append_int(out, c->biz_code);
         }
         if (m[0]) {
-            ygst_buf_append_char(out, ' ');
+            if (out->len > mark) ygst_buf_append_char(out, ' ');
             ygst_buf_append_str(out, m);
         }
         if (attempts > 0) {

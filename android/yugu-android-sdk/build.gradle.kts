@@ -1,4 +1,4 @@
-// 优谷雅言 Android 核心 SDK，发布坐标 com.shengzhiai.yugu:yugu-android-sdk:2.0.0。
+// 优谷雅言 Android 核心 SDK，发布坐标 com.shengzhiai.yugu:yugu-android-sdk:2.1.0。
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -8,7 +8,7 @@ plugins {
 
 val sdkGroup = "com.shengzhiai.yugu"
 val sdkArtifact = "yugu-android-sdk"
-val sdkVersion = "2.0.0"
+val sdkVersion = "2.1.0"
 
 group = sdkGroup
 version = sdkVersion

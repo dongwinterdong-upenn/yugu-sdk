@@ -52,7 +52,10 @@ public protocol YuguStreamListener: AnyObject {
     /// The server accepted the parameters; audio is now forwarded. Only for the first connection,
     /// later connections report `onReconnected`.
     func onStarted(_ session: YuguStreamSession)
-    /// Progress frame, compatible sessions with `realtimeFeedback` only.
+    /// Progress frame of a native or compatible session with `realtimeFeedback`, also after
+    /// `end()` until the final result. `partial.hasProgress` tells whether it carries reading
+    /// progress; after a reconnect with REPLAY such partials are delivered only once they catch
+    /// up with the progress already delivered, with DROP the progress starts over.
     func onPartial(_ session: YuguStreamSession, partial: StreamPartial)
     /// The connection broke and reconnect `attempt` starts after `delayMs`.
     func onReconnecting(_ session: YuguStreamSession, attempt: Int, delayMs: Int, cause: YuguError)

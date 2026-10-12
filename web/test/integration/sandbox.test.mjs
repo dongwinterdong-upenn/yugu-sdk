@@ -3,9 +3,10 @@
 // are skipped otherwise, so push builds never call the platform. YUGU_SANDBOX_BASE defaults to
 // https://open.shengzhiai.com.
 //
-// Budget: 5 platform calls per run, one after another (the sandbox account runs at most 2
+// Budget: 7 platform calls per run, one after another (the sandbox account runs at most 2
 // evaluations at a time): native REST evaluate twice with one key (the replay does not count
-// against the daily quota), compat REST, native streaming, compat streaming.
+// against the daily quota), compat REST, native streaming, compat streaming, and native and compat
+// streaming with reading progress (2.1.0).
 // The keys are never printed: the client logs nothing and diagnostics carry only scores and ids.
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
@@ -14,7 +15,7 @@ import { YuguClient } from '../../src/client.js';
 import { YuguError } from '../../src/errors.js';
 import { generateIdempotencyKey } from '../../src/idempotency.js';
 import { redactUrl } from '../../src/logger.js';
-import { assertGuarantees, frames, pcmOf, readAudio, recordingListener, states } from '../helpers/common.mjs';
+import { assertGuarantees, frames, pcmOf, readAudio, recordingListener, sleep, states } from '../helpers/common.mjs';
 
 const APPKEY = process.env.YUGU_SANDBOX_APPKEY;
 const SECRET = process.env.YUGU_SANDBOX_SECRET;
@@ -26,6 +27,11 @@ const FRAMES = frames(pcmOf(WAV));
 const SENTENCE = { coreType: 'sentence', referenceText: '今天天气很好', language: 'zh-CN' };
 const COMPAT = { refText: '今天天气很好', language: 'zh-CN' };
 const STREAM_BOUND_MS = 90000;
+// Reading progress: the customer sentence (spec/fixtures/audio/zh_progress.wav) in 100 ms chunks,
+// sent at the speed of speech like a microphone.
+const PROGRESS_REF = '我是中国人，我是中国人。我们都是中国人。中华民族是一家人。';
+const PROGRESS_UNITS = '我是中国人我是中国人我们都是中国人中华民族是一家人';
+const PROGRESS_CHUNKS = frames(pcmOf(readAudio('zh_progress.wav')), 3200);
 
 function client() {
   return new YuguClient({ baseUrl: BASE, appKey: APPKEY, secretKey: SECRET, WebSocket, logLevel: 'OFF', readTimeoutMs: 60000 });
@@ -53,10 +59,13 @@ async function call(what, fn) {
   return undefined;
 }
 
-async function stream(open) {
+async function stream(open, { chunks = FRAMES, paceMs = 0, partials = null } = {}) {
   const l = recordingListener();
   const session = open(l);
-  for (const f of FRAMES) session.sendAudio(f);
+  for (const f of chunks) {
+    session.sendAudio(f);
+    if (paceMs) await sleep(paceMs);
+  }
   session.end();
   let timer;
   const ev = await Promise.race([
@@ -78,7 +87,36 @@ async function stream(open) {
   const result = ev.find((e) => e[0] === 'result')[1];
   assert.equal(typeof result.overall, 'number', 'numeric overall');
   assert.equal(result.idempotencyKey, session.idempotencyKey);
+  if (partials) partials.push(...l.partials);
   return result;
+}
+
+/**
+ * Reading progress of the customer sentence: consistent fields, never going back, some units read.
+ * Compat frames also carry the Shengtong part (recordId "", incremental words) in raw.
+ */
+function checkProgress(t, label, partials, result, { compat = false } = {}) {
+  const prog = partials.filter((p) => p.hasProgress);
+  assert.ok(prog.length > 0, `${label}: no partial with reading progress among ${partials.length}`);
+  for (const p of prog) {
+    assert.equal(p.totalUnits, 25);
+    assert.equal(p.progress.map((w) => w.word).join(''), PROGRESS_UNITS);
+    assert.equal(p.readUnits, p.progress.filter((w) => w.read).length);
+    assert.equal(p.matchedUnits, p.progress.filter((w) => w.matched).length);
+    assert.ok(p.progress.every((w) => !w.matched || w.read), 'matched implies read');
+    if (compat) {
+      assert.equal(p.raw.recordId, '', `${label}: recordId "" in progress frames`);
+      assert.ok(Array.isArray(p.raw.result.words), `${label}: Shengtong words in raw`);
+    }
+  }
+  for (let i = 1; i < prog.length; i++) {
+    assert.ok(prog[i].readUnits >= prog[i - 1].readUnits && prog[i].matchedUnits >= prog[i - 1].matchedUnits, `${label}: progress went back`);
+  }
+  const last = prog[prog.length - 1];
+  assert.ok(last.readUnits > 0, `${label}: no unit read`);
+  const marks = last.progress.map((w) => (w.matched ? w.word : w.read ? '×' : '·')).join('');
+  const words = compat ? `, Shengtong words ${prog.map((p) => p.raw.result.words.map((w) => w.word).join('')).filter(Boolean).join('|')}` : '';
+  t.diagnostic(`${label}: ${partials.length} partials, ${prog.length} with progress, last read ${last.readUnits}/${last.totalUnits} matched ${last.matchedUnits} ${marks}${words}, overall ${result.overall}, recordId ${result.recordId}`);
 }
 
 describe('sandbox end to end (A-05-2)', { skip }, () => {
@@ -130,6 +168,34 @@ describe('sandbox end to end (A-05-2)', { skip }, () => {
       const r = await stream((l) => c.streamEvaluateCompat('sent.eval.cn', COMPAT, l));
       assert.equal(r.mode, 'compat');
       t.diagnostic(`compat streaming sent.eval.cn overall ${r.overall}, recordId ${r.recordId}`);
+    } finally {
+      await c.close();
+    }
+  });
+});
+
+describe('sandbox reading progress (2.1.0)', { skip }, () => {
+  test('native streaming with realtimeFeedback reports reading progress', async (t) => {
+    const c = client();
+    try {
+      const partials = [];
+      const config = { coreType: 'sentence', referenceText: PROGRESS_REF, language: 'zh-CN', realtimeFeedback: true };
+      const r = await stream((l) => c.streamEvaluate(config, l), { chunks: PROGRESS_CHUNKS, paceMs: 100, partials });
+      assert.equal(r.mode, 'native');
+      checkProgress(t, 'native', partials, r);
+    } finally {
+      await c.close();
+    }
+  });
+
+  test('compat streaming sent.eval.cn with realtime_feedback reports reading progress', async (t) => {
+    const c = client();
+    try {
+      const partials = [];
+      const params = { refText: PROGRESS_REF, language: 'zh-CN', realtime_feedback: true };
+      const r = await stream((l) => c.streamEvaluateCompat('sent.eval.cn', params, l), { chunks: PROGRESS_CHUNKS, paceMs: 100, partials });
+      assert.equal(r.mode, 'compat');
+      checkProgress(t, 'compat sent.eval.cn', partials, r, { compat: true });
     } finally {
       await c.close();
     }

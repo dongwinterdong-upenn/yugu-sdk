@@ -284,10 +284,54 @@ public struct EvalResult: Sendable {
     public var hasNoValidAudio: Bool { warnings.contains { $0.code == WarningCode.noValidAudio.rawValue } }
 }
 
-/// Progress frame of a compatible streaming session with `realtimeFeedback`.
+/// One unit of the reference text in a reading progress frame (CONTRACT 5.5): a character of a
+/// Chinese text, a word of an English text.
+public struct ReadingWord: Sendable, Equatable, CustomStringConvertible {
+    /// The character or word as written in the reference text.
+    public let word: String
+    /// The reading position has passed this unit. Within a round it never goes back to false.
+    public let read: Bool
+    /// The partial recognition matched this unit; implies `read`. `read` without `matched` means
+    /// misread, skipped or misrecognized, the final result decides.
+    public let matched: Bool
+
+    public init(word: String, read: Bool, matched: Bool) {
+        self.word = word
+        self.read = read
+        self.matched = matched
+    }
+
+    public var description: String {
+        "ReadingWord(word: \(word.debugDescription), read: \(read), matched: \(matched))"
+    }
+}
+
+/// Progress frame `{"eof":0,"result":{...}}` of a streaming session with realtime feedback
+/// (`EvaluateConfig.realtimeFeedback` for native sessions, `CompatParams.realtimeFeedback` for
+/// compatible sessions), CONTRACT 5.5.
+///
+/// While the platform tracks the reading of the round, `result.progress` lists every unit of the
+/// reference text in order (Chinese by character, English by word, punctuation and whitespace
+/// removed) and whether it has been read and matched. Otherwise (empty reference text, audio that
+/// is not 16 kHz 16-bit mono PCM, tracking not available) the frame carries only `bytes`.
+/// Compatible frames also carry Shengtong-shaped `result.words` for the units read since the
+/// previous frame and an empty `recordId`; they stay in `raw`, the per-unit state comes from
+/// `result.progress` only.
 public struct StreamPartial: Sendable {
-    /// Audio bytes received by the server so far.
+    /// Audio bytes received by the server so far, counted per server session.
     public let bytes: Int?
+    /// Units whose `read` is true, -1 when the frame carries no reading progress.
+    public let readUnits: Int
+    /// Units whose `matched` is true, -1 when the frame carries no reading progress.
+    public let matchedUnits: Int
+    /// Number of units of the reference text, the length of `progress`, -1 when the frame carries
+    /// no reading progress.
+    public let totalUnits: Int
+    /// Every unit of the reference text in order (`result.progress`), empty when the frame carries
+    /// no reading progress.
+    public let progress: [ReadingWord]
+    /// True when the frame carries reading progress (`result.progress` present).
+    public let hasProgress: Bool
     public let raw: JSONValue
 }
 
@@ -380,6 +424,24 @@ public enum ResultParser {
             asrText: json["asrText"].flatMap(asrText),
             standardAudio: json["standardAudio"].flatMap(standardAudio),
             warnings: warnings,
+            raw: json)
+    }
+
+    /// Parses a progress frame `{"eof":0,"result":{"bytes":n, "readUnits":..., "progress":[...]}}`.
+    /// Counts missing from the frame are -1; `hasProgress` follows the presence of
+    /// `result.progress`. The Shengtong-shaped `result.words` of compatible frames is not read.
+    static func streamPartial(_ json: JSONValue) -> StreamPartial {
+        let r = json["result"] ?? .null
+        let items = r["progress"]?.arrayValue
+        return StreamPartial(
+            bytes: r["bytes"]?.intValue,
+            readUnits: r["readUnits"]?.intValue ?? -1,
+            matchedUnits: r["matchedUnits"]?.intValue ?? -1,
+            totalUnits: r["totalUnits"]?.intValue ?? -1,
+            progress: (items ?? []).map {
+                ReadingWord(word: $0["word"]?.stringValue ?? "", read: $0["read"]?.boolValue ?? false, matched: $0["matched"]?.boolValue ?? false)
+            },
+            hasProgress: items != nil,
             raw: json)
     }
 

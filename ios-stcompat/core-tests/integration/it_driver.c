@@ -2,12 +2,17 @@
  * Copyright 2026 优谷雅言 open.shengzhiai.com
  * SPDX-License-Identifier: Apache-2.0
  *
- * Integration driver: runs one Shengtong file evaluation through the C core exactly as
- * KYTestEngine does on iOS (coreType check, local audio checks, field mapping, signing,
- * multipart, retry controller, envelope), with a POSIX socket HTTP/1.1 transport standing in
- * for NSURLSession. Prints one JSON line:
+ * Integration driver: runs one Shengtong evaluation through the C core exactly as KYTestEngine
+ * does on iOS (coreType check, local audio checks, field mapping, signing, multipart, retry
+ * controller, envelope), with a POSIX socket HTTP/1.1 transport standing in for NSURLSession.
+ * With --realtime it runs a realtime_feedback round instead: the PCM of --audio is captured in
+ * steps of --chunk-bytes every --pace-ms, the round controller (ygst_rt) streams it over a
+ * WebSocket client standing in for NSURLSessionWebSocketTask, progress frames become eof 0
+ * envelopes, a failure before end falls back to the REST call at stop. Prints one JSON line:
  *
- *   {"tokenId":"..","outcome":"result|error","attempts":N,"replayed":0|1,"elapsedMs":N,"json":{..}}
+ *   {"tokenId":"..","outcome":"result|error","attempts":N,"replayed":0|1,"elapsedMs":N,
+ *    ["mode":"ws|rest|local","connections":N,"held":N,"restReason":"..","paramFrame":{..},
+ *     "progress":[eof 0 envelopes],] "json":{..}}
  *
  * Usage: it_driver (--port N [--host 127.0.0.1] | --base-url URL)
  *        [--app-key K | --app-key-env VAR] [--secret S | --secret-env VAR] [--core-type T]
@@ -15,6 +20,8 @@
  *        [--auto-retry] [--err-id N]... [--max-retries N] [--read-timeout-ms N]
  *        [--connect-timeout-ms N] [--ca-file PEM] [--get-param] [--attach-audio-url] [--user-id U]
  *        [--fault F] [--scale X] [--custom K=V]...
+ *        [--realtime [--chunk-bytes N] [--pace-ms N] [--feed-after-start] [--ws-fault F]
+ *         [--ping-interval-ms N] [--pong-timeout-ms N] [--attempt-timeout-ms N]]
  *
  * --base-url goes through the same resolution as KYStartEngineConfig.server. https needs a build
  * with -DYGST_IT_TLS and -lssl -lcrypto: OpenSSL with SNI, TLS 1.2 or later and certificate plus
@@ -661,7 +668,276 @@ static void http_post(const target *t, const char *ca_file, int connect_timeout_
     ygst_buf_free(&raw);
 }
 
-/* ------------------------------------------------------------------ main */
+/* ------------------------------------------------------------------ WebSocket client */
+
+/* RFC 6455 client of the realtime scenarios, test code only: handshake, masked client frames,
+ * unmasked server frames with continuation, pings answered with pongs, close. It does not check
+ * Sec-WebSocket-Accept (the core has no SHA-1; the peer is the mock or the platform). The
+ * connection keeps its buffers after ws_close so that a message handler may close it while the
+ * frames of the same read are being parsed. */
+typedef struct {
+    conn c;
+    int open;
+    ygst_buf rx;  /* received, not parsed yet */
+    ygst_buf msg; /* message being assembled from fragments */
+    int msg_op;
+} ws_conn;
+
+typedef enum { WS_EV_TEXT = 1, WS_EV_PONG = 2, WS_EV_CLOSED = 3 } ws_event;
+typedef void (*ws_handler)(void *ctx, ws_event ev, const char *text, size_t n, int close_code);
+
+static void ws_init(ws_conn *w) {
+    memset(w, 0, sizeof *w);
+    w->c.fd = -1;
+    ygst_buf_init(&w->rx);
+    ygst_buf_init(&w->msg);
+}
+
+static int ws_send(ws_conn *w, int opcode, const unsigned char *p, size_t n, http_result *r) {
+    unsigned char *f;
+    unsigned char mask[4];
+    size_t hl = 0;
+    size_t i;
+    int rc;
+    if (!w->open) {
+        set_error(r, YGST_LOCAL_NETWORK, "network error: the connection is closed");
+        return -1;
+    }
+    f = (unsigned char *)malloc(n + 14);
+    if (!f) {
+        set_error(r, YGST_LOCAL_NETWORK, "network error: out of memory");
+        return -1;
+    }
+    f[hl++] = (unsigned char)(0x80 | opcode);
+    if (n < 126) {
+        f[hl++] = (unsigned char)(0x80 | n);
+    } else if (n < 65536) {
+        f[hl++] = 0x80 | 126;
+        f[hl++] = (unsigned char)(n >> 8);
+        f[hl++] = (unsigned char)(n & 0xFF);
+    } else {
+        f[hl++] = 0x80 | 127;
+        for (i = 0; i < 8; i++) f[hl++] = (unsigned char)(((uint64_t)n >> (56 - 8 * i)) & 0xFF);
+    }
+    random_bytes(mask, sizeof mask);
+    memcpy(f + hl, mask, 4);
+    hl += 4;
+    for (i = 0; i < n; i++) f[hl + i] = (unsigned char)(p[i] ^ mask[i & 3]);
+    rc = conn_write_all(&w->c, f, hl + n, 5000, r);
+    free(f);
+    if (rc != 0) w->open = 0;
+    return rc;
+}
+
+static void ws_close(ws_conn *w) {
+    http_result r;
+    unsigned char code[2] = {0x03, 0xE8}; /* 1000 */
+    if (w->open) ws_send(w, 0x8, code, sizeof code, &r);
+    w->open = 0;
+    conn_close(&w->c);
+}
+
+static void ws_free(ws_conn *w) {
+    ws_close(w);
+    ygst_buf_free(&w->rx);
+    ygst_buf_free(&w->msg);
+}
+
+/* 0: open. -1: failed, r says why; r->status is the HTTP status of a refused handshake. */
+static int ws_open(ws_conn *w, const char *url, const char *ca_file, int timeout_ms, http_result *r) {
+    ygst_buf http_url, head;
+    target t;
+    unsigned char key[16];
+    char key_b64[32];
+    int64_t deadline;
+    ws_free(w);
+    ws_init(w);
+    r->status = 0;
+    r->local_code = 0;
+    r->message[0] = 0;
+    ygst_buf_init(&http_url);
+    ygst_buf_init(&head);
+    if (strncmp(url, "wss://", 6) == 0) {
+        ygst_buf_append_str(&http_url, "https://");
+        ygst_buf_append_str(&http_url, url + 6);
+    } else if (strncmp(url, "ws://", 5) == 0) {
+        ygst_buf_append_str(&http_url, "http://");
+        ygst_buf_append_str(&http_url, url + 5);
+    }
+    if (!http_url.len || parse_target(ygst_buf_cstr(&http_url), &t) != 0) {
+        set_error(r, YGST_LOCAL_NETWORK, "network error: not a WebSocket URL");
+        ygst_buf_free(&http_url);
+        return -1;
+    }
+    if (conn_open(&t, ca_file, timeout_ms, timeout_ms, &w->c, r) != 0) {
+        conn_close(&w->c);
+        ygst_buf_free(&http_url);
+        return -1;
+    }
+    random_bytes(key, sizeof key);
+    ygst_base64_encode(key, sizeof key, key_b64, sizeof key_b64);
+    ygst_buf_append_str(&head, "GET ");
+    ygst_buf_append_str(&head, ygst_buf_cstr(&http_url) + t.path_offset);
+    ygst_buf_append_str(&head, " HTTP/1.1\r\nHost: ");
+    ygst_buf_append_str(&head, t.authority);
+    ygst_buf_append_str(&head, "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ");
+    ygst_buf_append_str(&head, key_b64);
+    ygst_buf_append_str(&head, "\r\nSec-WebSocket-Version: 13\r\nUser-Agent: " YGST_USER_AGENT "\r\n\r\n");
+    ygst_buf_free(&http_url);
+    if (conn_write_all(&w->c, head.data, head.len, timeout_ms, r) != 0) {
+        ygst_buf_free(&head);
+        conn_close(&w->c);
+        return -1;
+    }
+    ygst_buf_free(&head);
+    deadline = mono_ms() + timeout_ms;
+    for (;;) {
+        unsigned char chunk[4096];
+        long got;
+        int64_t left;
+        const char *end = w->rx.data ? strstr(ygst_buf_cstr(&w->rx), "\r\n\r\n") : NULL;
+        if (end) {
+            size_t hl = (size_t)(end - (const char *)w->rx.data) + 4;
+            int status = (w->rx.len > 12 && memcmp(w->rx.data, "HTTP/1.1 ", 9) == 0) ? atoi((const char *)w->rx.data + 9) : 0;
+            if (status != 101) {
+                r->status = status;
+                if (status) {
+                    snprintf(r->message, sizeof r->message, "WebSocket handshake refused");
+                } else {
+                    set_error(r, YGST_LOCAL_NETWORK, "network error: not a WebSocket handshake answer");
+                }
+                conn_close(&w->c);
+                return -1;
+            }
+            memmove(w->rx.data, w->rx.data + hl, w->rx.len - hl);
+            w->rx.len -= hl;
+            w->open = 1;
+            return 0;
+        }
+        left = deadline - mono_ms();
+        if (left <= 0) {
+            set_error(r, YGST_LOCAL_TIMEOUT, "timeout: WebSocket handshake not answered within %d ms", timeout_ms);
+            conn_close(&w->c);
+            return -1;
+        }
+        got = conn_read(&w->c, chunk, sizeof chunk, (int)left, r);
+        if (got <= 0) {
+            if (got == 0) set_error(r, YGST_LOCAL_NETWORK, "network error: connection closed during the WebSocket handshake");
+            conn_close(&w->c);
+            return -1;
+        }
+        ygst_buf_append(&w->rx, chunk, (size_t)got);
+    }
+}
+
+/* Hands every complete message in rx to h. Stops when the handler closed the connection. */
+static int ws_parse(ws_conn *w, ws_handler h, void *ctx, http_result *r) {
+    while (w->open && w->rx.len >= 2) {
+        unsigned char *d = w->rx.data;
+        size_t n = w->rx.len;
+        size_t pos = 2;
+        size_t i;
+        uint64_t len = d[1] & 0x7F;
+        int fin = (d[0] & 0x80) != 0;
+        int op = d[0] & 0x0F;
+        int masked = (d[1] & 0x80) != 0;
+        unsigned char mk[4] = {0, 0, 0, 0};
+        unsigned char *payload;
+        ygst_buf one;
+        if (len == 126) {
+            if (n < 4) return 0;
+            len = ((uint64_t)d[2] << 8) | d[3];
+            pos = 4;
+        } else if (len == 127) {
+            if (n < 10) return 0;
+            len = 0;
+            for (i = 0; i < 8; i++) len = (len << 8) | d[2 + i];
+            pos = 10;
+        }
+        if (masked) {
+            if (n < pos + 4) return 0;
+            memcpy(mk, d + pos, 4);
+            pos += 4;
+        }
+        if (len > 16u * 1024u * 1024u) {
+            set_error(r, YGST_LOCAL_NETWORK, "network error: frame of %llu bytes", (unsigned long long)len);
+            ws_close(w);
+            return -1;
+        }
+        if (n - pos < len) return 0;
+        payload = d + pos;
+        if (masked) {
+            for (i = 0; i < len; i++) payload[i] ^= mk[i & 3];
+        }
+        /* take the frame out of rx before any handler runs */
+        ygst_buf_init(&one);
+        ygst_buf_append(&one, payload, (size_t)len);
+        memmove(w->rx.data, w->rx.data + pos + len, n - pos - (size_t)len);
+        w->rx.len = n - pos - (size_t)len;
+        switch (op) {
+        case 0x0:
+        case 0x1:
+        case 0x2:
+            if (op != 0) {
+                ygst_buf_reset(&w->msg);
+                w->msg_op = op;
+            }
+            ygst_buf_append(&w->msg, one.data, one.len);
+            if (fin) {
+                ygst_buf msg = w->msg;
+                ygst_buf_init(&w->msg);
+                if (w->msg_op == 1) h(ctx, WS_EV_TEXT, ygst_buf_cstr(&msg), msg.len, 0);
+                ygst_buf_free(&msg);
+            }
+            break;
+        case 0x8: {
+            int code = one.len >= 2 ? (one.data[0] << 8) | one.data[1] : 1005;
+            ws_close(w);
+            h(ctx, WS_EV_CLOSED, NULL, 0, code);
+            ygst_buf_free(&one);
+            return -1;
+        }
+        case 0x9:
+            ws_send(w, 0xA, one.data, one.len, r);
+            break;
+        case 0xA:
+            h(ctx, WS_EV_PONG, NULL, 0, 0);
+            break;
+        default:
+            break;
+        }
+        ygst_buf_free(&one);
+    }
+    return 0;
+}
+
+/* Waits up to timeout_ms for data and hands the messages that arrived to h. -1 when the
+ * connection ended or failed (r says why), 0 otherwise. */
+static int ws_pump(ws_conn *w, int timeout_ms, ws_handler h, void *ctx, http_result *r) {
+    unsigned char chunk[16384];
+    long got;
+    int readable;
+    if (ws_parse(w, h, ctx, r) != 0 || !w->open) return -1;
+#ifdef YGST_IT_TLS
+    if (w->c.ssl && SSL_pending(w->c.ssl) > 0) {
+        readable = 1;
+    } else
+#endif
+    {
+        readable = wait_fd(w->c.fd, POLLIN, timeout_ms) > 0;
+    }
+    if (!readable) return 0;
+    got = conn_read(&w->c, chunk, sizeof chunk, 1000, r);
+    if (got <= 0) {
+        if (got == 0) set_error(r, YGST_LOCAL_NETWORK, "network error: the connection was closed");
+        ws_close(w);
+        return -1;
+    }
+    ygst_buf_append(&w->rx, chunk, (size_t)got);
+    return ws_parse(w, h, ctx, r);
+}
+
+/* ------------------------------------------------------------------ evaluation */
 
 typedef struct {
     const char *host;
@@ -689,20 +965,30 @@ typedef struct {
     const char *fixed_nonce; /* test only: reuse one nonce on every attempt */
     double scale;
     ygst_fields custom;
+    /* realtime_feedback */
+    int realtime;
+    int chunk_bytes;        /* captured audio per step */
+    int pace_ms;            /* between steps, 0: everything at once */
+    int feed_after_start;   /* capture only once the platform has started */
+    const char *ws_fault;   /* mockFault query parameter of every handshake, signed with the others */
+    int ping_interval_ms;   /* -1: the controller default */
+    int pong_timeout_ms;
+    int attempt_timeout_ms; /* -1: read_timeout_ms like a REST attempt */
 } options;
 
-static void emit(const char *token, const char *outcome, int attempts, int replayed, long elapsed, const char *json) {
-    printf("{\"tokenId\":\"%s\",\"outcome\":\"%s\",\"attempts\":%d,\"replayed\":%d,\"elapsedMs\":%ld,\"json\":%s}\n", token,
-           outcome, attempts, replayed, elapsed, json);
+static void emit_full(const char *token, const char *outcome, int attempts, int replayed, long elapsed,
+                      const char *extra, const char *json) {
+    printf("{\"tokenId\":\"%s\",\"outcome\":\"%s\",\"attempts\":%d,\"replayed\":%d,\"elapsedMs\":%ld,%s\"json\":%s}\n",
+           token, outcome, attempts, replayed, elapsed, extra ? extra : "", json);
     fflush(stdout);
 }
 
 static void emit_error(const options *o, const char *token, int err_id, const char *message, int attempts,
-                       int64_t started) {
+                       int64_t started, const char *extra) {
     ygst_buf e;
     ygst_buf_init(&e);
     ygst_envelope_error(&e, token, err_id, message, o->app_key);
-    emit(token, "error", attempts, 0, (long)(mono_ms() - started), ygst_buf_cstr(&e));
+    emit_full(token, "error", attempts, 0, (long)(mono_ms() - started), extra, ygst_buf_cstr(&e));
     ygst_buf_free(&e);
 }
 
@@ -716,6 +1002,413 @@ static const char *key_from_env(const char *var) {
     return v;
 }
 
+static ygst_retry_policy policy_of(const options *o) {
+    ygst_retry_policy policy;
+    int i;
+    ygst_retry_policy_default(&policy);
+    if (o->max_retries >= 0) policy.max_retries = o->max_retries;
+    policy.auto_retry = o->auto_retry;
+    for (i = 0; i < o->n_err_ids; i++) {
+        if (i == 0) policy.n_err_ids = 0;
+        ygst_retry_policy_add_err_id(&policy, o->err_ids[i]);
+    }
+    return policy;
+}
+
+/* The final result envelope: the same code for the REST body and the realtime final frame. */
+static void emit_result(const options *o, const char *token, const char *core_type, const ygst_fields *fields,
+                        const ygst_classification *cls, int attempts, int replayed, int64_t started,
+                        const char *extra) {
+    char dt[32];
+    char rid[256];
+    ygst_buf env, params;
+    ygst_buf_init(&env);
+    ygst_buf_init(&params);
+    ygst_format_dt(now_ms(), 480, dt);
+    if (o->get_param) {
+        ygst_params_json(&params, o->app_key, o->user_id, now_ms() / 1000, "wav", 16000, 1, 2, core_type, token, fields);
+    }
+    snprintf(rid, sizeof rid, "%.*s", (int)cls->record_id_raw.n, cls->record_id_raw.p ? cls->record_id_raw.p : "");
+    ygst_envelope_result(&env, token, cls->has_record_id ? rid : NULL, o->app_key, o->user_id,
+                         o->ref_text ? o->ref_text : "", dt, cls->result, o->get_param ? ygst_buf_cstr(&params) : NULL,
+                         cls->has_audio_url ? (const char *)cls->audio_url.data : NULL);
+    emit_full(token, "result", attempts, replayed, (long)(mono_ms() - started), extra, ygst_buf_cstr(&env));
+    ygst_buf_free(&env);
+    ygst_buf_free(&params);
+}
+
+/* POST /{coreType} under the call controller, exactly as YGSTUploader does; prints the outcome. */
+static void rest_evaluate(const options *o, const char *token, const char *core_type, const ygst_fields *fields,
+                          const unsigned char *audio, size_t audio_len, const char *ext, const char *base,
+                          const target *tgt, int64_t started, const char *extra) {
+    char signature[45];
+    char boundary[64];
+    char content_type[128];
+    char url[600];
+    const char *path;
+    const char *fault = o->fault;
+    ygst_buf body;
+    ygst_retry_policy policy = policy_of(o);
+    ygst_call call;
+    http_result hr;
+    int last_replayed = 0;
+    ygst_sign(fields, o->secret, signature);
+    ygst_buf_init(&body);
+    for (;;) {
+        unsigned char rnd[16];
+        char filename[32];
+        random_bytes(rnd, sizeof rnd);
+        ygst_multipart_boundary(rnd, boundary);
+        snprintf(filename, sizeof filename, "audio.%s", ext);
+        ygst_buf_reset(&body);
+        if (ygst_multipart_build(fields, boundary, "audio", filename, ygst_audio_content_type(ext), audio, audio_len,
+                                 &body) != -2)
+            break;
+    }
+    ygst_multipart_content_type(boundary, content_type, sizeof content_type);
+    ygst_build_url(base, core_type, url, sizeof url);
+    path = url + tgt->path_offset;
+    ygst_call_init(&call, &policy, (uint64_t)now_ms(), mono_ms());
+    ygst_buf_init(&hr.body);
+    for (;;) {
+        char head[2048];
+        unsigned char nrnd[8];
+        char nonce[17];
+        ygst_outcome oc;
+        ygst_classification cls;
+        ygst_action act;
+        random_bytes(nrnd, sizeof nrnd);
+        ygst_hex_lower(nrnd, sizeof nrnd, nonce);
+        if (o->fixed_nonce) snprintf(nonce, sizeof nonce, "%s", o->fixed_nonce);
+        snprintf(head, sizeof head,
+                 "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\n"
+                 "X-App-Key: %s\r\nX-Timestamp: %lld\r\nX-Nonce: %s\r\nX-Signature: %s\r\nIdempotency-Key: %s\r\n"
+                 "User-Agent: %s\r\n%s%s%sConnection: close\r\n\r\n",
+                 path, tgt->authority, content_type, body.len, o->app_key, (long long)(now_ms() / 1000), nonce,
+                 signature, token, YGST_USER_AGENT, fault ? "X-Mock-Fault: " : "", fault ? fault : "",
+                 fault ? "\r\n" : "");
+        http_post(tgt, o->ca_file, o->connect_timeout_ms, head, &body, o->read_timeout_ms, &hr);
+        last_replayed = hr.replayed;
+        memset(&oc, 0, sizeof oc);
+        oc.http_status = hr.status;
+        oc.local_code = hr.local_code;
+        oc.body = (const char *)hr.body.data;
+        oc.body_len = hr.body.len;
+        oc.retry_after_ms = hr.retry_after_ms;
+        oc.replayed = hr.replayed;
+        oc.local_message = hr.message[0] ? hr.message : NULL;
+        ygst_classification_init(&cls);
+        ygst_classify(&oc, &cls);
+        act = ygst_call_next(&call, &cls, hr.retry_after_ms, mono_ms());
+        fprintf(stderr, "attempt %d: status=%d local=%d biz=%d retryable=%d -> action=%d delay=%ld err=%d %s\n",
+                call.total_attempts, hr.status, hr.local_code, cls.biz_code, cls.retryable, act.kind, act.delay_ms,
+                act.err_id, ygst_buf_cstr(&cls.message));
+        if (act.kind == YGST_ACT_SUCCESS) {
+            emit_result(o, token, core_type, fields, &cls, call.total_attempts, last_replayed, started, extra);
+            ygst_classification_free(&cls);
+            break;
+        }
+        if (act.kind == YGST_ACT_FAIL) {
+            ygst_buf msg;
+            ygst_buf_init(&msg);
+            ygst_error_message(&cls, act.err_id, call.attempt, &msg);
+            emit_error(o, token, act.err_id, ygst_buf_cstr(&msg), call.total_attempts, started, extra);
+            ygst_buf_free(&msg);
+            ygst_classification_free(&cls);
+            break;
+        }
+        ygst_classification_free(&cls);
+        sleep_ms(act.delay_ms);
+        fault = NULL; /* a header fault applies to the first attempt only */
+    }
+    ygst_buf_free(&hr.body);
+    ygst_buf_free(&body);
+}
+
+/* ------------------------------------------------------------------ realtime round */
+
+/* One realtime_feedback round the way KYTestEngine runs it: capture feeds PCM to the controller,
+ * the controller's actions go out over the WebSocket client, progress frames become eof 0
+ * envelopes, a failure before end falls back to REST at stop, the final frame becomes the same
+ * envelope as a REST body. */
+typedef struct {
+    const options *o;
+    const char *token;
+    const char *core_type;
+    const char *base;
+    const target *tgt;
+    const ygst_fields *fields;
+    const unsigned char *pcm;
+    size_t pcm_len;
+    ygst_rt rt;
+    ws_conn ws;
+    size_t fed;
+    int stopped;
+    int64_t next_feed_ms;
+    int64_t started;
+    int done;
+    int progress_count;
+    int held;
+    int sends_failed;
+    ygst_buf progress;    /* the eof 0 envelopes as a JSON array */
+    ygst_buf param_frame; /* the first parameter frame */
+    ygst_buf rest_reason; /* why the round went to REST */
+} rt_run;
+
+static void rt_apply(rt_run *x, ygst_rt_actions a);
+
+static void rt_extra(rt_run *x, const char *mode, ygst_buf *out) {
+    ygst_buf_append_str(out, "\"mode\":\"");
+    ygst_buf_append_str(out, mode);
+    ygst_buf_append_str(out, "\",\"connections\":");
+    ygst_buf_append_int(out, x->rt.connections);
+    ygst_buf_append_str(out, ",\"held\":");
+    ygst_buf_append_int(out, x->held);
+    ygst_buf_append_str(out, ",\"restReason\":");
+    ygst_json_escape(out, ygst_buf_cstr(&x->rest_reason));
+    ygst_buf_append_str(out, ",\"paramFrame\":");
+    ygst_buf_append_str(out, x->param_frame.len ? ygst_buf_cstr(&x->param_frame) : "null");
+    ygst_buf_append_str(out, ",\"progress\":[");
+    ygst_buf_append_str(out, ygst_buf_cstr(&x->progress));
+    ygst_buf_append_str(out, "],");
+}
+
+static void rt_rest(rt_run *x) {
+    unsigned char hdr[44];
+    unsigned char *wav = (unsigned char *)malloc(x->pcm_len + 44);
+    ygst_buf extra;
+    ygst_buf_init(&extra);
+    if (!x->rest_reason.len) ygst_buf_append_str(&x->rest_reason, ygst_buf_cstr(&x->rt.failure));
+    rt_extra(x, "rest", &extra);
+    ygst_wav_header(hdr, (uint32_t)x->fed, 16000, 1, 16);
+    if (wav) {
+        memcpy(wav, hdr, 44);
+        memcpy(wav + 44, x->pcm, x->fed);
+        fprintf(stderr, "realtime: evaluating over REST (%s)\n", ygst_buf_cstr(&x->rest_reason));
+        rest_evaluate(x->o, x->token, x->core_type, x->fields, wav, x->fed + 44, "wav", x->base, x->tgt, x->started,
+                      ygst_buf_cstr(&extra));
+        free(wav);
+    }
+    ygst_buf_free(&extra);
+    x->done = 1;
+}
+
+/* A send failed: the connection is gone. */
+static void rt_send_failed(rt_run *x, http_result *r) {
+    x->sends_failed++;
+    ws_close(&x->ws);
+    rt_apply(x, ygst_rt_on_failure(&x->rt, r->local_code ? r->local_code : YGST_LOCAL_NETWORK, 0, r->message,
+                                   mono_ms()));
+}
+
+static void rt_connect(rt_run *x) {
+    unsigned char rnd[8];
+    char nonce[17];
+    ygst_buf url;
+    ygst_fields extra;
+    http_result r;
+    int rc;
+    random_bytes(rnd, sizeof rnd);
+    ygst_hex_lower(rnd, sizeof rnd, nonce);
+    ygst_buf_init(&url);
+    ygst_fields_init(&extra);
+    if (x->o->ws_fault) ygst_fields_set(&extra, "mockFault", x->o->ws_fault);
+    rc = ygst_ws_handshake_url(x->base, x->core_type, x->o->app_key, x->o->secret, now_ms() / 1000, nonce, x->token,
+                               &extra, &url);
+    ygst_fields_free(&extra);
+    if (rc != 0) {
+        ygst_buf_free(&url);
+        rt_apply(x, ygst_rt_on_failure(&x->rt, 90010, 0, "invalid realtime URL", mono_ms()));
+        return;
+    }
+    memset(&r, 0, sizeof r);
+    ygst_buf_init(&r.body);
+    fprintf(stderr, "realtime: connection %d\n", x->rt.connections);
+    rc = ws_open(&x->ws, ygst_buf_cstr(&url), x->o->ca_file, x->o->connect_timeout_ms, &r);
+    ygst_buf_free(&url);
+    ygst_buf_free(&r.body);
+    if (rc != 0) {
+        fprintf(stderr, "realtime: connection failed: status=%d local=%d %s\n", r.status, r.local_code, r.message);
+        rt_apply(x, ygst_rt_on_failure(&x->rt, r.status ? 0 : r.local_code, r.status, r.message, mono_ms()));
+    }
+}
+
+static void rt_apply(rt_run *x, ygst_rt_actions a) {
+    http_result r;
+    memset(&r, 0, sizeof r);
+    if (x->done) return;
+    if (a.close) ws_close(&x->ws);
+    if (a.connect) rt_connect(x);
+    if (x->done) return;
+    if (a.send_params) {
+        ygst_buf frame;
+        ygst_buf_init(&frame);
+        ygst_ws_param_frame(x->fields, x->token, &frame);
+        if (!x->param_frame.len) ygst_buf_append(&x->param_frame, frame.data, frame.len);
+        if (ws_send(&x->ws, 0x1, frame.data, frame.len, &r) != 0) {
+            ygst_buf_free(&frame);
+            rt_send_failed(x, &r);
+            return;
+        }
+        ygst_buf_free(&frame);
+    }
+    if (a.audio_to > a.audio_from) {
+        size_t from = a.audio_from;
+        while (from < a.audio_to) {
+            size_t n = a.audio_to - from < x->rt.max_frame_bytes ? a.audio_to - from : x->rt.max_frame_bytes;
+            if (ws_send(&x->ws, 0x2, x->pcm + from, n, &r) != 0) {
+                rt_send_failed(x, &r);
+                return;
+            }
+            from += n;
+        }
+    }
+    if (a.send_end && ws_send(&x->ws, 0x1, (const unsigned char *)"{\"cmd\":\"end\"}", 13, &r) != 0) {
+        rt_send_failed(x, &r);
+        return;
+    }
+    if (a.send_ping && ws_send(&x->ws, 0x9, (const unsigned char *)"hb", 2, &r) != 0) {
+        rt_send_failed(x, &r);
+        return;
+    }
+    if (a.progress) {
+        char dt[32];
+        ygst_format_dt(now_ms(), 480, dt);
+        if (x->progress.len) ygst_buf_append_char(&x->progress, ',');
+        ygst_envelope_progress(&x->progress, x->token, x->o->app_key, x->o->user_id, x->o->ref_text ? x->o->ref_text : "",
+                               dt, x->rt.frame.result, a.words_skip);
+        x->progress_count++;
+    }
+    if (a.progress_held) x->held++;
+    if (a.retry) {
+        fprintf(stderr, "realtime: reconnect %d/%d in %ld ms: %s\n", x->rt.call.attempt, x->rt.policy.max_retries,
+                a.delay_ms, ygst_buf_cstr(&x->rt.failure));
+    }
+    if (a.final || a.fail) {
+        ygst_buf extra;
+        ygst_buf_init(&extra);
+        rt_extra(x, "ws", &extra);
+        if (a.final) {
+            emit_result(x->o, x->token, x->core_type, x->fields, &x->rt.cls, x->rt.call.total_attempts,
+                        x->rt.frame.replayed, x->started, ygst_buf_cstr(&extra));
+        } else {
+            ygst_buf msg;
+            ygst_buf_init(&msg);
+            ygst_rt_error_message(&x->rt, a.err_id, &msg);
+            emit_error(x->o, x->token, a.err_id, ygst_buf_cstr(&msg), x->rt.call.total_attempts, x->started,
+                       ygst_buf_cstr(&extra));
+            ygst_buf_free(&msg);
+        }
+        ygst_buf_free(&extra);
+        x->done = 1;
+        return;
+    }
+    if (a.fallback) rt_rest(x);
+}
+
+static void rt_on_message(void *ctx, ws_event ev, const char *text, size_t n, int close_code) {
+    rt_run *x = (rt_run *)ctx;
+    if (ev == WS_EV_TEXT) {
+        rt_apply(x, ygst_rt_on_text(&x->rt, text, n, mono_ms()));
+    } else if (ev == WS_EV_PONG) {
+        rt_apply(x, ygst_rt_on_pong(&x->rt, mono_ms()));
+    } else if (ev == WS_EV_CLOSED) {
+        char why[96];
+        snprintf(why, sizeof why, "network error: the platform closed the connection with code %d", close_code);
+        rt_apply(x, ygst_rt_on_failure(&x->rt, YGST_LOCAL_NETWORK, 0, why, mono_ms()));
+    }
+}
+
+static void run_realtime(const options *o, const char *token, const char *core_type, const ygst_fields *fields,
+                         const unsigned char *pcm, size_t pcm_len, const char *base, const target *tgt,
+                         int64_t started) {
+    rt_run x;
+    int64_t guard = started + 240000;
+    memset(&x, 0, sizeof x);
+    x.o = o;
+    x.token = token;
+    x.core_type = core_type;
+    x.base = base;
+    x.tgt = tgt;
+    x.fields = fields;
+    x.pcm = pcm;
+    x.pcm_len = pcm_len;
+    x.started = started;
+    x.next_feed_ms = started;
+    ws_init(&x.ws);
+    ygst_buf_init(&x.progress);
+    ygst_buf_init(&x.param_frame);
+    ygst_buf_init(&x.rest_reason);
+    ygst_rt_init(&x.rt);
+    x.rt.policy = policy_of(o);
+    x.rt.seed = (uint64_t)now_ms();
+    x.rt.connect_timeout_ms = o->connect_timeout_ms;
+    x.rt.attempt_timeout_ms = o->attempt_timeout_ms >= 0 ? o->attempt_timeout_ms : o->read_timeout_ms;
+    if (o->ping_interval_ms >= 0) x.rt.ping_interval_ms = o->ping_interval_ms;
+    if (o->pong_timeout_ms >= 0) x.rt.pong_timeout_ms = o->pong_timeout_ms;
+    rt_apply(&x, ygst_rt_start(&x.rt, mono_ms()));
+    while (!x.done) {
+        int64_t now = mono_ms();
+        int wait = 20;
+        int can_feed = !o->feed_after_start || (x.rt.state != YGST_RT_IDLE && x.rt.state != YGST_RT_CONNECTING &&
+                                                x.rt.state != YGST_RT_STARTING);
+        http_result r;
+        memset(&r, 0, sizeof r);
+        if (!x.stopped && can_feed && now >= x.next_feed_ms) {
+            do {
+                size_t n = pcm_len - x.fed < (size_t)o->chunk_bytes ? pcm_len - x.fed : (size_t)o->chunk_bytes;
+                x.fed += n;
+                rt_apply(&x, ygst_rt_on_audio(&x.rt, x.fed, now));
+                x.next_feed_ms = now + o->pace_ms;
+            } while (!x.done && o->pace_ms == 0 && x.fed < pcm_len);
+            if (!x.done && x.fed >= pcm_len) {
+                /* stopEngine: the local check of the recording first, like finalizeCapture */
+                int check = ygst_audio_check_pcm(x.fed, 16000, 1, 16);
+                x.stopped = 1;
+                if (check) {
+                    ygst_buf extra;
+                    ygst_buf_init(&extra);
+                    ygst_rt_cancel(&x.rt);
+                    ws_close(&x.ws);
+                    rt_extra(&x, "local", &extra);
+                    emit_error(o, token, check, ygst_compat_message(check), 0, started, ygst_buf_cstr(&extra));
+                    ygst_buf_free(&extra);
+                    x.done = 1;
+                    break;
+                }
+                rt_apply(&x, ygst_rt_on_stop(&x.rt, x.fed, mono_ms()));
+            }
+            if (x.done) break;
+        }
+        if (!x.stopped && can_feed && x.next_feed_ms - now < wait) wait = (int)(x.next_feed_ms > now ? x.next_feed_ms - now : 0);
+        if (x.ws.open) {
+            if (ws_pump(&x.ws, wait, rt_on_message, &x, &r) != 0 && !x.done && !x.ws.open && r.message[0]) {
+                rt_apply(&x, ygst_rt_on_failure(&x.rt, r.local_code ? r.local_code : YGST_LOCAL_NETWORK, 0, r.message,
+                                                mono_ms()));
+            }
+        } else {
+            sleep_ms(wait);
+        }
+        if (x.done) break;
+        rt_apply(&x, ygst_rt_on_tick(&x.rt, mono_ms()));
+        if (mono_ms() > guard) {
+            ygst_buf extra;
+            ygst_buf_init(&extra);
+            rt_extra(&x, "stuck", &extra);
+            emit_error(o, token, 90007, "driver: the round did not end within 240 s", 0, started, ygst_buf_cstr(&extra));
+            ygst_buf_free(&extra);
+            break;
+        }
+    }
+    ws_free(&x.ws);
+    ygst_rt_free(&x.rt);
+    ygst_buf_free(&x.progress);
+    ygst_buf_free(&x.param_frame);
+    ygst_buf_free(&x.rest_reason);
+}
+
+/* ------------------------------------------------------------------ main */
+
 int main(int argc, char **argv) {
     options o;
     char token[33];
@@ -726,21 +1419,11 @@ int main(int argc, char **argv) {
     const char *ext = "wav";
     ygst_test_params tp;
     ygst_fields fields;
-    char signature[45];
-    char boundary[64];
-    char content_type[128];
     char base[512];
-    char url[600];
-    const char *path;
     target tgt;
-    ygst_buf body;
-    ygst_retry_policy policy;
-    ygst_call call;
-    http_result hr;
     int64_t started = mono_ms();
     int i;
     int err;
-    int last_replayed = 0;
 
     signal(SIGPIPE, SIG_IGN); /* a peer that closes early is an error result, not a crash */
     memset(&o, 0, sizeof o);
@@ -753,6 +1436,10 @@ int main(int argc, char **argv) {
     o.read_timeout_ms = 5000;
     o.connect_timeout_ms = 20000; /* KYStartEngineConfig.connectTimeout */
     o.user_id = "it-user";
+    o.chunk_bytes = 3200;
+    o.ping_interval_ms = -1;
+    o.pong_timeout_ms = -1;
+    o.attempt_timeout_ms = -1;
     ygst_fields_init(&o.custom);
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -783,6 +1470,12 @@ int main(int argc, char **argv) {
         else if (OPT("--fault")) o.fault = v;
         else if (OPT("--fixed-nonce")) o.fixed_nonce = v;
         else if (OPT("--scale")) o.scale = atof(v);
+        else if (OPT("--chunk-bytes")) o.chunk_bytes = atoi(v);
+        else if (OPT("--pace-ms")) o.pace_ms = atoi(v);
+        else if (OPT("--ws-fault")) o.ws_fault = v;
+        else if (OPT("--ping-interval-ms")) o.ping_interval_ms = atoi(v);
+        else if (OPT("--pong-timeout-ms")) o.pong_timeout_ms = atoi(v);
+        else if (OPT("--attempt-timeout-ms")) o.attempt_timeout_ms = atoi(v);
         else if (OPT("--custom")) {
             const char *eq = strchr(v, '=');
             if (eq) {
@@ -795,12 +1488,15 @@ int main(int argc, char **argv) {
         } else if (strcmp(a, "--auto-retry") == 0) o.auto_retry = 1;
         else if (strcmp(a, "--get-param") == 0) o.get_param = 1;
         else if (strcmp(a, "--attach-audio-url") == 0) o.attach_audio_url = 1;
+        else if (strcmp(a, "--realtime") == 0) o.realtime = 1;
+        else if (strcmp(a, "--feed-after-start") == 0) o.feed_after_start = 1;
         else {
             fprintf(stderr, "unknown or incomplete option %s\n", a);
             return 2;
         }
 #undef OPT
     }
+    if (o.chunk_bytes <= 0) o.chunk_bytes = 3200;
     if (o.base_url) {
         /* the KYStartEngineConfig.server rules: Shengtong hosts and an empty value give the default */
         ygst_base_kind kind = ygst_resolve_base_url(o.base_url, base, sizeof base);
@@ -838,7 +1534,7 @@ int main(int argc, char **argv) {
     cts = ygst_coretype_resolve(o.core_type, 0, core_type, sizeof core_type);
     err = ygst_validate_request(cts, core_type, o.ref_text, o.ref_pinyin);
     if (err) {
-        emit_error(&o, token, err, ygst_compat_message(err), 0, started);
+        emit_error(&o, token, err, ygst_compat_message(err), 0, started, NULL);
         return 0;
     }
     /* 3. audio */
@@ -858,7 +1554,7 @@ int main(int argc, char **argv) {
         if (!audio) {
             char msg[600];
             snprintf(msg, sizeof msg, "%s: %s", ygst_compat_message(YGST_ERRID_AUDIO_FILE_MISSING), o.audio);
-            emit_error(&o, token, YGST_ERRID_AUDIO_FILE_MISSING, msg, 0, started);
+            emit_error(&o, token, YGST_ERRID_AUDIO_FILE_MISSING, msg, 0, started, NULL);
             return 0;
         }
         if (dot) ext = ygst_audio_ext(dot + 1);
@@ -866,14 +1562,16 @@ int main(int argc, char **argv) {
         audio = (unsigned char *)calloc(1, 1);
         audio_len = 0;
     }
-    err = ygst_audio_check_upload(audio, audio_len);
-    if (err) {
-        emit_error(&o, token, err, ygst_compat_message(err), 0, started);
-        free(audio);
-        return 0;
+    if (!o.realtime) {
+        err = ygst_audio_check_upload(audio, audio_len);
+        if (err) {
+            emit_error(&o, token, err, ygst_compat_message(err), 0, started, NULL);
+            free(audio);
+            return 0;
+        }
     }
 
-    /* 4. form fields, signature, multipart */
+    /* 4. form fields */
     ygst_test_params_init(&tp);
     tp.core_type = core_type;
     tp.ref_text = o.ref_text;
@@ -884,105 +1582,21 @@ int main(int argc, char **argv) {
     tp.custom_params = &o.custom;
     ygst_fields_init(&fields);
     ygst_params_to_fields(&tp, &fields);
-    ygst_sign(&fields, o.secret, signature);
-    ygst_buf_init(&body);
-    for (;;) {
-        unsigned char rnd[16];
-        char filename[32];
-        random_bytes(rnd, sizeof rnd);
-        ygst_multipart_boundary(rnd, boundary);
-        snprintf(filename, sizeof filename, "audio.%s", ext);
-        ygst_buf_reset(&body);
-        if (ygst_multipart_build(&fields, boundary, "audio", filename, ygst_audio_content_type(ext), audio, audio_len,
-                                 &body) != -2)
-            break;
-    }
-    ygst_multipart_content_type(boundary, content_type, sizeof content_type);
-    ygst_build_url(base, core_type, url, sizeof url);
-    path = url + tgt.path_offset;
 
-    /* 5. attempts under the controller */
-    ygst_retry_policy_default(&policy);
-    if (o.max_retries >= 0) policy.max_retries = o.max_retries;
-    policy.auto_retry = o.auto_retry;
-    for (i = 0; i < o.n_err_ids; i++) {
-        if (i == 0) policy.n_err_ids = 0;
-        ygst_retry_policy_add_err_id(&policy, o.err_ids[i]);
-    }
-    ygst_call_init(&call, &policy, (uint64_t)now_ms(), mono_ms());
-    ygst_buf_init(&hr.body);
-    for (;;) {
-        char head[2048];
-        unsigned char nrnd[8];
-        char nonce[17];
-        ygst_outcome oc;
-        ygst_classification cls;
-        ygst_action act;
-        random_bytes(nrnd, sizeof nrnd);
-        ygst_hex_lower(nrnd, sizeof nrnd, nonce);
-        if (o.fixed_nonce) snprintf(nonce, sizeof nonce, "%s", o.fixed_nonce);
-        snprintf(head, sizeof head,
-                 "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\n"
-                 "X-App-Key: %s\r\nX-Timestamp: %lld\r\nX-Nonce: %s\r\nX-Signature: %s\r\nIdempotency-Key: %s\r\n"
-                 "User-Agent: %s\r\n%s%s%sConnection: close\r\n\r\n",
-                 path, tgt.authority, content_type, body.len, o.app_key, (long long)(now_ms() / 1000), nonce,
-                 signature, token, YGST_USER_AGENT, o.fault ? "X-Mock-Fault: " : "", o.fault ? o.fault : "",
-                 o.fault ? "\r\n" : "");
-        http_post(&tgt, o.ca_file, o.connect_timeout_ms, head, &body, o.read_timeout_ms, &hr);
-        last_replayed = hr.replayed;
-        memset(&oc, 0, sizeof oc);
-        oc.http_status = hr.status;
-        oc.local_code = hr.local_code;
-        oc.body = (const char *)hr.body.data;
-        oc.body_len = hr.body.len;
-        oc.retry_after_ms = hr.retry_after_ms;
-        oc.replayed = hr.replayed;
-        oc.local_message = hr.message[0] ? hr.message : NULL;
-        ygst_classification_init(&cls);
-        ygst_classify(&oc, &cls);
-        act = ygst_call_next(&call, &cls, hr.retry_after_ms, mono_ms());
-        fprintf(stderr, "attempt %d: status=%d local=%d biz=%d retryable=%d -> action=%d delay=%ld err=%d %s\n",
-                call.total_attempts, hr.status, hr.local_code, cls.biz_code, cls.retryable, act.kind, act.delay_ms,
-                act.err_id, ygst_buf_cstr(&cls.message));
-        if (act.kind == YGST_ACT_SUCCESS) {
-            char dt[32];
-            ygst_buf env, params;
-            ygst_buf_init(&env);
-            ygst_buf_init(&params);
-            ygst_format_dt(now_ms(), 480, dt);
-            if (o.get_param) {
-                ygst_params_json(&params, o.app_key, o.user_id, now_ms() / 1000, "wav", 16000, 1, 2, core_type, token,
-                                 &fields);
-            }
-            {
-                char rid[256];
-                snprintf(rid, sizeof rid, "%.*s", (int)cls.record_id_raw.n, cls.record_id_raw.p ? cls.record_id_raw.p : "");
-                ygst_envelope_result(&env, token, cls.has_record_id ? rid : NULL, o.app_key, o.user_id,
-                                 o.ref_text ? o.ref_text : "", dt, cls.result,
-                                 o.get_param ? ygst_buf_cstr(&params) : NULL,
-                                 cls.has_audio_url ? ygst_buf_cstr(&cls.audio_url) : NULL);
-            }
-            emit(token, "result", call.total_attempts, last_replayed, (long)(mono_ms() - started), ygst_buf_cstr(&env));
-            ygst_buf_free(&env);
-            ygst_buf_free(&params);
-            ygst_classification_free(&cls);
-            break;
+    if (o.realtime) {
+        /* 5a. realtime_feedback: the recording is 16 kHz 16 bit mono PCM, streamed as it is captured */
+        ygst_wav_info info;
+        if (ygst_wav_parse(audio, audio_len, &info) != 0 || info.format != 1 || info.sample_rate != 16000 ||
+            info.channels != 1 || info.bits != 16) {
+            fprintf(stderr, "--realtime needs a 16 kHz 16 bit mono PCM WAV file\n");
+            free(audio);
+            return 2;
         }
-        if (act.kind == YGST_ACT_FAIL) {
-            ygst_buf msg;
-            ygst_buf_init(&msg);
-            ygst_error_message(&cls, act.err_id, call.attempt, &msg);
-            emit_error(&o, token, act.err_id, ygst_buf_cstr(&msg), call.total_attempts, started);
-            ygst_buf_free(&msg);
-            ygst_classification_free(&cls);
-            break;
-        }
-        ygst_classification_free(&cls);
-        sleep_ms(act.delay_ms);
-        o.fault = NULL; /* a header fault applies to the first attempt only */
+        run_realtime(&o, token, core_type, &fields, audio + info.data_offset, info.data_len, base, &tgt, started);
+    } else {
+        /* 5b. one request under the controller */
+        rest_evaluate(&o, token, core_type, &fields, audio, audio_len, ext, base, &tgt, started, NULL);
     }
-    ygst_buf_free(&hr.body);
-    ygst_buf_free(&body);
     ygst_fields_free(&fields);
     ygst_fields_free(&o.custom);
     free(audio);

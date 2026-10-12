@@ -68,7 +68,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class YuguClient implements AutoCloseable {
     /** SDK version. */
-    public static final String VERSION = "2.0.0";
+    public static final String VERSION = "2.1.0";
     /** Default User-Agent. */
     public static final String USER_AGENT = "yugu-java-sdk/" + VERSION;
     /** Core types of the native endpoints. */
@@ -536,7 +536,9 @@ public final class YuguClient implements AutoCloseable {
 
     /**
      * Opens a native stream {@code wss://host/api/v1/ws/evaluate}. Returns at once; the session
-     * connects in the background and queues audio until the server session started.
+     * connects in the background and queues audio until the server session started. With
+     * {@link EvaluateConfig#realtimeFeedback(boolean)} the reading progress arrives through
+     * {@link StreamListener#onPartial}.
      *
      * @param config   parameters, coreType and referenceText required
      * @param listener callbacks
@@ -562,11 +564,17 @@ public final class YuguClient implements AutoCloseable {
         }
         Map<String, Object> fields = Json.MAPPER.convertValue(config, new TypeReference<LinkedHashMap<String, Object>>() {
         });
+        if (config.isRealtimeFeedback()) {
+            // only when requested: the default start frame stays the one of 2.0.0
+            fields.put("realtimeFeedback", Boolean.TRUE);
+        }
         return open(StreamSession.Kind.NATIVE, "/api/v1/ws/evaluate", fields, listener, options);
     }
 
     /**
-     * Opens a compat stream {@code wss://host/{coreType}}.
+     * Opens a compat stream {@code wss://host/{coreType}}. With
+     * {@link CompatConfig#realtimeFeedback(boolean)} the reading progress arrives through
+     * {@link StreamListener#onPartial}.
      *
      * @param config   compat parameters
      * @param listener callbacks

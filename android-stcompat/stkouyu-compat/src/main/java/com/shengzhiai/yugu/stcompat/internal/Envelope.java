@@ -139,6 +139,29 @@ public final class Envelope {
         }
     }
 
+    /**
+     * Intermediate result of realtime_feedback (DESIGN 14.3, BRIEF change 2026-10-12), delivered to
+     * {@code onScore} before the final result:
+     * {@code {"tokenId","recordId":"","applicationId","userId","refText","eof":0,"dtLastResponse","result":{...}}}
+     * with {@code result} the progress frame's result as sent ({@code words} with the Shengtong-shaped
+     * items of the newly read units, {@code progress}, {@code readUnits}, {@code matchedUnits},
+     * {@code totalUnits}, {@code bytes}, {@code kernel_version}, {@code resource_version}).
+     *
+     * @param recordId the frame's recordId, "" during the round (the record exists with the final only)
+     */
+    public static String progress(String tokenId, String recordId, String appKey, String userId, String refText,
+                                  String resultJson, long nowMillis) {
+        return "{\"tokenId\":" + RawJson.quote(nz(tokenId))
+                + ",\"recordId\":" + RawJson.quote(nz(recordId))
+                + ",\"applicationId\":" + RawJson.quote(nz(appKey))
+                + ",\"userId\":" + RawJson.quote(nz(userId))
+                + ",\"refText\":" + RawJson.quote(nz(refText))
+                + ",\"eof\":0"
+                + ",\"dtLastResponse\":" + RawJson.quote(timestamp(nowMillis))
+                + ",\"result\":" + resultJson.trim()
+                + "}";
+    }
+
     public static String error(String tokenId, int errId, String message, String appKey) {
         return "{\"tokenId\":" + RawJson.quote(nz(tokenId))
                 + ",\"errId\":" + errId

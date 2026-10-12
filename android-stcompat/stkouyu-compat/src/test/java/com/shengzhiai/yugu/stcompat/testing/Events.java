@@ -17,6 +17,8 @@ import java.util.List;
 public final class Events {
     public final List<String> log = Collections.synchronizedList(new ArrayList<String>());
     public final List<String> offMain = Collections.synchronizedList(new ArrayList<String>());
+    /** Every onScore and onRecordEnd(json) JSON in order, intermediate results included. */
+    public final List<String> scores = Collections.synchronizedList(new ArrayList<String>());
     public volatile String json;
     public volatile String startFail;
     public final List<long[]> ticks = Collections.synchronizedList(new ArrayList<long[]>());
@@ -94,10 +96,39 @@ public final class Events {
 
         @Override
         public void onScore(String result) {
-            json = result;
-            add("onScore");
+            scores.add(result);
+            if (isFinal(result)) {
+                json = result;
+            }
+            add(isFinal(result) ? "onScore" : "onScore(eof 0)");
         }
     };
+
+    /** True unless the JSON is an intermediate result with {@code "eof":0}. */
+    public static boolean isFinal(String json) {
+        try {
+            return new JSONObject(json).optInt("eof", 1) != 0;
+        } catch (JSONException e) {
+            return true;
+        }
+    }
+
+    /** Intermediate results (eof 0) received so far. */
+    public List<JSONObject> intermediate() {
+        List<JSONObject> out = new ArrayList<>();
+        synchronized (scores) {
+            for (String s : scores) {
+                if (!isFinal(s)) {
+                    try {
+                        out.add(new JSONObject(s));
+                    } catch (JSONException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+        }
+        return out;
+    }
 
     public final OnRecordListener record = new OnRecordListener() {
         @Override
@@ -113,6 +144,7 @@ public final class Events {
 
         @Override
         public void onRecordEnd(String result) {
+            scores.add(result);
             json = result;
             add("onRecordEnd(json)");
         }

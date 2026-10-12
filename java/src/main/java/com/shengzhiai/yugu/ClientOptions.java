@@ -26,7 +26,7 @@ import java.util.Random;
  *   <tr><td>logLevel</td><td>WARN</td></tr>
  *   <tr><td>logger</td><td>standard error</td></tr>
  *   <tr><td>audioPrecheck</td><td>WARN</td></tr>
- *   <tr><td>userAgent</td><td>{@code yugu-java-sdk/2.0.0}</td></tr>
+ *   <tr><td>userAgent</td><td>{@code yugu-java-sdk/2.1.0}</td></tr>
  *   <tr><td>reconnect</td><td>{@link ReconnectPolicy#defaults()}</td></tr>
  *   <tr><td>audioBufferPolicy</td><td>REPLAY</td></tr>
  *   <tr><td>pingIntervalMs, pongTimeoutMs</td><td>15000, 30000</td></tr>
@@ -469,7 +469,7 @@ public final class ClientOptions {
             return self();
         }
 
-        /** @param v User-Agent, default {@code yugu-java-sdk/2.0.0} @return this */
+        /** @param v User-Agent, default {@code yugu-java-sdk/2.1.0} @return this */
         public B userAgent(String v) {
             this.userAgent = v;
             return self();

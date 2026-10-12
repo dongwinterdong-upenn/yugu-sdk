@@ -54,7 +54,7 @@ FOUNDATION_EXTERN NSString *_Nullable YGSTJSONText(id _Nullable obj);
 /// Text of a customParams value: strings as-is, booleans true/false, numbers in plain form,
 /// arrays and dictionaries as JSON, NSNull and nil give nil.
 FOUNDATION_EXTERN NSString *_Nullable YGSTValueText(id _Nullable value);
-FOUNDATION_EXTERN NSString *YGSTStringFromBuf(ygst_buf *b);
+FOUNDATION_EXTERN NSString *YGSTStringFromBuf(const ygst_buf *b);
 FOUNDATION_EXTERN NSString *YGSTDocumentsPath(void);
 FOUNDATION_EXTERN int64_t YGSTNowMs(void);
 /// Monotonic milliseconds (system uptime), for timers and the retry deadline.
@@ -118,10 +118,59 @@ FOUNDATION_EXTERN NSData *YGSTWavFromPCM(NSData *pcm, int sampleRate, int channe
 /// Shared NSURLSession for all engines; ephemeral, no cookies, no cache.
 FOUNDATION_EXTERN NSURLSession *YGSTSharedURLSession(void);
 
+/// YGST_LOCAL_TIMEOUT, YGST_LOCAL_TLS or YGST_LOCAL_NETWORK for a URL loading error.
+FOUNDATION_EXTERN int YGSTLocalCodeForError(NSError *error);
+/// The text of that error in the error JSON: "timeout: ..", "TLS certificate check failed: ..", "network error: ..".
+FOUNDATION_EXTERN NSString *YGSTLocalMessageForError(NSError *error);
+
+/// The outcome of one evaluation call, from the classification of its last attempt and the decision
+/// of the call controller: the REST uploader and the realtime round both build it here.
+FOUNDATION_EXTERN YGSTUploadResult *YGSTUploadResultMake(const ygst_classification *c, ygst_action_kind kind,
+                                                         int errId, NSData *_Nullable body, const ygst_call *call,
+                                                         BOOL replayed);
+
 /// Builds the Shengtong result JSON from a successful upload.
 FOUNDATION_EXTERN NSString *_Nullable YGSTResultJSON(YGSTUploadResult *result, NSString *tokenId,
                                                      NSString *appKey, NSString *userId, NSString *refText,
                                                      NSString *_Nullable paramsJSON);
+
+// ------------------------------------------------------------------ realtime feedback (2.1.0)
+
+/// One evaluation over the compat WebSocket with reading progress (KYTestConfig.realtime_feedback).
+/// The C controller ygst_rt decides everything; this class carries its actions out with
+/// NSURLSessionWebSocketTask (iOS 13, macOS 10.15) on the engine queue, which every method must
+/// be called on and every handler runs on.
+@interface YGSTRealtimeRound : NSObject
+/// NO before iOS 13: no NSURLSessionWebSocketTask, the evaluation goes over REST.
++ (BOOL)isAvailable;
+- (instancetype)initWithQueue:(dispatch_queue_t)queue
+                      baseURL:(NSString *)baseURL
+                     coreType:(NSString *)coreType
+                       appKey:(NSString *)appKey
+                       secret:(NSString *)secret
+                      tokenId:(NSString *)tokenId
+                       userId:(NSString *)userId
+                      refText:(NSString *)refText
+                       fields:(const ygst_fields *)fields
+                       policy:(const ygst_retry_policy *)policy
+               connectTimeout:(NSTimeInterval)connectTimeout
+               attemptTimeout:(NSTimeInterval)attemptTimeout;
+/// An eof 0 JSON with the words read since the last one.
+@property (nonatomic, copy, nullable) void (^progressHandler)(NSString *json);
+/// The final result or the error, built like the REST uploader's.
+@property (nonatomic, copy, nullable) void (^resultHandler)(YGSTUploadResult *result);
+/// The round failed before end after stop was requested: evaluate over REST now.
+@property (nonatomic, copy, nullable) void (^fallbackHandler)(void);
+/// Opens the connection; audio captured meanwhile goes out once the platform has started.
+- (void)start;
+/// The round audio so far (raw PCM or the fed bytes); only its length grows.
+- (void)audioAppended:(NSData *)audio;
+/// stopEngine: sends end, or waits for "started" and sends it then. NO: the round failed before end,
+/// evaluate over REST now (no handler is called).
+- (BOOL)finish;
+/// No handler is called afterwards. Idempotent.
+- (void)cancel;
+@end
 
 // ------------------------------------------------------------------ recorder
 

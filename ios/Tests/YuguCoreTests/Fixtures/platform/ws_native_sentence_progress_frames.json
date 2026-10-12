@@ -1,0 +1,7419 @@
+[
+ {
+  "at": 0,
+  "frame": {
+   "event": "connected",
+   "message": "stream channel ready"
+  }
+ },
+ {
+  "at": 0,
+  "frame": {
+   "event": "started"
+  }
+ },
+ {
+  "at": 1649,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 16000,
+    "readUnits": 0,
+    "matchedUnits": 0,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 1649,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 32000,
+    "readUnits": 0,
+    "matchedUnits": 0,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 1919,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 48000,
+    "readUnits": 0,
+    "matchedUnits": 0,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 2126,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 53120,
+    "readUnits": 3,
+    "matchedUnits": 3,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 2534,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 64000,
+    "readUnits": 3,
+    "matchedUnits": 3,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 2739,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 72320,
+    "readUnits": 5,
+    "matchedUnits": 5,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 3911,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 80000,
+    "readUnits": 5,
+    "matchedUnits": 5,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 3912,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 86400,
+    "readUnits": 7,
+    "matchedUnits": 7,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 3912,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 96000,
+    "readUnits": 7,
+    "matchedUnits": 7,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 3912,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 99840,
+    "readUnits": 10,
+    "matchedUnits": 10,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "们",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "都",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 4360,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 106240,
+    "readUnits": 13,
+    "matchedUnits": 13,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 4446,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 112000,
+    "readUnits": 13,
+    "matchedUnits": 13,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 4608,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 128000,
+    "readUnits": 13,
+    "matchedUnits": 13,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 5307,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 144000,
+    "readUnits": 13,
+    "matchedUnits": 13,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "国",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 5585,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 153600,
+    "readUnits": 17,
+    "matchedUnits": 17,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 5741,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 160000,
+    "readUnits": 17,
+    "matchedUnits": 17,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "华",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "民",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "族",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 5911,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 163200,
+    "readUnits": 21,
+    "matchedUnits": 21,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "华",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "民",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "族",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 5932,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 176000,
+    "readUnits": 21,
+    "matchedUnits": 21,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "华",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "民",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "族",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "一",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "家",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 6701,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 177920,
+    "readUnits": 24,
+    "matchedUnits": 24,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "华",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "民",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "族",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "一",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "家",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 7018,
+  "frame": {
+   "eof": 0,
+   "result": {
+    "bytes": 177920,
+    "readUnits": 25,
+    "matchedUnits": 25,
+    "totalUnits": 25,
+    "progress": [
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "我",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "们",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "都",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "国",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "中",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "华",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "民",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "族",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "是",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "一",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "家",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "人",
+      "read": true,
+      "matched": true
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 10006,
+  "frame": {
+   "event": "result",
+   "recordId": "eval_a89f1d3b722a",
+   "eof": 1,
+   "result": {
+    "paragraphs": [],
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "overall": 88,
+    "pronunciation": 100,
+    "tone": 88,
+    "fluency": 65,
+    "rhythm": 80,
+    "integrity": 100,
+    "speed": 312,
+    "rear_tone": "flat",
+    "duration": "5.000",
+    "numeric_duration": 5,
+    "warning": [],
+    "words": [
+     {
+      "word": "我",
+      "pinyin": "wo",
+      "rawpinyin": "wo3",
+      "symbolpinyin": "wǒ",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone3",
+      "scores": {
+       "overall": 100,
+       "pronunciation": 100,
+       "tone": 100,
+       "overall_pron": 100,
+       "prominence": 0
+      },
+      "span": {
+       "start": 21,
+       "end": 33
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "W",
+        "phone": "w",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 21,
+         "end": 27
+        }
+       },
+       {
+        "phoneme": "O",
+        "phone": "o",
+        "category": 1,
+        "pronunciation": 100,
+        "tone_index": "3",
+        "span": {
+         "start": 27,
+         "end": 33
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "我",
+        "pinyin": "wo",
+        "tone": "tone3",
+        "tone_sandhi": "tone3",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "我",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -24.1,
+       "rel_db": 1.6,
+       "dur_ms": 120,
+       "dur_ratio": 0.667,
+       "sfgop": 1
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "是",
+      "pinyin": "shi",
+      "rawpinyin": "shi4",
+      "symbolpinyin": "shì",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone4",
+      "scores": {
+       "overall": 88,
+       "pronunciation": 88,
+       "tone": 100,
+       "overall_pron": 88,
+       "prominence": 0
+      },
+      "span": {
+       "start": 33,
+       "end": 51
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "SH",
+        "phone": "sh",
+        "category": 0,
+        "pronunciation": 88,
+        "tone_index": "0",
+        "span": {
+         "start": 33,
+         "end": 42
+        }
+       },
+       {
+        "phoneme": "I",
+        "phone": "i",
+        "category": 1,
+        "pronunciation": 88,
+        "tone_index": "4",
+        "span": {
+         "start": 42,
+         "end": 51
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "是",
+        "pinyin": "shi",
+        "tone": "tone4",
+        "tone_sandhi": "tone4",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "是",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -33.1,
+       "rel_db": -7.4,
+       "dur_ms": 180,
+       "dur_ratio": 1,
+       "sfgop": 0.8
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "中",
+      "pinyin": "zhong",
+      "rawpinyin": "zhong1",
+      "symbolpinyin": "zhōng",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone1",
+      "scores": {
+       "overall": 70,
+       "pronunciation": 70,
+       "tone": 100,
+       "overall_pron": 70,
+       "prominence": 1
+      },
+      "span": {
+       "start": 51,
+       "end": 63
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "ZH",
+        "phone": "zh",
+        "category": 0,
+        "pronunciation": 70,
+        "tone_index": "0",
+        "span": {
+         "start": 51,
+         "end": 57
+        }
+       },
+       {
+        "phoneme": "ONG",
+        "phone": "ong",
+        "category": 1,
+        "pronunciation": 70,
+        "tone_index": "1",
+        "span": {
+         "start": 57,
+         "end": 63
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "中",
+        "pinyin": "zhong",
+        "tone": "tone1",
+        "tone_sandhi": "tone1",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "中",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -23.4,
+       "rel_db": 2.3,
+       "dur_ms": 120,
+       "dur_ratio": 0.667,
+       "sfgop": 0.5
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "国",
+      "pinyin": "guo",
+      "rawpinyin": "guo2",
+      "symbolpinyin": "guó",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 78,
+       "pronunciation": 78,
+       "tone": 1,
+       "overall_pron": 78,
+       "prominence": 0
+      },
+      "span": {
+       "start": 63,
+       "end": 81
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "G",
+        "phone": "g",
+        "category": 0,
+        "pronunciation": 78,
+        "tone_index": "0",
+        "span": {
+         "start": 63,
+         "end": 72
+        }
+       },
+       {
+        "phoneme": "UO",
+        "phone": "uo",
+        "category": 1,
+        "pronunciation": 78,
+        "tone_index": "2",
+        "span": {
+         "start": 72,
+         "end": 81
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "国",
+        "pinyin": "guo",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "国",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -21,
+       "rel_db": 4.8,
+       "dur_ms": 180,
+       "dur_ratio": 1,
+       "sfgop": 0.625
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "人",
+      "pinyin": "ren",
+      "rawpinyin": "ren2",
+      "symbolpinyin": "rén",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 75,
+       "pronunciation": 75,
+       "tone": 100,
+       "overall_pron": 75,
+       "prominence": 1
+      },
+      "span": {
+       "start": 81,
+       "end": 107
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "R",
+        "phone": "r",
+        "category": 0,
+        "pronunciation": 75,
+        "tone_index": "0",
+        "span": {
+         "start": 81,
+         "end": 93
+        }
+       },
+       {
+        "phoneme": "EN",
+        "phone": "en",
+        "category": 1,
+        "pronunciation": 75,
+        "tone_index": "2",
+        "span": {
+         "start": 93,
+         "end": 105
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "人",
+        "pinyin": "ren",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "人",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -23.7,
+       "rel_db": 2,
+       "dur_ms": 240,
+       "dur_ratio": 1.333,
+       "sfgop": 0.583
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "我",
+      "pinyin": "wo",
+      "rawpinyin": "wo3",
+      "symbolpinyin": "wǒ",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone3",
+      "scores": {
+       "overall": 78,
+       "pronunciation": 78,
+       "tone": 100,
+       "overall_pron": 78,
+       "prominence": 0
+      },
+      "span": {
+       "start": 107,
+       "end": 123
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "W",
+        "phone": "w",
+        "category": 0,
+        "pronunciation": 78,
+        "tone_index": "0",
+        "span": {
+         "start": 107,
+         "end": 115
+        }
+       },
+       {
+        "phoneme": "O",
+        "phone": "o",
+        "category": 1,
+        "pronunciation": 78,
+        "tone_index": "3",
+        "span": {
+         "start": 115,
+         "end": 123
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "我",
+        "pinyin": "wo",
+        "tone": "tone3",
+        "tone_sandhi": "tone3",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "我",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -24.6,
+       "rel_db": 1.1,
+       "dur_ms": 160,
+       "dur_ratio": 0.889,
+       "sfgop": 0.625
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "是",
+      "pinyin": "shi",
+      "rawpinyin": "shi4",
+      "symbolpinyin": "shì",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone4",
+      "scores": {
+       "overall": 85,
+       "pronunciation": 85,
+       "tone": 100,
+       "overall_pron": 85,
+       "prominence": 0
+      },
+      "span": {
+       "start": 123,
+       "end": 141
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "SH",
+        "phone": "sh",
+        "category": 0,
+        "pronunciation": 85,
+        "tone_index": "0",
+        "span": {
+         "start": 123,
+         "end": 132
+        }
+       },
+       {
+        "phoneme": "I",
+        "phone": "i",
+        "category": 1,
+        "pronunciation": 85,
+        "tone_index": "4",
+        "span": {
+         "start": 132,
+         "end": 141
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "是",
+        "pinyin": "shi",
+        "tone": "tone4",
+        "tone_sandhi": "tone4",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "是",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -33.3,
+       "rel_db": -7.6,
+       "dur_ms": 180,
+       "dur_ratio": 1,
+       "sfgop": 0.75
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "中",
+      "pinyin": "zhong",
+      "rawpinyin": "zhong1",
+      "symbolpinyin": "zhōng",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone1",
+      "scores": {
+       "overall": 80,
+       "pronunciation": 80,
+       "tone": 100,
+       "overall_pron": 80,
+       "prominence": 0
+      },
+      "span": {
+       "start": 141,
+       "end": 151
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "ZH",
+        "phone": "zh",
+        "category": 0,
+        "pronunciation": 80,
+        "tone_index": "0",
+        "span": {
+         "start": 141,
+         "end": 146
+        }
+       },
+       {
+        "phoneme": "ONG",
+        "phone": "ong",
+        "category": 1,
+        "pronunciation": 80,
+        "tone_index": "1",
+        "span": {
+         "start": 146,
+         "end": 151
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "中",
+        "pinyin": "zhong",
+        "tone": "tone1",
+        "tone_sandhi": "tone1",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "中",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -24.4,
+       "rel_db": 1.3,
+       "dur_ms": 100,
+       "dur_ratio": 0.556,
+       "sfgop": 0.667
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "国",
+      "pinyin": "guo",
+      "rawpinyin": "guo2",
+      "symbolpinyin": "guó",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 92,
+       "pronunciation": 92,
+       "tone": 100,
+       "overall_pron": 92,
+       "prominence": 0
+      },
+      "span": {
+       "start": 151,
+       "end": 169
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "G",
+        "phone": "g",
+        "category": 0,
+        "pronunciation": 92,
+        "tone_index": "0",
+        "span": {
+         "start": 151,
+         "end": 160
+        }
+       },
+       {
+        "phoneme": "UO",
+        "phone": "uo",
+        "category": 1,
+        "pronunciation": 92,
+        "tone_index": "2",
+        "span": {
+         "start": 160,
+         "end": 169
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "国",
+        "pinyin": "guo",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "国",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -22.5,
+       "rel_db": 3.2,
+       "dur_ms": 180,
+       "dur_ratio": 1,
+       "sfgop": 0.875
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "人",
+      "pinyin": "ren",
+      "rawpinyin": "ren2",
+      "symbolpinyin": "rén",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 80,
+       "pronunciation": 80,
+       "tone": 100,
+       "overall_pron": 80,
+       "prominence": 0
+      },
+      "span": {
+       "start": 169,
+       "end": 199
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "R",
+        "phone": "r",
+        "category": 0,
+        "pronunciation": 80,
+        "tone_index": "0",
+        "span": {
+         "start": 169,
+         "end": 181
+        }
+       },
+       {
+        "phoneme": "EN",
+        "phone": "en",
+        "category": 1,
+        "pronunciation": 80,
+        "tone_index": "2",
+        "span": {
+         "start": 181,
+         "end": 193
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "人",
+        "pinyin": "ren",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "人",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -24.3,
+       "rel_db": 1.5,
+       "dur_ms": 240,
+       "dur_ratio": 1.333,
+       "sfgop": 0.667
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "我",
+      "pinyin": "wo",
+      "rawpinyin": "wo3",
+      "symbolpinyin": "wǒ",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone3",
+      "scores": {
+       "overall": 100,
+       "pronunciation": 100,
+       "tone": 100,
+       "overall_pron": 100,
+       "prominence": 0
+      },
+      "span": {
+       "start": 199,
+       "end": 211
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "W",
+        "phone": "w",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 199,
+         "end": 205
+        }
+       },
+       {
+        "phoneme": "O",
+        "phone": "o",
+        "category": 1,
+        "pronunciation": 100,
+        "tone_index": "3",
+        "span": {
+         "start": 205,
+         "end": 211
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "我",
+        "pinyin": "wo",
+        "tone": "tone3",
+        "tone_sandhi": "tone3",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "我",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -27,
+       "rel_db": -1.3,
+       "dur_ms": 120,
+       "dur_ratio": 0.667,
+       "sfgop": 1
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "们",
+      "pinyin": "men",
+      "rawpinyin": "men5",
+      "symbolpinyin": "men",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone5",
+      "scores": {
+       "overall": 70,
+       "pronunciation": 70,
+       "tone": 100,
+       "overall_pron": 70,
+       "prominence": 0
+      },
+      "span": {
+       "start": 211,
+       "end": 223
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "M",
+        "phone": "m",
+        "category": 0,
+        "pronunciation": 70,
+        "tone_index": "0",
+        "span": {
+         "start": 211,
+         "end": 217
+        }
+       },
+       {
+        "phoneme": "EN",
+        "phone": "en",
+        "category": 1,
+        "pronunciation": 70,
+        "tone_index": "5",
+        "span": {
+         "start": 217,
+         "end": 223
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "们",
+        "pinyin": "men",
+        "tone": "tone5",
+        "tone_sandhi": "tone5",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "们",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -29.2,
+       "rel_db": -3.5,
+       "dur_ms": 120,
+       "dur_ratio": 0.667,
+       "sfgop": 0.5
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "都",
+      "pinyin": "dou",
+      "rawpinyin": "dou1",
+      "symbolpinyin": "dōu",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone1",
+      "scores": {
+       "overall": 100,
+       "pronunciation": 100,
+       "tone": 100,
+       "overall_pron": 100,
+       "prominence": 1
+      },
+      "span": {
+       "start": 223,
+       "end": 233
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "D",
+        "phone": "d",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 223,
+         "end": 228
+        }
+       },
+       {
+        "phoneme": "OU",
+        "phone": "ou",
+        "category": 1,
+        "pronunciation": 100,
+        "tone_index": "1",
+        "span": {
+         "start": 228,
+         "end": 233
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "都",
+        "pinyin": "dou",
+        "tone": "tone1",
+        "tone_sandhi": "tone1",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "都",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -20.4,
+       "rel_db": 5.3,
+       "dur_ms": 100,
+       "dur_ratio": 0.556,
+       "sfgop": 1
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "是",
+      "pinyin": "shi",
+      "rawpinyin": "shi4",
+      "symbolpinyin": "shì",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone4",
+      "scores": {
+       "overall": 88,
+       "pronunciation": 88,
+       "tone": 100,
+       "overall_pron": 88,
+       "prominence": 0
+      },
+      "span": {
+       "start": 233,
+       "end": 253
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "SH",
+        "phone": "sh",
+        "category": 0,
+        "pronunciation": 88,
+        "tone_index": "0",
+        "span": {
+         "start": 233,
+         "end": 243
+        }
+       },
+       {
+        "phoneme": "I",
+        "phone": "i",
+        "category": 1,
+        "pronunciation": 88,
+        "tone_index": "4",
+        "span": {
+         "start": 243,
+         "end": 253
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "是",
+        "pinyin": "shi",
+        "tone": "tone4",
+        "tone_sandhi": "tone4",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "是",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -29.1,
+       "rel_db": -3.4,
+       "dur_ms": 200,
+       "dur_ratio": 1.111,
+       "sfgop": 0.8
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "中",
+      "pinyin": "zhong",
+      "rawpinyin": "zhong1",
+      "symbolpinyin": "zhōng",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone1",
+      "scores": {
+       "overall": 85,
+       "pronunciation": 85,
+       "tone": 100,
+       "overall_pron": 85,
+       "prominence": 0
+      },
+      "span": {
+       "start": 253,
+       "end": 269
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "ZH",
+        "phone": "zh",
+        "category": 0,
+        "pronunciation": 85,
+        "tone_index": "0",
+        "span": {
+         "start": 253,
+         "end": 261
+        }
+       },
+       {
+        "phoneme": "ONG",
+        "phone": "ong",
+        "category": 1,
+        "pronunciation": 85,
+        "tone_index": "1",
+        "span": {
+         "start": 261,
+         "end": 269
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "中",
+        "pinyin": "zhong",
+        "tone": "tone1",
+        "tone_sandhi": "tone1",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "中",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -27,
+       "rel_db": -1.2,
+       "dur_ms": 160,
+       "dur_ratio": 0.889,
+       "sfgop": 0.75
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "国",
+      "pinyin": "guo",
+      "rawpinyin": "guo2",
+      "symbolpinyin": "guó",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 76,
+       "pronunciation": 76,
+       "tone": 100,
+       "overall_pron": 76,
+       "prominence": 0
+      },
+      "span": {
+       "start": 269,
+       "end": 287
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "G",
+        "phone": "g",
+        "category": 0,
+        "pronunciation": 76,
+        "tone_index": "0",
+        "span": {
+         "start": 269,
+         "end": 278
+        }
+       },
+       {
+        "phoneme": "UO",
+        "phone": "uo",
+        "category": 1,
+        "pronunciation": 76,
+        "tone_index": "2",
+        "span": {
+         "start": 278,
+         "end": 287
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "国",
+        "pinyin": "guo",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "国",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -23.9,
+       "rel_db": 1.8,
+       "dur_ms": 180,
+       "dur_ratio": 1,
+       "sfgop": 0.6
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "人",
+      "pinyin": "ren",
+      "rawpinyin": "ren2",
+      "symbolpinyin": "rén",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 85,
+       "pronunciation": 85,
+       "tone": 100,
+       "overall_pron": 85,
+       "prominence": 0
+      },
+      "span": {
+       "start": 287,
+       "end": 311
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "R",
+        "phone": "r",
+        "category": 0,
+        "pronunciation": 85,
+        "tone_index": "0",
+        "span": {
+         "start": 287,
+         "end": 299
+        }
+       },
+       {
+        "phoneme": "EN",
+        "phone": "en",
+        "category": 1,
+        "pronunciation": 85,
+        "tone_index": "2",
+        "span": {
+         "start": 299,
+         "end": 311
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "人",
+        "pinyin": "ren",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "人",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -25.7,
+       "rel_db": 0,
+       "dur_ms": 240,
+       "dur_ratio": 1.333,
+       "sfgop": 0.75
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "中",
+      "pinyin": "zhong",
+      "rawpinyin": "zhong1",
+      "symbolpinyin": "zhōng",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone1",
+      "scores": {
+       "overall": 78,
+       "pronunciation": 78,
+       "tone": 100,
+       "overall_pron": 78,
+       "prominence": 0
+      },
+      "span": {
+       "start": 325,
+       "end": 341
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "ZH",
+        "phone": "zh",
+        "category": 0,
+        "pronunciation": 78,
+        "tone_index": "0",
+        "span": {
+         "start": 325,
+         "end": 333
+        }
+       },
+       {
+        "phoneme": "ONG",
+        "phone": "ong",
+        "category": 1,
+        "pronunciation": 78,
+        "tone_index": "1",
+        "span": {
+         "start": 333,
+         "end": 341
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "中",
+        "pinyin": "zhong",
+        "tone": "tone1",
+        "tone_sandhi": "tone1",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "中",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -28.9,
+       "rel_db": -3.1,
+       "dur_ms": 160,
+       "dur_ratio": 0.889,
+       "sfgop": 0.625
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "华",
+      "pinyin": "hua",
+      "rawpinyin": "hua2",
+      "symbolpinyin": "huá",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 76,
+       "pronunciation": 76,
+       "tone": 1,
+       "overall_pron": 76,
+       "prominence": 0
+      },
+      "span": {
+       "start": 341,
+       "end": 361
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "H",
+        "phone": "h",
+        "category": 0,
+        "pronunciation": 76,
+        "tone_index": "0",
+        "span": {
+         "start": 341,
+         "end": 351
+        }
+       },
+       {
+        "phoneme": "UA",
+        "phone": "ua",
+        "category": 1,
+        "pronunciation": 76,
+        "tone_index": "2",
+        "span": {
+         "start": 351,
+         "end": 361
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "华",
+        "pinyin": "hua",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "华",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -24.3,
+       "rel_db": 1.4,
+       "dur_ms": 200,
+       "dur_ratio": 1.111,
+       "sfgop": 0.6
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "民",
+      "pinyin": "min",
+      "rawpinyin": "min2",
+      "symbolpinyin": "mín",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 92,
+       "pronunciation": 92,
+       "tone": 100,
+       "overall_pron": 92,
+       "prominence": 0
+      },
+      "span": {
+       "start": 361,
+       "end": 375
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "M",
+        "phone": "m",
+        "category": 0,
+        "pronunciation": 92,
+        "tone_index": "0",
+        "span": {
+         "start": 361,
+         "end": 368
+        }
+       },
+       {
+        "phoneme": "IN",
+        "phone": "in",
+        "category": 1,
+        "pronunciation": 92,
+        "tone_index": "2",
+        "span": {
+         "start": 368,
+         "end": 375
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "民",
+        "pinyin": "min",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "民",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -29.5,
+       "rel_db": -3.8,
+       "dur_ms": 140,
+       "dur_ratio": 0.778,
+       "sfgop": 0.875
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "族",
+      "pinyin": "zu",
+      "rawpinyin": "zu2",
+      "symbolpinyin": "zú",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 100,
+       "pronunciation": 100,
+       "tone": 100,
+       "overall_pron": 100,
+       "prominence": 0
+      },
+      "span": {
+       "start": 375,
+       "end": 399
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "Z",
+        "phone": "z",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 375,
+         "end": 387
+        }
+       },
+       {
+        "phoneme": "U",
+        "phone": "u",
+        "category": 1,
+        "pronunciation": 100,
+        "tone_index": "2",
+        "span": {
+         "start": 387,
+         "end": 399
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "族",
+        "pinyin": "zu",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "族",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -30.3,
+       "rel_db": -4.6,
+       "dur_ms": 240,
+       "dur_ratio": 1.333,
+       "sfgop": 1
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "是",
+      "pinyin": "shi",
+      "rawpinyin": "shi4",
+      "symbolpinyin": "shì",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone4",
+      "scores": {
+       "overall": 100,
+       "pronunciation": 100,
+       "tone": 100,
+       "overall_pron": 100,
+       "prominence": 0
+      },
+      "span": {
+       "start": 399,
+       "end": 413
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "SH",
+        "phone": "sh",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 399,
+         "end": 406
+        }
+       },
+       {
+        "phoneme": "I",
+        "phone": "i",
+        "category": 1,
+        "pronunciation": 100,
+        "tone_index": "4",
+        "span": {
+         "start": 406,
+         "end": 413
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "是",
+        "pinyin": "shi",
+        "tone": "tone4",
+        "tone_sandhi": "tone4",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "是",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -35,
+       "rel_db": -9.2,
+       "dur_ms": 140,
+       "dur_ratio": 0.778,
+       "sfgop": 1
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "一",
+      "pinyin": "yi",
+      "rawpinyin": "yi1",
+      "symbolpinyin": "yī",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone1",
+      "scores": {
+       "overall": 100,
+       "pronunciation": 100,
+       "tone": 1,
+       "overall_pron": 100,
+       "prominence": 0
+      },
+      "span": {
+       "start": 413,
+       "end": 429
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "Y",
+        "phone": "y",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 413,
+         "end": 421
+        }
+       },
+       {
+        "phoneme": "I",
+        "phone": "i",
+        "category": 1,
+        "pronunciation": 100,
+        "tone_index": "1",
+        "span": {
+         "start": 421,
+         "end": 429
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "一",
+        "pinyin": "yi",
+        "tone": "tone1",
+        "tone_sandhi": "tone4",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "一",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -34.1,
+       "rel_db": -8.4,
+       "dur_ms": 160,
+       "dur_ratio": 0.889,
+       "sfgop": 1
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "家",
+      "pinyin": "jia",
+      "rawpinyin": "jia1",
+      "symbolpinyin": "jiā",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone1",
+      "scores": {
+       "overall": 76,
+       "pronunciation": 76,
+       "tone": 100,
+       "overall_pron": 76,
+       "prominence": 0
+      },
+      "span": {
+       "start": 429,
+       "end": 447
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "J",
+        "phone": "j",
+        "category": 0,
+        "pronunciation": 76,
+        "tone_index": "0",
+        "span": {
+         "start": 429,
+         "end": 438
+        }
+       },
+       {
+        "phoneme": "IA",
+        "phone": "ia",
+        "category": 1,
+        "pronunciation": 76,
+        "tone_index": "1",
+        "span": {
+         "start": 438,
+         "end": 447
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "家",
+        "pinyin": "jia",
+        "tone": "tone1",
+        "tone_sandhi": "tone1",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "家",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -19.5,
+       "rel_db": 6.2,
+       "dur_ms": 180,
+       "dur_ratio": 1,
+       "sfgop": 0.6
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "人",
+      "pinyin": "ren",
+      "rawpinyin": "ren2",
+      "symbolpinyin": "rén",
+      "charType": 0,
+      "readType": 0,
+      "tone": "tone2",
+      "scores": {
+       "overall": 74,
+       "pronunciation": 74,
+       "tone": 100,
+       "overall_pron": 74,
+       "prominence": 0
+      },
+      "span": {
+       "start": 447,
+       "end": 476
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "R",
+        "phone": "r",
+        "category": 0,
+        "pronunciation": 74,
+        "tone_index": "0",
+        "span": {
+         "start": 447,
+         "end": 461
+        }
+       },
+       {
+        "phoneme": "EN",
+        "phone": "en",
+        "category": 1,
+        "pronunciation": 74,
+        "tone_index": "2",
+        "span": {
+         "start": 461,
+         "end": 476
+        }
+       }
+      ],
+      "normalized_syllables": [
+       {
+        "syllables": "人",
+        "pinyin": "ren",
+        "tone": "tone2",
+        "tone_sandhi": "tone2",
+        "phoneme_span": [
+         0,
+         1
+        ]
+       }
+      ],
+      "word_parts": [
+       {
+        "part": "人",
+        "charType": 0,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [],
+      "linkable": false,
+      "syllables": [],
+      "evidence": {
+       "scored": false,
+       "rms_db": -28,
+       "rel_db": -2.3,
+       "dur_ms": 295,
+       "dur_ratio": 1.639,
+       "sfgop": 0.571
+      },
+      "readStatus": "correct",
+      "read_status": "correct"
+     }
+    ],
+    "sentences": [
+     {
+      "sentence": "我是中国人，我是中国人。",
+      "text": "我是中国人，我是中国人。",
+      "index": 0,
+      "overall": 83,
+      "scores": {
+       "overall": 83,
+       "pronunciation": 83,
+       "fluency": 83,
+       "integrity": 100
+      },
+      "span": {
+       "start": 21,
+       "end": 199
+      },
+      "details": [
+       {
+        "word": "我",
+        "pinyin": "wo",
+        "rawpinyin": "wo3",
+        "symbolpinyin": "wǒ",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone3",
+        "scores": {
+         "overall": 100,
+         "pronunciation": 100,
+         "tone": 100,
+         "overall_pron": 100,
+         "prominence": 0
+        },
+        "span": {
+         "start": 21,
+         "end": 33
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "W",
+          "phone": "w",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 21,
+           "end": 27
+          }
+         },
+         {
+          "phoneme": "O",
+          "phone": "o",
+          "category": 1,
+          "pronunciation": 100,
+          "tone_index": "3",
+          "span": {
+           "start": 27,
+           "end": 33
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "我",
+          "pinyin": "wo",
+          "tone": "tone3",
+          "tone_sandhi": "tone3",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "我",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "是",
+        "pinyin": "shi",
+        "rawpinyin": "shi4",
+        "symbolpinyin": "shì",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone4",
+        "scores": {
+         "overall": 88,
+         "pronunciation": 88,
+         "tone": 100,
+         "overall_pron": 88,
+         "prominence": 0
+        },
+        "span": {
+         "start": 33,
+         "end": 51
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "SH",
+          "phone": "sh",
+          "category": 0,
+          "pronunciation": 88,
+          "tone_index": "0",
+          "span": {
+           "start": 33,
+           "end": 42
+          }
+         },
+         {
+          "phoneme": "I",
+          "phone": "i",
+          "category": 1,
+          "pronunciation": 88,
+          "tone_index": "4",
+          "span": {
+           "start": 42,
+           "end": 51
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "是",
+          "pinyin": "shi",
+          "tone": "tone4",
+          "tone_sandhi": "tone4",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "是",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "中",
+        "pinyin": "zhong",
+        "rawpinyin": "zhong1",
+        "symbolpinyin": "zhōng",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone1",
+        "scores": {
+         "overall": 70,
+         "pronunciation": 70,
+         "tone": 100,
+         "overall_pron": 70,
+         "prominence": 1
+        },
+        "span": {
+         "start": 51,
+         "end": 63
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "ZH",
+          "phone": "zh",
+          "category": 0,
+          "pronunciation": 70,
+          "tone_index": "0",
+          "span": {
+           "start": 51,
+           "end": 57
+          }
+         },
+         {
+          "phoneme": "ONG",
+          "phone": "ong",
+          "category": 1,
+          "pronunciation": 70,
+          "tone_index": "1",
+          "span": {
+           "start": 57,
+           "end": 63
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "中",
+          "pinyin": "zhong",
+          "tone": "tone1",
+          "tone_sandhi": "tone1",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "中",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "国",
+        "pinyin": "guo",
+        "rawpinyin": "guo2",
+        "symbolpinyin": "guó",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 78,
+         "pronunciation": 78,
+         "tone": 1,
+         "overall_pron": 78,
+         "prominence": 0
+        },
+        "span": {
+         "start": 63,
+         "end": 81
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "G",
+          "phone": "g",
+          "category": 0,
+          "pronunciation": 78,
+          "tone_index": "0",
+          "span": {
+           "start": 63,
+           "end": 72
+          }
+         },
+         {
+          "phoneme": "UO",
+          "phone": "uo",
+          "category": 1,
+          "pronunciation": 78,
+          "tone_index": "2",
+          "span": {
+           "start": 72,
+           "end": 81
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "国",
+          "pinyin": "guo",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "国",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "人",
+        "pinyin": "ren",
+        "rawpinyin": "ren2",
+        "symbolpinyin": "rén",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 75,
+         "pronunciation": 75,
+         "tone": 100,
+         "overall_pron": 75,
+         "prominence": 1
+        },
+        "span": {
+         "start": 81,
+         "end": 107
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "R",
+          "phone": "r",
+          "category": 0,
+          "pronunciation": 75,
+          "tone_index": "0",
+          "span": {
+           "start": 81,
+           "end": 93
+          }
+         },
+         {
+          "phoneme": "EN",
+          "phone": "en",
+          "category": 1,
+          "pronunciation": 75,
+          "tone_index": "2",
+          "span": {
+           "start": 93,
+           "end": 105
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "人",
+          "pinyin": "ren",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "人",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "我",
+        "pinyin": "wo",
+        "rawpinyin": "wo3",
+        "symbolpinyin": "wǒ",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone3",
+        "scores": {
+         "overall": 78,
+         "pronunciation": 78,
+         "tone": 100,
+         "overall_pron": 78,
+         "prominence": 0
+        },
+        "span": {
+         "start": 107,
+         "end": 123
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "W",
+          "phone": "w",
+          "category": 0,
+          "pronunciation": 78,
+          "tone_index": "0",
+          "span": {
+           "start": 107,
+           "end": 115
+          }
+         },
+         {
+          "phoneme": "O",
+          "phone": "o",
+          "category": 1,
+          "pronunciation": 78,
+          "tone_index": "3",
+          "span": {
+           "start": 115,
+           "end": 123
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "我",
+          "pinyin": "wo",
+          "tone": "tone3",
+          "tone_sandhi": "tone3",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "我",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "是",
+        "pinyin": "shi",
+        "rawpinyin": "shi4",
+        "symbolpinyin": "shì",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone4",
+        "scores": {
+         "overall": 85,
+         "pronunciation": 85,
+         "tone": 100,
+         "overall_pron": 85,
+         "prominence": 0
+        },
+        "span": {
+         "start": 123,
+         "end": 141
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "SH",
+          "phone": "sh",
+          "category": 0,
+          "pronunciation": 85,
+          "tone_index": "0",
+          "span": {
+           "start": 123,
+           "end": 132
+          }
+         },
+         {
+          "phoneme": "I",
+          "phone": "i",
+          "category": 1,
+          "pronunciation": 85,
+          "tone_index": "4",
+          "span": {
+           "start": 132,
+           "end": 141
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "是",
+          "pinyin": "shi",
+          "tone": "tone4",
+          "tone_sandhi": "tone4",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "是",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "中",
+        "pinyin": "zhong",
+        "rawpinyin": "zhong1",
+        "symbolpinyin": "zhōng",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone1",
+        "scores": {
+         "overall": 80,
+         "pronunciation": 80,
+         "tone": 100,
+         "overall_pron": 80,
+         "prominence": 0
+        },
+        "span": {
+         "start": 141,
+         "end": 151
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "ZH",
+          "phone": "zh",
+          "category": 0,
+          "pronunciation": 80,
+          "tone_index": "0",
+          "span": {
+           "start": 141,
+           "end": 146
+          }
+         },
+         {
+          "phoneme": "ONG",
+          "phone": "ong",
+          "category": 1,
+          "pronunciation": 80,
+          "tone_index": "1",
+          "span": {
+           "start": 146,
+           "end": 151
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "中",
+          "pinyin": "zhong",
+          "tone": "tone1",
+          "tone_sandhi": "tone1",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "中",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "国",
+        "pinyin": "guo",
+        "rawpinyin": "guo2",
+        "symbolpinyin": "guó",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 92,
+         "pronunciation": 92,
+         "tone": 100,
+         "overall_pron": 92,
+         "prominence": 0
+        },
+        "span": {
+         "start": 151,
+         "end": 169
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "G",
+          "phone": "g",
+          "category": 0,
+          "pronunciation": 92,
+          "tone_index": "0",
+          "span": {
+           "start": 151,
+           "end": 160
+          }
+         },
+         {
+          "phoneme": "UO",
+          "phone": "uo",
+          "category": 1,
+          "pronunciation": 92,
+          "tone_index": "2",
+          "span": {
+           "start": 160,
+           "end": 169
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "国",
+          "pinyin": "guo",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "国",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "人",
+        "pinyin": "ren",
+        "rawpinyin": "ren2",
+        "symbolpinyin": "rén",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 80,
+         "pronunciation": 80,
+         "tone": 100,
+         "overall_pron": 80,
+         "prominence": 0
+        },
+        "span": {
+         "start": 169,
+         "end": 199
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "R",
+          "phone": "r",
+          "category": 0,
+          "pronunciation": 80,
+          "tone_index": "0",
+          "span": {
+           "start": 169,
+           "end": 181
+          }
+         },
+         {
+          "phoneme": "EN",
+          "phone": "en",
+          "category": 1,
+          "pronunciation": 80,
+          "tone_index": "2",
+          "span": {
+           "start": 181,
+           "end": 193
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "人",
+          "pinyin": "ren",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "人",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       }
+      ]
+     },
+     {
+      "sentence": "我们都是中国人。",
+      "text": "我们都是中国人。",
+      "index": 1,
+      "overall": 86,
+      "scores": {
+       "overall": 86,
+       "pronunciation": 86,
+       "fluency": 86,
+       "integrity": 100
+      },
+      "span": {
+       "start": 199,
+       "end": 311
+      },
+      "details": [
+       {
+        "word": "我",
+        "pinyin": "wo",
+        "rawpinyin": "wo3",
+        "symbolpinyin": "wǒ",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone3",
+        "scores": {
+         "overall": 100,
+         "pronunciation": 100,
+         "tone": 100,
+         "overall_pron": 100,
+         "prominence": 0
+        },
+        "span": {
+         "start": 199,
+         "end": 211
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "W",
+          "phone": "w",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 199,
+           "end": 205
+          }
+         },
+         {
+          "phoneme": "O",
+          "phone": "o",
+          "category": 1,
+          "pronunciation": 100,
+          "tone_index": "3",
+          "span": {
+           "start": 205,
+           "end": 211
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "我",
+          "pinyin": "wo",
+          "tone": "tone3",
+          "tone_sandhi": "tone3",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "我",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "们",
+        "pinyin": "men",
+        "rawpinyin": "men5",
+        "symbolpinyin": "men",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone5",
+        "scores": {
+         "overall": 70,
+         "pronunciation": 70,
+         "tone": 100,
+         "overall_pron": 70,
+         "prominence": 0
+        },
+        "span": {
+         "start": 211,
+         "end": 223
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "M",
+          "phone": "m",
+          "category": 0,
+          "pronunciation": 70,
+          "tone_index": "0",
+          "span": {
+           "start": 211,
+           "end": 217
+          }
+         },
+         {
+          "phoneme": "EN",
+          "phone": "en",
+          "category": 1,
+          "pronunciation": 70,
+          "tone_index": "5",
+          "span": {
+           "start": 217,
+           "end": 223
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "们",
+          "pinyin": "men",
+          "tone": "tone5",
+          "tone_sandhi": "tone5",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "们",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "都",
+        "pinyin": "dou",
+        "rawpinyin": "dou1",
+        "symbolpinyin": "dōu",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone1",
+        "scores": {
+         "overall": 100,
+         "pronunciation": 100,
+         "tone": 100,
+         "overall_pron": 100,
+         "prominence": 1
+        },
+        "span": {
+         "start": 223,
+         "end": 233
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "D",
+          "phone": "d",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 223,
+           "end": 228
+          }
+         },
+         {
+          "phoneme": "OU",
+          "phone": "ou",
+          "category": 1,
+          "pronunciation": 100,
+          "tone_index": "1",
+          "span": {
+           "start": 228,
+           "end": 233
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "都",
+          "pinyin": "dou",
+          "tone": "tone1",
+          "tone_sandhi": "tone1",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "都",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "是",
+        "pinyin": "shi",
+        "rawpinyin": "shi4",
+        "symbolpinyin": "shì",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone4",
+        "scores": {
+         "overall": 88,
+         "pronunciation": 88,
+         "tone": 100,
+         "overall_pron": 88,
+         "prominence": 0
+        },
+        "span": {
+         "start": 233,
+         "end": 253
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "SH",
+          "phone": "sh",
+          "category": 0,
+          "pronunciation": 88,
+          "tone_index": "0",
+          "span": {
+           "start": 233,
+           "end": 243
+          }
+         },
+         {
+          "phoneme": "I",
+          "phone": "i",
+          "category": 1,
+          "pronunciation": 88,
+          "tone_index": "4",
+          "span": {
+           "start": 243,
+           "end": 253
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "是",
+          "pinyin": "shi",
+          "tone": "tone4",
+          "tone_sandhi": "tone4",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "是",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "中",
+        "pinyin": "zhong",
+        "rawpinyin": "zhong1",
+        "symbolpinyin": "zhōng",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone1",
+        "scores": {
+         "overall": 85,
+         "pronunciation": 85,
+         "tone": 100,
+         "overall_pron": 85,
+         "prominence": 0
+        },
+        "span": {
+         "start": 253,
+         "end": 269
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "ZH",
+          "phone": "zh",
+          "category": 0,
+          "pronunciation": 85,
+          "tone_index": "0",
+          "span": {
+           "start": 253,
+           "end": 261
+          }
+         },
+         {
+          "phoneme": "ONG",
+          "phone": "ong",
+          "category": 1,
+          "pronunciation": 85,
+          "tone_index": "1",
+          "span": {
+           "start": 261,
+           "end": 269
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "中",
+          "pinyin": "zhong",
+          "tone": "tone1",
+          "tone_sandhi": "tone1",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "中",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "国",
+        "pinyin": "guo",
+        "rawpinyin": "guo2",
+        "symbolpinyin": "guó",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 76,
+         "pronunciation": 76,
+         "tone": 100,
+         "overall_pron": 76,
+         "prominence": 0
+        },
+        "span": {
+         "start": 269,
+         "end": 287
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "G",
+          "phone": "g",
+          "category": 0,
+          "pronunciation": 76,
+          "tone_index": "0",
+          "span": {
+           "start": 269,
+           "end": 278
+          }
+         },
+         {
+          "phoneme": "UO",
+          "phone": "uo",
+          "category": 1,
+          "pronunciation": 76,
+          "tone_index": "2",
+          "span": {
+           "start": 278,
+           "end": 287
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "国",
+          "pinyin": "guo",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "国",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "人",
+        "pinyin": "ren",
+        "rawpinyin": "ren2",
+        "symbolpinyin": "rén",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 85,
+         "pronunciation": 85,
+         "tone": 100,
+         "overall_pron": 85,
+         "prominence": 0
+        },
+        "span": {
+         "start": 287,
+         "end": 311
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "R",
+          "phone": "r",
+          "category": 0,
+          "pronunciation": 85,
+          "tone_index": "0",
+          "span": {
+           "start": 287,
+           "end": 299
+          }
+         },
+         {
+          "phoneme": "EN",
+          "phone": "en",
+          "category": 1,
+          "pronunciation": 85,
+          "tone_index": "2",
+          "span": {
+           "start": 299,
+           "end": 311
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "人",
+          "pinyin": "ren",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "人",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       }
+      ]
+     },
+     {
+      "sentence": "中华民族是一家人。",
+      "text": "中华民族是一家人。",
+      "index": 2,
+      "overall": 87,
+      "scores": {
+       "overall": 87,
+       "pronunciation": 87,
+       "fluency": 87,
+       "integrity": 100
+      },
+      "span": {
+       "start": 325,
+       "end": 476
+      },
+      "details": [
+       {
+        "word": "中",
+        "pinyin": "zhong",
+        "rawpinyin": "zhong1",
+        "symbolpinyin": "zhōng",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone1",
+        "scores": {
+         "overall": 78,
+         "pronunciation": 78,
+         "tone": 100,
+         "overall_pron": 78,
+         "prominence": 0
+        },
+        "span": {
+         "start": 325,
+         "end": 341
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "ZH",
+          "phone": "zh",
+          "category": 0,
+          "pronunciation": 78,
+          "tone_index": "0",
+          "span": {
+           "start": 325,
+           "end": 333
+          }
+         },
+         {
+          "phoneme": "ONG",
+          "phone": "ong",
+          "category": 1,
+          "pronunciation": 78,
+          "tone_index": "1",
+          "span": {
+           "start": 333,
+           "end": 341
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "中",
+          "pinyin": "zhong",
+          "tone": "tone1",
+          "tone_sandhi": "tone1",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "中",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "华",
+        "pinyin": "hua",
+        "rawpinyin": "hua2",
+        "symbolpinyin": "huá",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 76,
+         "pronunciation": 76,
+         "tone": 1,
+         "overall_pron": 76,
+         "prominence": 0
+        },
+        "span": {
+         "start": 341,
+         "end": 361
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "H",
+          "phone": "h",
+          "category": 0,
+          "pronunciation": 76,
+          "tone_index": "0",
+          "span": {
+           "start": 341,
+           "end": 351
+          }
+         },
+         {
+          "phoneme": "UA",
+          "phone": "ua",
+          "category": 1,
+          "pronunciation": 76,
+          "tone_index": "2",
+          "span": {
+           "start": 351,
+           "end": 361
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "华",
+          "pinyin": "hua",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "华",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "民",
+        "pinyin": "min",
+        "rawpinyin": "min2",
+        "symbolpinyin": "mín",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 92,
+         "pronunciation": 92,
+         "tone": 100,
+         "overall_pron": 92,
+         "prominence": 0
+        },
+        "span": {
+         "start": 361,
+         "end": 375
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "M",
+          "phone": "m",
+          "category": 0,
+          "pronunciation": 92,
+          "tone_index": "0",
+          "span": {
+           "start": 361,
+           "end": 368
+          }
+         },
+         {
+          "phoneme": "IN",
+          "phone": "in",
+          "category": 1,
+          "pronunciation": 92,
+          "tone_index": "2",
+          "span": {
+           "start": 368,
+           "end": 375
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "民",
+          "pinyin": "min",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "民",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "族",
+        "pinyin": "zu",
+        "rawpinyin": "zu2",
+        "symbolpinyin": "zú",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 100,
+         "pronunciation": 100,
+         "tone": 100,
+         "overall_pron": 100,
+         "prominence": 0
+        },
+        "span": {
+         "start": 375,
+         "end": 399
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "Z",
+          "phone": "z",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 375,
+           "end": 387
+          }
+         },
+         {
+          "phoneme": "U",
+          "phone": "u",
+          "category": 1,
+          "pronunciation": 100,
+          "tone_index": "2",
+          "span": {
+           "start": 387,
+           "end": 399
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "族",
+          "pinyin": "zu",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "族",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "是",
+        "pinyin": "shi",
+        "rawpinyin": "shi4",
+        "symbolpinyin": "shì",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone4",
+        "scores": {
+         "overall": 100,
+         "pronunciation": 100,
+         "tone": 100,
+         "overall_pron": 100,
+         "prominence": 0
+        },
+        "span": {
+         "start": 399,
+         "end": 413
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "SH",
+          "phone": "sh",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 399,
+           "end": 406
+          }
+         },
+         {
+          "phoneme": "I",
+          "phone": "i",
+          "category": 1,
+          "pronunciation": 100,
+          "tone_index": "4",
+          "span": {
+           "start": 406,
+           "end": 413
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "是",
+          "pinyin": "shi",
+          "tone": "tone4",
+          "tone_sandhi": "tone4",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "是",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "一",
+        "pinyin": "yi",
+        "rawpinyin": "yi1",
+        "symbolpinyin": "yī",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone1",
+        "scores": {
+         "overall": 100,
+         "pronunciation": 100,
+         "tone": 1,
+         "overall_pron": 100,
+         "prominence": 0
+        },
+        "span": {
+         "start": 413,
+         "end": 429
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "Y",
+          "phone": "y",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 413,
+           "end": 421
+          }
+         },
+         {
+          "phoneme": "I",
+          "phone": "i",
+          "category": 1,
+          "pronunciation": 100,
+          "tone_index": "1",
+          "span": {
+           "start": 421,
+           "end": 429
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "一",
+          "pinyin": "yi",
+          "tone": "tone1",
+          "tone_sandhi": "tone4",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "一",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "家",
+        "pinyin": "jia",
+        "rawpinyin": "jia1",
+        "symbolpinyin": "jiā",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone1",
+        "scores": {
+         "overall": 76,
+         "pronunciation": 76,
+         "tone": 100,
+         "overall_pron": 76,
+         "prominence": 0
+        },
+        "span": {
+         "start": 429,
+         "end": 447
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "J",
+          "phone": "j",
+          "category": 0,
+          "pronunciation": 76,
+          "tone_index": "0",
+          "span": {
+           "start": 429,
+           "end": 438
+          }
+         },
+         {
+          "phoneme": "IA",
+          "phone": "ia",
+          "category": 1,
+          "pronunciation": 76,
+          "tone_index": "1",
+          "span": {
+           "start": 438,
+           "end": 447
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "家",
+          "pinyin": "jia",
+          "tone": "tone1",
+          "tone_sandhi": "tone1",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "家",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       },
+       {
+        "word": "人",
+        "pinyin": "ren",
+        "rawpinyin": "ren2",
+        "symbolpinyin": "rén",
+        "charType": 0,
+        "readType": 0,
+        "tone": "tone2",
+        "scores": {
+         "overall": 74,
+         "pronunciation": 74,
+         "tone": 100,
+         "overall_pron": 74,
+         "prominence": 0
+        },
+        "span": {
+         "start": 447,
+         "end": 476
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "R",
+          "phone": "r",
+          "category": 0,
+          "pronunciation": 74,
+          "tone_index": "0",
+          "span": {
+           "start": 447,
+           "end": 461
+          }
+         },
+         {
+          "phoneme": "EN",
+          "phone": "en",
+          "category": 1,
+          "pronunciation": 74,
+          "tone_index": "2",
+          "span": {
+           "start": 461,
+           "end": 476
+          }
+         }
+        ],
+        "normalized_syllables": [
+         {
+          "syllables": "人",
+          "pinyin": "ren",
+          "tone": "tone2",
+          "tone_sandhi": "tone2",
+          "phoneme_span": [
+           0,
+           1
+          ]
+         }
+        ],
+        "word_parts": [
+         {
+          "part": "人",
+          "charType": 0,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [],
+        "linkable": false,
+        "syllables": []
+       }
+      ]
+     }
+    ],
+    "_language": "zh",
+    "_coreType": "sentence",
+    "compositeReport": {
+     "compositeScore": 88,
+     "integrityScore": 100,
+     "accuracyScore": 100,
+     "toneVoiceScore": 88,
+     "tongueScore": 100,
+     "nasalsScore": 99,
+     "pronunciationScore": 100,
+     "phonemeScore": 100,
+     "fluencyScore": 65,
+     "fluentScore": 65,
+     "readSpeedScore": 0,
+     "readSpeed": 312,
+     "skillScore": 80,
+     "stopConnScore": 60,
+     "stressScore": 71,
+     "intonationScore": 92,
+     "readingRhythmScore": 92,
+     "emotionScore": 100,
+     "literalTotal": 88,
+     "toneScore": 100,
+     "completenessScore": 100,
+     "fluencySuggest": "语速偏快（5.2 字/秒），建议放慢到 3.5-4.5 字/秒，让听者更容易跟上。",
+     "skillSuggest": "停连处理不够恰当，建议在标点、短语边界自然停顿；避免在词内断开。",
+     "emotionSuggest": "第二声（阳平）上扬不充分。练习时从 3 调值平稳升到 5 调值。",
+     "initialScore": 85,
+     "finalScore": 85
+    },
+    "yuguScores": {
+     "overall": 88,
+     "integrity": 100,
+     "accuracy": {
+      "overall": 100,
+      "tone": 100,
+      "retroflex": 100,
+      "nasal": 99,
+      "phoneme": 100,
+      "initial": 85,
+      "final": 85
+     },
+     "fluency": {
+      "overall": 65,
+      "speed_score": 0,
+      "naturalness": 93
+     },
+     "reading_skill": {
+      "overall": 80,
+      "pause": 60,
+      "stress": 71,
+      "intonation": 92,
+      "rhythm_zh": 92.3
+     },
+     "prosody": 80,
+     "emotion": 100,
+     "tone": 88,
+     "rear_tone": "flat",
+     "speed": 312,
+     "duration_s": 5
+    },
+    "initialScore": 85,
+    "finalScore": 85,
+    "tongueScore": 100,
+    "tongue": 100,
+    "nasalsScore": 99,
+    "nasals": 99,
+    "accuracy": 100,
+    "reading_skill": 80,
+    "emotion": 100
+   },
+   "report": {
+    "summary": "# 朗读评测报告\n\n**综合总分**：88.0 / 100\n\n## 各维度\n- **完整度**：100.0\n- **准确度**：100.0\n- **流利度**：65.0\n- **朗读技巧**：80.0\n- **声调**：88.0\n- **情感**：100.0\n\n## 诊断与建议\n- 朗读完整度很高，基本完成了全部内容。",
+    "dimensions": {
+     "integrity": "完整度 100 分。",
+     "accuracy": "准确度 100 分,可结合逐字详情定位失分点。声调：整句调型判定 100 分；其中“国”（字级调型 1 分）、“华”（字级调型 1 分）、“一”（字级调型 1 分）的调型与标准读音有偏差，需对照标准音重点纠正，其余字词调型整体稳定。",
+     "fluency": "流利度 65 分,语速 312。",
+     "reading_skill": "朗读技巧 80 分(停连/重音/语调)。",
+     "emotion": "情感表达 100 分。"
+    },
+    "suggestions": [
+     "语速偏快（5.2 字/秒），建议放慢到 3.5-4.5 字/秒，让听者更容易跟上。",
+     "停连处理不够恰当，建议在标点、短语边界自然停顿；避免在词内断开。",
+     "第二声（阳平）上扬不充分。练习时从 3 调值平稳升到 5 调值。"
+    ],
+    "dimensionSuggestions": {
+     "integrity": [],
+     "accuracy": [],
+     "fluency": [
+      "语速偏快（5.2 字/秒），建议放慢到 3.5-4.5 字/秒，让听者更容易跟上。"
+     ],
+     "reading_skill": [
+      "停连处理不够恰当，建议在标点、短语边界自然停顿；避免在词内断开。"
+     ],
+     "emotion": [
+      "第二声（阳平）上扬不充分。练习时从 3 调值平稳升到 5 调值。"
+     ]
+    },
+    "rubricVersion": "v20260707b",
+    "scores": {
+     "compositeScore": 88
+    },
+    "dimensionScores": {
+     "accuracy": 100,
+     "fluency": 65,
+     "integrity": 100,
+     "reading_skill": 80,
+     "affect": 100,
+     "speechRate": 0,
+     "readSpeedRaw": 312
+    },
+    "dimensionEvidence": {
+     "accuracy": [
+      {
+       "word": "国",
+       "type": "pitchLow",
+       "detail": "声调 1 分（低于 60）"
+      },
+      {
+       "word": "华",
+       "type": "pitchLow",
+       "detail": "声调 1 分（低于 60）"
+      },
+      {
+       "word": "一",
+       "type": "pitchLow",
+       "detail": "声调 1 分（低于 60）"
+      }
+     ],
+     "fluency": [],
+     "integrity": [],
+     "affect": [],
+     "speechRate": [
+      {
+       "word": "",
+       "type": "paceDeviation",
+       "detail": "语速归一分 0 分（低于 60，方向偏快）"
+      }
+     ]
+    },
+    "scoringContext": {
+     "agegroup": 4,
+     "weightProfile": "grade_advanced",
+     "weightPolicyVersion": "age-weight-v3-20260927"
+    },
+    "dimensionTree": {
+     "rubricVersion": "v20260707b",
+     "contractMode": "t2_derived",
+     "curriculumFramework": "cn_curriculum_2022_correct_fluent_expressive",
+     "agegroup": 4,
+     "weightProfile": "grade_advanced",
+     "weightPolicyVersion": "age-weight-v3-20260927",
+     "weights": {
+      "integrity": 0.1,
+      "accuracy": 0.25,
+      "fluency": 0.2,
+      "reading_skill": 0.25,
+      "affect": 0.2
+     },
+     "overall": 88,
+     "dims": {
+      "integrity": {
+       "curriculumAxis": "correct",
+       "label": "完整度",
+       "score": 100,
+       "scored": true,
+       "weightedContribution": 10,
+       "engineScore": 100,
+       "subs": [
+        {
+         "key": "completeness",
+         "label": "完整度",
+         "score": 100,
+         "weight": 1,
+         "scored": true
+        }
+       ]
+      },
+      "accuracy": {
+       "curriculumAxis": "correct",
+       "label": "准确度",
+       "score": 100,
+       "scored": true,
+       "weightedContribution": 25,
+       "engineScore": 100,
+       "subs": [
+        {
+         "key": "pronunciation",
+         "label": "发音",
+         "score": 100,
+         "weight": 1,
+         "scored": true
+        },
+        {
+         "key": "phoneme",
+         "label": "音素",
+         "score": 100,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "initial",
+         "label": "声母",
+         "score": 85,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "final",
+         "label": "韵母",
+         "score": 85,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "retroflex",
+         "label": "平翘舌",
+         "score": 100,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "nasalFinal",
+         "label": "前后鼻音",
+         "score": 99,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "pitchPattern",
+         "label": "声调/调型",
+         "score": 100,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        }
+       ]
+      },
+      "fluency": {
+       "curriculumAxis": "fluent",
+       "label": "流利度",
+       "score": 65,
+       "scored": true,
+       "weightedContribution": 13,
+       "engineScore": 65,
+       "subs": [
+        {
+         "key": "flow",
+         "label": "流畅度",
+         "score": 65,
+         "weight": 1,
+         "scored": true
+        },
+        {
+         "key": "speechRate",
+         "label": "语速",
+         "score": 0,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "naturalness",
+         "label": "自然度",
+         "score": 93,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "readSpeedRaw",
+         "label": "实测语速",
+         "score": 312,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        }
+       ]
+      },
+      "reading_skill": {
+       "curriculumAxis": "expressive",
+       "label": "朗读技巧",
+       "score": 80,
+       "scored": true,
+       "weightedContribution": 20,
+       "engineScore": 80,
+       "subs": [
+        {
+         "key": "skill",
+         "label": "朗读技巧",
+         "score": 80,
+         "weight": 1,
+         "scored": true
+        },
+        {
+         "key": "pause",
+         "label": "停连",
+         "score": 60,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "stress",
+         "label": "重音",
+         "score": 71,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "intonation",
+         "label": "语气",
+         "score": 92,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "rhythm",
+         "label": "节奏",
+         "score": 92,
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true
+        },
+        {
+         "key": "innerSpeech",
+         "label": "内在语",
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true,
+         "referenceOnly": true,
+         "source": "report.skillInsights",
+         "notScoredReason": "reference_observation_only",
+         "notAssessedReason": "skill_insight_unavailable"
+        },
+        {
+         "key": "sceneRecreation",
+         "label": "情景再现",
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true,
+         "referenceOnly": true,
+         "source": "report.skillInsights",
+         "notScoredReason": "reference_observation_only",
+         "notAssessedReason": "skill_insight_unavailable"
+        },
+        {
+         "key": "audienceAwareness",
+         "label": "对象感",
+         "weight": 0,
+         "scored": false,
+         "diagnostic": true,
+         "referenceOnly": true,
+         "source": "report.skillInsights",
+         "notScoredReason": "reference_observation_only",
+         "notAssessedReason": "skill_insight_unavailable"
+        }
+       ]
+      },
+      "affect": {
+       "curriculumAxis": "expressive",
+       "label": "情感表达",
+       "score": 100,
+       "scored": true,
+       "weightedContribution": 20,
+       "engineScore": 100,
+       "subs": [
+        {
+         "key": "expressiveness",
+         "label": "情感表达",
+         "score": 100,
+         "weight": 1,
+         "scored": true
+        }
+       ]
+      }
+     },
+     "contractStatus": "verified"
+    }
+   },
+   "asrText": {
+    "text": "我 是 中 国 人 我 是 中 国 人 我 们 都 是 中 国 人 中 华 民 族 是 一 家 人",
+    "alignment": [
+     {
+      "char": "我",
+      "index": 0,
+      "read_status": "correct",
+      "start_time": 24,
+      "end_time": 28,
+      "asr_pinyin": "wo3",
+      "asr_tone": 3,
+      "asr_initial": "w",
+      "asr_final": "o",
+      "gop_score": 100,
+      "tone_pred": 3,
+      "p_neutral": 0.004
+     },
+     {
+      "char": "是",
+      "index": 1,
+      "read_status": "correct",
+      "start_time": 38,
+      "end_time": 44,
+      "asr_pinyin": "shi4",
+      "asr_tone": 4,
+      "asr_initial": "sh",
+      "asr_final": "i",
+      "gop_score": 100,
+      "tone_pred": 4,
+      "p_neutral": 0.006
+     },
+     {
+      "char": "中",
+      "index": 2,
+      "read_status": "correct",
+      "start_time": 48,
+      "end_time": 56,
+      "asr_pinyin": "zhong1",
+      "asr_tone": 1,
+      "asr_initial": "zh",
+      "asr_final": "ong",
+      "gop_score": 100,
+      "tone_pred": 1,
+      "p_neutral": 0
+     },
+     {
+      "char": "国",
+      "index": 3,
+      "read_status": "correct",
+      "start_time": 66,
+      "end_time": 70,
+      "asr_pinyin": "guo2",
+      "asr_tone": 2,
+      "asr_initial": "g",
+      "asr_final": "uo",
+      "gop_score": 100,
+      "tone_pred": 4,
+      "p_neutral": 0.021
+     },
+     {
+      "char": "人",
+      "index": 4,
+      "read_status": "correct",
+      "start_time": 82,
+      "end_time": 90,
+      "asr_pinyin": "ren2",
+      "asr_tone": 2,
+      "asr_initial": "r",
+      "asr_final": "en",
+      "gop_score": 100,
+      "tone_pred": 2,
+      "p_neutral": 0.002
+     },
+     {
+      "char": "我",
+      "index": 5,
+      "read_status": "correct",
+      "start_time": 106,
+      "end_time": 114,
+      "asr_pinyin": "wo3",
+      "asr_tone": 3,
+      "asr_initial": "w",
+      "asr_final": "o",
+      "gop_score": 100,
+      "tone_pred": 3,
+      "p_neutral": 0.006
+     },
+     {
+      "char": "是",
+      "index": 6,
+      "read_status": "correct",
+      "start_time": 124,
+      "end_time": 130,
+      "asr_pinyin": "shi4",
+      "asr_tone": 4,
+      "asr_initial": "sh",
+      "asr_final": "i",
+      "gop_score": 100,
+      "tone_pred": 4,
+      "p_neutral": 0.004
+     },
+     {
+      "char": "中",
+      "index": 7,
+      "read_status": "correct",
+      "start_time": 138,
+      "end_time": 144,
+      "asr_pinyin": "zhong1",
+      "asr_tone": 1,
+      "asr_initial": "zh",
+      "asr_final": "ong",
+      "gop_score": 100,
+      "tone_pred": 1,
+      "p_neutral": 0
+     },
+     {
+      "char": "国",
+      "index": 8,
+      "read_status": "correct",
+      "start_time": 156,
+      "end_time": 162,
+      "asr_pinyin": "guo2",
+      "asr_tone": 2,
+      "asr_initial": "g",
+      "asr_final": "uo",
+      "gop_score": 100,
+      "tone_pred": 2,
+      "p_neutral": 0.018
+     },
+     {
+      "char": "人",
+      "index": 9,
+      "read_status": "correct",
+      "start_time": 174,
+      "end_time": 182,
+      "asr_pinyin": "ren2",
+      "asr_tone": 2,
+      "asr_initial": "r",
+      "asr_final": "en",
+      "gop_score": 100,
+      "tone_pred": 2,
+      "p_neutral": 0.007
+     },
+     {
+      "char": "我",
+      "index": 10,
+      "read_status": "correct",
+      "start_time": 200,
+      "end_time": 206,
+      "asr_pinyin": "wo3",
+      "asr_tone": 3,
+      "asr_initial": "w",
+      "asr_final": "o",
+      "gop_score": 100,
+      "tone_pred": 3,
+      "p_neutral": 0.009
+     },
+     {
+      "char": "们",
+      "index": 11,
+      "read_status": "correct",
+      "start_time": 212,
+      "end_time": 218,
+      "asr_pinyin": "men",
+      "asr_tone": 5,
+      "asr_initial": "m",
+      "asr_final": "en",
+      "gop_score": 100,
+      "tone_pred": 0,
+      "p_neutral": 0.987
+     },
+     {
+      "char": "都",
+      "index": 12,
+      "read_status": "correct",
+      "start_time": 226,
+      "end_time": 232,
+      "asr_pinyin": "dou1",
+      "asr_tone": 1,
+      "asr_initial": "d",
+      "asr_final": "ou",
+      "gop_score": 100,
+      "tone_pred": 1,
+      "p_neutral": 0.011
+     },
+     {
+      "char": "是",
+      "index": 13,
+      "read_status": "correct",
+      "start_time": 242,
+      "end_time": 248,
+      "asr_pinyin": "shi4",
+      "asr_tone": 4,
+      "asr_initial": "sh",
+      "asr_final": "i",
+      "gop_score": 100,
+      "tone_pred": 4,
+      "p_neutral": 0.006
+     },
+     {
+      "char": "中",
+      "index": 14,
+      "read_status": "correct",
+      "start_time": 256,
+      "end_time": 262,
+      "asr_pinyin": "zhong1",
+      "asr_tone": 1,
+      "asr_initial": "zh",
+      "asr_final": "ong",
+      "gop_score": 100,
+      "tone_pred": 1,
+      "p_neutral": 0
+     },
+     {
+      "char": "国",
+      "index": 15,
+      "read_status": "correct",
+      "start_time": 274,
+      "end_time": 280,
+      "asr_pinyin": "guo2",
+      "asr_tone": 2,
+      "asr_initial": "g",
+      "asr_final": "uo",
+      "gop_score": 100,
+      "tone_pred": 2,
+      "p_neutral": 0.033
+     },
+     {
+      "char": "人",
+      "index": 16,
+      "read_status": "correct",
+      "start_time": 290,
+      "end_time": 298,
+      "asr_pinyin": "ren2",
+      "asr_tone": 2,
+      "asr_initial": "r",
+      "asr_final": "en",
+      "gop_score": 100,
+      "tone_pred": 2,
+      "p_neutral": 0.003
+     },
+     {
+      "char": "中",
+      "index": 17,
+      "read_status": "correct",
+      "start_time": 332,
+      "end_time": 338,
+      "asr_pinyin": "zhong1",
+      "asr_tone": 1,
+      "asr_initial": "zh",
+      "asr_final": "ong",
+      "gop_score": 100,
+      "tone_pred": 1,
+      "p_neutral": 0.006
+     },
+     {
+      "char": "华",
+      "index": 18,
+      "read_status": "correct",
+      "start_time": 348,
+      "end_time": 354,
+      "asr_pinyin": "hua2",
+      "asr_tone": 2,
+      "asr_initial": "h",
+      "asr_final": "ua",
+      "gop_score": 100,
+      "tone_pred": 1,
+      "p_neutral": 0.002
+     },
+     {
+      "char": "民",
+      "index": 19,
+      "read_status": "correct",
+      "start_time": 366,
+      "end_time": 370,
+      "asr_pinyin": "min2",
+      "asr_tone": 2,
+      "asr_initial": "m",
+      "asr_final": "in",
+      "gop_score": 100,
+      "tone_pred": 2,
+      "p_neutral": 0.005
+     },
+     {
+      "char": "族",
+      "index": 20,
+      "read_status": "correct",
+      "start_time": 386,
+      "end_time": 392,
+      "asr_pinyin": "zu2",
+      "asr_tone": 2,
+      "asr_initial": "z",
+      "asr_final": "u",
+      "gop_score": 100,
+      "tone_pred": 2,
+      "p_neutral": 0.006
+     },
+     {
+      "char": "是",
+      "index": 21,
+      "read_status": "correct",
+      "start_time": 406,
+      "end_time": 412,
+      "asr_pinyin": "shi4",
+      "asr_tone": 4,
+      "asr_initial": "sh",
+      "asr_final": "i",
+      "gop_score": 100,
+      "tone_pred": 4,
+      "p_neutral": 0.015
+     },
+     {
+      "char": "一",
+      "index": 22,
+      "read_status": "correct",
+      "start_time": 418,
+      "end_time": 426,
+      "asr_pinyin": "yi1",
+      "asr_tone": 1,
+      "asr_initial": "y",
+      "asr_final": "i",
+      "gop_score": 100,
+      "tone_pred": 4,
+      "p_neutral": 0.001
+     },
+     {
+      "char": "家",
+      "index": 23,
+      "read_status": "correct",
+      "start_time": 434,
+      "end_time": 440,
+      "asr_pinyin": "jia1",
+      "asr_tone": 1,
+      "asr_initial": "j",
+      "asr_final": "ia",
+      "gop_score": 100,
+      "tone_pred": 1,
+      "p_neutral": 0.001
+     },
+     {
+      "char": "人",
+      "index": 24,
+      "read_status": "correct",
+      "start_time": 454,
+      "end_time": 462,
+      "asr_pinyin": "ren2",
+      "asr_tone": 2,
+      "asr_initial": "r",
+      "asr_final": "en",
+      "gop_score": 100,
+      "tone_pred": 2,
+      "p_neutral": 0.009
+     }
+    ]
+   },
+   "warnings": []
+  }
+ }
+]

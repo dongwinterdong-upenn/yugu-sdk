@@ -80,6 +80,11 @@ public struct EvaluateConfig: Equatable {
     public var taskType: String?
     /// `passage`: 1 returns per-word scores.
     public var paragraphNeedWordScore: Int?
+    /// Streaming only: reading progress while the audio arrives (CONTRACT 5.5). When true the
+    /// start frame of `streamEvaluate` carries `"realtimeFeedback": true` and `onPartial` reports
+    /// which units of the reference text have been read. Progress needs 16 kHz 16-bit mono PCM.
+    /// Default false, the start frame then stays as in 2.0.0. Not part of the REST `config` part.
+    public var realtimeFeedback: Bool
     /// Further fields, written after the known ones in key order.
     public var extra: [String: JSONValue]
 
@@ -99,6 +104,7 @@ public struct EvaluateConfig: Equatable {
         phonemeOutput: Bool? = nil,
         taskType: String? = nil,
         paragraphNeedWordScore: Int? = nil,
+        realtimeFeedback: Bool = false,
         extra: [String: JSONValue] = [:]
     ) {
         self.coreType = coreType
@@ -116,10 +122,12 @@ public struct EvaluateConfig: Equatable {
         self.phonemeOutput = phonemeOutput
         self.taskType = taskType
         self.paragraphNeedWordScore = paragraphNeedWordScore
+        self.realtimeFeedback = realtimeFeedback
         self.extra = extra
     }
 
-    /// Members in the fixed order of the SDK.
+    /// Members of the REST `config` part in the fixed order of the SDK. `realtimeFeedback` is
+    /// added by the WebSocket start frame only.
     func jsonObject() -> JSONObjectBuilder {
         var b = JSONObjectBuilder()
         b.set("coreType", coreType.rawValue)
@@ -165,7 +173,9 @@ public struct CompatParams: Equatable {
     public var language: String?
     /// Required for `pinyin`.
     public var refPinyin: String?
-    /// WebSocket only: ask for progress frames `{"eof":0,"result":{"bytes":n}}`.
+    /// WebSocket only: ask for progress frames, sent as `"realtime_feedback": true`. The frames
+    /// carry the bytes received and, when the platform tracks the round, the reading progress of
+    /// the reference text (CONTRACT 5.5).
     public var realtimeFeedback: Bool
     /// Further form fields or parameter frame members, sent as text in key order.
     public var extraFields: [String: String]

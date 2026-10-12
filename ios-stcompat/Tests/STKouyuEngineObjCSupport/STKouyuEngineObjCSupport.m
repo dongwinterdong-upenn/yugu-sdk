@@ -73,9 +73,10 @@ NSString *YGSTCheckConstantsAndLog(void) {
     EXPECT([KY_CloudServer_Gray isEqualToString:@"ws://gray.stkouyu.com:8090"], @"KY_CloudServer_Gray");
     EXPECT(KYLOG_ERROR == 0 && KYLOG_WARN == 1 && KYLOG_INFO == 2 && KYLOG_DEBUG == 3, @"KYLOG values");
     EXPECT([KYEngineCloud isEqualToString:@"cloud"] && [KYEngineNative isEqualToString:@"native"], @"engine names");
-    EXPECT(STKouyuEngineVersionNumber == 2.0, @"version number");
+    EXPECT(STKouyuEngineVersionNumber == 2.1, @"version number");
     EXPECT(strstr((const char *)STKouyuEngineVersionString, "STKouyuEngine") != NULL, @"version string");
-    EXPECT([YuguCompat.sdkVersion isEqualToString:@"2.0.0"], @"YuguCompat.sdkVersion");
+    EXPECT([YuguCompat.sdkVersion isEqualToString:@"2.1.0"], @"YuguCompat.sdkVersion");
+    EXPECT([YuguCompat.userAgent isEqualToString:@"yugu-ios-stcompat-sdk/2.1.0"], @"YuguCompat.userAgent");
     EXPECT(KY_CloudEngine == 0 && KY_MultiEngine == 2 && KYTestType_Wordspell == 22, @"enum values");
     KYLog(KYLOG_INFO, @"KYLog from the Objective-C checks %d", 1);
     return nil;
@@ -128,6 +129,369 @@ NSString *YGSTCheckSkegnLocalError(NSTimeInterval timeout) {
     EXPECT(skegn_start(NULL, "{}", token, YGSTSupportCallback, box) == -1, @"start with a NULL engine");
     EXPECT(skegn_get_last_error() == 31, @"SGN_ENGINE_IS_NULL");
     free(box);
+    return nil;
+}
+
+// ------------------------------------------------------------------ realtime_feedback (2.1.0)
+
+#if TARGET_OS_IPHONE
+#import <UIKit/UIKit.h>
+
+// The example of README.md 朗读进度, word for word. Never called: the iOS builds compile it so that
+// the example keeps compiling against the package.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+
+/// 按 result.progress 给参考文本着色：已读且对上为绿色，已读未对上为橙色，未读为灰色
+static NSAttributedString *ColoredRefText(NSString *refText, NSArray<NSDictionary *> *progress) {
+    NSMutableAttributedString *text = [[NSMutableAttributedString alloc]
+        initWithString:refText attributes:@{NSForegroundColorAttributeName : UIColor.grayColor}];
+    NSUInteger from = 0;
+    for (NSDictionary *unit in progress) {
+        NSRange r = [refText rangeOfString:unit[@"word"] options:0 range:NSMakeRange(from, refText.length - from)];
+        if (r.location == NSNotFound) break;
+        from = NSMaxRange(r);
+        if (![unit[@"read"] boolValue]) continue;
+        [text addAttribute:NSForegroundColorAttributeName
+                     value:[unit[@"matched"] boolValue] ? UIColor.greenColor : UIColor.orangeColor
+                     range:r];
+    }
+    return text;
+}
+
+static void StartReadingWithProgress(UILabel *label) {
+    KYTestConfig *test = [[KYTestConfig alloc] init];
+    test.coreType = KYTestType_Sentence_Cn;
+    test.refText = @"我是中国人，我是中国人。我们都是中国人。中华民族是一家人。";
+    test.realtime_feedback = YES;
+    label.attributedText = ColoredRefText(test.refText, @[]);
+    [[KYTestEngine sharedInstance] startEngineWithTestConfig:test
+        result:^(NSString *testResult) {
+            NSData *data = [testResult dataUsingEncoding:NSUTF8StringEncoding];
+            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+            if ([json[@"eof"] integerValue] == 0) {
+                label.attributedText = ColoredRefText(test.refText, json[@"result"][@"progress"]);
+            } else if (json[@"errId"]) {
+                NSLog(@"errId %@ %@", json[@"errId"], json[@"error"]);
+            } else {
+                NSLog(@"overall %@", json[@"result"][@"overall"]);
+            }
+        }
+        finishBlock:nil];
+}
+
+#pragma clang diagnostic pop
+#endif
+
+static NSString *const kYGSTCustomerText = @"我是中国人，我是中国人。我们都是中国人。中华民族是一家人。";
+static NSString *const kYGSTCustomerUnits = @"我是中国人我是中国人我们都是中国人中华民族是一家人";
+
+/// A control call of the mock platform (reset, faults, log, billing); the parsed JSON answer.
+static id YGSTMockCall(NSString *base, NSString *method, NSString *path, id body, NSTimeInterval timeout) {
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[base stringByAppendingString:path]]
+                                                       cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                   timeoutInterval:timeout];
+    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+    __block NSData *answer = nil;
+    req.HTTPMethod = method;
+    if (body) {
+        req.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:NULL];
+        [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    }
+    [[[NSURLSession sharedSession] dataTaskWithRequest:req
+                                     completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                                         (void)response;
+                                         (void)error;
+                                         answer = data;
+                                         dispatch_semaphore_signal(sem);
+                                     }] resume];
+    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC)));
+    return answer ? [NSJSONSerialization JSONObjectWithData:answer options:0 error:NULL] : nil;
+}
+
+/// The PCM of a WAV fixture: the bytes of its data chunk.
+static NSData *YGSTFixturePCM(NSString *specDir, NSString *name) {
+    NSString *path = [[specDir stringByAppendingPathComponent:@"fixtures/audio"] stringByAppendingPathComponent:name];
+    NSData *wav = [NSData dataWithContentsOfFile:path];
+    const unsigned char *b = wav.bytes;
+    NSUInteger pos = 12;
+    while (wav && pos + 8 <= wav.length) {
+        uint32_t size = (uint32_t)b[pos + 4] | (uint32_t)b[pos + 5] << 8 | (uint32_t)b[pos + 6] << 16 |
+                        (uint32_t)b[pos + 7] << 24;
+        if (memcmp(b + pos, "data", 4) == 0) {
+            return [wav subdataWithRange:NSMakeRange(pos + 8, MIN((NSUInteger)size, wav.length - pos - 8))];
+        }
+        pos += 8 + size + (size & 1);
+    }
+    return nil;
+}
+
+static KYTestEngine *YGSTMockEngine(NSString *baseURL, NSTimeInterval timeout) {
+    KYTestEngine *engine = [[KYTestEngine alloc] init];
+    KYStartEngineConfig *cfg = [[KYStartEngineConfig alloc] init];
+    __block BOOL done = NO;
+    __block BOOL ok = NO;
+    cfg.appKey = @"mock-app-key";
+    cfg.secretKey = @"mock-secret-key";
+    cfg.server = baseURL;
+    [engine initEngine:KY_CloudEngine
+        startEngineConfig:cfg
+              finishBlock:^(BOOL isSuccess, NSString *str) {
+                  (void)str;
+                  ok = isSuccess;
+                  done = YES;
+              }];
+    YGSTSpin(^BOOL {
+        return done;
+    },
+             timeout);
+    return ok ? engine : nil;
+}
+
+/// What one realtime round delivered through the result block and the delegate.
+@interface YGSTRealtimeRun : NSObject
+@property (nonatomic, copy) NSString *tokenId;
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *results;   // result block, parsed, in order
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *progress;  // the eof 0 ones
+@property (nonatomic, strong) NSDictionary *finalResult;                // the eof 1 one
+@property (nonatomic, copy) NSString *words;                            // every delivered word, joined
+@property (nonatomic, strong) NSArray<NSDictionary *> *items;           // every delivered words item
+@property (nonatomic) NSUInteger delegateScores;
+@property (nonatomic, strong) NSArray *log;
+@property (nonatomic, strong) NSDictionary *billing;
+@end
+
+@implementation YGSTRealtimeRun
+@end
+
+/// A stream session with realtime_feedback over the mock: zh_progress.wav fed in steps of 6400 bytes,
+/// fault queued for the first WebSocket handshake, stopEngine half a second after the last step,
+/// cancelEngine instead after 32000 bytes when cancel is YES.
+static YGSTRealtimeRun *YGSTRunRealtime(NSString *base, NSString *specDir, NSString *fault, BOOL cancel,
+                                        NSTimeInterval timeout, NSString **failure) {
+    YGSTRealtimeRun *run = [[YGSTRealtimeRun alloc] init];
+    YGSTSupportDelegate *d = [[YGSTSupportDelegate alloc] init];
+    NSData *pcm = YGSTFixturePCM(specDir, @"zh_progress.wav");
+    KYTestConfig *test = [[KYTestConfig alloc] init];
+    KYTestEngine *engine;
+    NSMutableArray<NSDictionary *> *results = [NSMutableArray array];
+    NSMutableArray<NSDictionary *> *progress = [NSMutableArray array];
+    NSMutableArray<NSDictionary *> *items = [NSMutableArray array];
+    NSMutableString *words = [NSMutableString string];
+    __block NSDictionary *finalResult = nil;
+    NSUInteger off;
+    if (pcm.length < 64000) {
+        *failure = @"fixture zh_progress.wav";
+        return nil;
+    }
+    YGSTMockCall(base, @"POST", @"/__mock/reset", nil, timeout);
+    if (fault) {
+        YGSTMockCall(base, @"POST", @"/__mock/faults", @{@"faults" : @[ @{@"match" : @"/sent.eval.cn", @"fault" : fault} ]},
+                     timeout);
+    }
+    engine = YGSTMockEngine(base, timeout);
+    if (!engine) {
+        *failure = @"initEngine";
+        return nil;
+    }
+    engine.delegate = d;
+    test.coreTypeNS = @"sent.eval.cn";
+    test.refText = kYGSTCustomerText;
+    test.isStream = YES;
+    test.realtime_feedback = YES;
+    run.tokenId = [engine startEngineWithTestConfig:test
+                                             result:^(NSString *testResult) {
+                                                 NSDictionary *j = YGSTParse(testResult.UTF8String);
+                                                 [results addObject:j];
+                                                 if ([j[@"eof"] integerValue] == 0) {
+                                                     [progress addObject:j];
+                                                     for (NSDictionary *w in j[@"result"][@"words"]) {
+                                                         [items addObject:w];
+                                                         [words appendString:w[@"word"] ?: @"?"];
+                                                     }
+                                                 } else {
+                                                     finalResult = j;
+                                                 }
+                                             }
+                                        finishBlock:^(BOOL isSuccess, NSString *str) {
+                                            (void)isSuccess;
+                                            (void)str;
+                                        }];
+    for (off = 0; off < pcm.length; off += 6400) {
+        NSUInteger n = MIN((NSUInteger)6400, pcm.length - off);
+        [engine feedAudioData:(void *)((const unsigned char *)pcm.bytes + off) audioLength:(int)n];
+        YGSTSpin(^BOOL {
+            return NO;
+        },
+                 0.02);
+        if (cancel && off >= 32000) break;
+    }
+    if (cancel) {
+        [engine cancelEngine];
+        YGSTSpin(^BOOL {
+            return NO;
+        },
+                 1.0);
+    } else {
+        YGSTSpin(^BOOL {
+            return NO;
+        },
+                 0.5);
+        [engine stopEngine];
+        YGSTSpin(^BOOL {
+            return finalResult != nil;
+        },
+                 timeout);
+    }
+    YGSTSpin(^BOOL {
+        return NO;
+    },
+             0.2); // callbacks queued on the main queue behind the final
+    run.results = results;
+    run.progress = progress;
+    run.finalResult = finalResult;
+    run.words = words;
+    run.items = items;
+    run.delegateScores = d.scores.count;
+    run.log = YGSTMockCall(base, @"GET", @"/__mock/log", nil, timeout);
+    run.billing = YGSTMockCall(base, @"GET", @"/__mock/billing", nil, timeout);
+    [engine deleteEngine];
+    return run;
+}
+
+/// Checks every eof 0 JSON (envelope keys, recordId "", words) and that the words of all of them are
+/// the units read, in order, each once.
+static NSString *YGSTCheckProgressOf(YGSTRealtimeRun *run) {
+    NSArray *keys = @[ @"tokenId", @"recordId", @"applicationId", @"userId", @"refText", @"eof", @"dtLastResponse", @"result" ];
+    for (NSDictionary *p in run.progress) {
+        NSArray *words = p[@"result"][@"words"];
+        EXPECT(p.count == keys.count, @"eof 0 envelope members");
+        for (NSString *k in keys) EXPECT(p[k] != nil, k);
+        EXPECT([p[@"recordId"] isEqualToString:@""], @"recordId \"\"");
+        EXPECT([p[@"tokenId"] isEqualToString:run.tokenId], @"tokenId");
+        EXPECT([p[@"applicationId"] isEqualToString:@"mock-app-key"], @"applicationId");
+        EXPECT([p[@"refText"] isEqualToString:kYGSTCustomerText], @"refText");
+        EXPECT([words isKindOfClass:[NSArray class]] && words.count > 0, @"an eof 0 callback carries words");
+        EXPECT(p[@"result"][@"progress"] != nil && p[@"result"][@"readUnits"] != nil, @"result passed through");
+    }
+    EXPECT([kYGSTCustomerUnits hasPrefix:run.words], run.words);
+    return nil;
+}
+
+static NSString *YGSTCheckFinalOf(YGSTRealtimeRun *run) {
+    EXPECT(run.finalResult != nil, @"final result");
+    EXPECT([run.finalResult[@"eof"] integerValue] == 1 && run.finalResult[@"errId"] == nil, [run.finalResult description]);
+    EXPECT([run.finalResult[@"tokenId"] isEqualToString:run.tokenId], @"final tokenId");
+    EXPECT([run.finalResult[@"recordId"] hasPrefix:@"eval_"], @"final recordId");
+    EXPECT(run.finalResult[@"result"][@"overall"] != nil, @"final result.overall");
+    EXPECT(run.results.lastObject == run.finalResult, @"the final is the last callback");
+    EXPECT(run.delegateScores == run.results.count, @"kyTestEngineDidScore: gets the same JSON");
+    EXPECT([run.billing[@"billed"] integerValue] == 1, @"billed once");
+    return nil;
+}
+
+/// The mock log as (method, idempotencyKey, rejected) lines.
+static NSString *YGSTLogLine(NSArray *log) {
+    NSMutableString *s = [NSMutableString string];
+    for (NSDictionary *e in log) {
+        [s appendString:[NSString stringWithFormat:@"%@ %@ %@;", e[@"method"], e[@"idempotencyKey"], e[@"rejected"] ?: @"-"]];
+    }
+    return s;
+}
+
+NSString *YGSTCheckRealtimeProgress(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run = YGSTRunRealtime(baseURL, specDir, nil, NO, timeout, &failure);
+    NSString *why;
+    NSString *want;
+    if (!run) return failure;
+    if ((why = YGSTCheckProgressOf(run))) return why;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    EXPECT(run.progress.count >= 3, @"progress while reading");
+    EXPECT(run.words.length == 19, run.words); // one unit per 8000 bytes of the mock, one more after end
+    want = [NSString stringWithFormat:@"WS %@ -;", run.tokenId];
+    EXPECT([YGSTLogLine(run.log) isEqualToString:want], YGSTLogLine(run.log));
+    EXPECT([run.billing[@"records"][0][@"op"] isEqualToString:@"ws-compat"], @"evaluated over the WebSocket");
+    return nil;
+}
+
+NSString *YGSTCheckRealtimeRefusedFallsBack(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run = YGSTRunRealtime(baseURL, specDir, @"ws-refuse", NO, timeout, &failure);
+    NSString *why;
+    NSString *want;
+    if (!run) return failure;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    EXPECT(run.progress.count == 0, @"no progress without the WebSocket");
+    want = [NSString stringWithFormat:@"WS %@ 503;POST %@ -;", run.tokenId, run.tokenId];
+    EXPECT([YGSTLogLine(run.log) isEqualToString:want], YGSTLogLine(run.log));
+    EXPECT([run.billing[@"records"][0][@"op"] isEqualToString:@"compat"], @"evaluated over REST");
+    return nil;
+}
+
+NSString *YGSTCheckRealtimeKilledFallsBack(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run = YGSTRunRealtime(baseURL, specDir, @"ws-kill-after:3", NO, timeout, &failure);
+    NSString *why;
+    NSString *want;
+    if (!run) return failure;
+    if ((why = YGSTCheckProgressOf(run))) return why;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    want = [NSString stringWithFormat:@"WS %@ -;POST %@ -;", run.tokenId, run.tokenId];
+    EXPECT([YGSTLogLine(run.log) isEqualToString:want], YGSTLogLine(run.log));
+    EXPECT([run.billing[@"records"][0][@"op"] isEqualToString:@"compat"], @"evaluated over REST at stop");
+    return nil;
+}
+
+NSString *YGSTCheckRealtimeReconnectAfterEnd(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run = YGSTRunRealtime(baseURL, specDir, @"ws-error:50200", NO, timeout, &failure);
+    NSString *why;
+    NSString *want;
+    if (!run) return failure;
+    if ((why = YGSTCheckProgressOf(run))) return why;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    EXPECT(run.words.length == 19, run.words); // the replay delivered no unit twice
+    want = [NSString stringWithFormat:@"WS %@ -;WS %@ -;", run.tokenId, run.tokenId];
+    EXPECT([YGSTLogLine(run.log) isEqualToString:want], YGSTLogLine(run.log));
+    EXPECT([run.billing[@"records"][0][@"op"] isEqualToString:@"ws-compat"], @"evaluated over the WebSocket");
+    return nil;
+}
+
+NSString *YGSTCheckRealtimeProgressMismatch(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run = YGSTRunRealtime(baseURL, specDir, @"progress-mismatch:7", NO, timeout, &failure);
+    NSString *why;
+    NSUInteger i;
+    if (!run) return failure;
+    if ((why = YGSTCheckProgressOf(run))) return why;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    EXPECT(run.items.count > 8, @"unit 7 was read");
+    for (i = 0; i < run.items.count; i++) {
+        NSDictionary *scores = run.items[i][@"scores"];
+        EXPECT([scores[@"skipped"] integerValue] == (i == 7 ? 1 : 0), [run.items[i] description]);
+        EXPECT([scores[@"overall"] integerValue] == (i == 7 ? 0 : 100), [run.items[i] description]);
+    }
+    return nil;
+}
+
+NSString *YGSTCheckRealtimeProgressOff(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run = YGSTRunRealtime(baseURL, specDir, @"progress-off", NO, timeout, &failure);
+    NSString *why;
+    if (!run) return failure;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    EXPECT(run.progress.count == 0, @"bytes-only progress frames are not delivered");
+    EXPECT(run.results.count == 1, @"only the final");
+    return nil;
+}
+
+NSString *YGSTCheckRealtimeCancel(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run = YGSTRunRealtime(baseURL, specDir, nil, YES, timeout, &failure);
+    if (!run) return failure;
+    EXPECT(run.finalResult == nil, @"no result after cancelEngine");
+    EXPECT([run.billing[@"billed"] integerValue] == 0, @"the platform evaluated nothing: no end was sent");
     return nil;
 }
 

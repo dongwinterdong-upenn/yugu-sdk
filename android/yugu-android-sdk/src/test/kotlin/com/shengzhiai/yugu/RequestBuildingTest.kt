@@ -16,6 +16,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.File
+import kotlin.jvm.internal.DefaultConstructorMarker
 
 /** Multipart assembly, part Content-Types, signing rules per call (DESIGN 5.2). */
 class RequestBuildingTest {
@@ -94,7 +95,7 @@ class RequestBuildingTest {
         assertEquals("POST", req.method)
         assertEquals("/api/v1/evaluate", req.path)
         assertEquals(YuguVersion.USER_AGENT, req.getHeader("User-Agent"))
-        assertEquals("yugu-android-sdk/2.0.0", req.getHeader("User-Agent"))
+        assertEquals("yugu-android-sdk/2.1.0", req.getHeader("User-Agent"))
         assertEquals("mock-app-key", req.getHeader("X-App-Key"))
         val ts = req.getHeader("X-Timestamp")!!.toLong()
         assertTrue(Math.abs(System.currentTimeMillis() / 1000 - ts) < 5)
@@ -118,6 +119,70 @@ class RequestBuildingTest {
         assertEquals(config.toJson(), cfg.text)
         // signed set is exactly {config: exact part text}
         assertEquals(Signer.sign(mapOf("config" to cfg.text), "mock-secret-key"), req.getHeader("X-Signature"))
+    }
+
+    @Test
+    fun realtimeFeedbackGoesOnlyIntoTheNativeStartFrame() {
+        val plain = EvaluateConfig(CoreType.SENTENCE, "今天天气很好", Language.ZH_CN)
+        val live = plain.copy(realtimeFeedback = true)
+        assertFalse(plain.realtimeFeedback)
+        assertEquals(live, EvaluateConfig.builder(CoreType.SENTENCE, "今天天气很好").language(Language.ZH_CN).realtimeFeedback(true).build())
+        assertEquals(plain, EvaluateConfig.builder(CoreType.SENTENCE, "今天天气很好").language(Language.ZH_CN).build())
+        // start frame: the 2.0.0 text by default, the key only when enabled
+        val base = "{\"cmd\":\"start\",\"coreType\":\"sentence\",\"referenceText\":\"今天天气很好\",\"language\":\"zh-CN\""
+        assertEquals("$base}", Json.write(plain.startFrame()))
+        assertEquals("$base,\"realtimeFeedback\":true}", Json.write(live.startFrame()))
+        // the REST config part and its signature never carry it
+        val rest = "{\"coreType\":\"sentence\",\"referenceText\":\"今天天气很好\",\"language\":\"zh-CN\"}"
+        assertEquals(rest, plain.toJson())
+        assertEquals(rest, live.toJson())
+        server.enqueue(MockResponse().setBody(okBody))
+        client().use { it.evaluate(live, wav) }
+        val req = server.takeRequest()
+        val cfg = parts(req).single { it.name == "config" }
+        assertEquals(rest, cfg.text)
+        assertEquals(Signer.sign(mapOf("config" to rest), "mock-secret-key"), req.getHeader("X-Signature"))
+        // compat keeps its own spelling in the parameter frame and never in the REST form
+        val compat = CompatConfig(CompatCoreType.SENT_EVAL_CN, "今天天气很好", realtimeFeedback = true)
+        assertEquals(true, compat.paramFrame()["realtime_feedback"])
+        assertFalse(compat.formFields().containsKey("realtime_feedback"))
+    }
+
+    @Test
+    fun evaluateConfigKeepsEvery200Signature() {
+        val c = EvaluateConfig::class.java
+        val params = listOf(
+            String::class.java, String::class.java, String::class.java, Boolean::class.javaObjectType, Boolean::class.javaObjectType,
+            Boolean::class.javaObjectType, Double::class.javaObjectType, Int::class.javaObjectType, Double::class.javaObjectType,
+            Int::class.javaObjectType, Double::class.javaObjectType, String::class.java, Boolean::class.javaObjectType, String::class.java,
+            Int::class.javaObjectType, Map::class.java,
+        )
+        // Java callers: every @JvmOverloads constructor of 2.0.0 still exists, realtimeFeedback adds a 17-argument one
+        for (n in 2..params.size) c.getConstructor(*params.take(n).toTypedArray())
+        val all = c.getConstructor(*(params + Boolean::class.javaPrimitiveType!!).toTypedArray())
+        val nulls = arrayOfNulls<Any?>(13)
+        assertEquals(EvaluateConfig(CoreType.WORD, "apple", realtimeFeedback = true), all.newInstance(CoreType.WORD, "apple", *nulls, emptyMap<String, Any?>(), true))
+        val three = c.getConstructor(String::class.java, String::class.java, String::class.java)
+        assertFalse((three.newInstance(CoreType.WORD, "apple", Language.EN_US) as EvaluateConfig).realtimeFeedback)
+
+        // Kotlin callers compiled against 2.0.0 link to the default-argument constructor and to copy and copy$default
+        // with the 2.0.0 parameter lists; the hidden members keep them, synthetic so sources cannot see them
+        val defaultsCtor = c.getConstructor(*(params + Int::class.javaPrimitiveType!! + DefaultConstructorMarker::class.java).toTypedArray())
+        assertTrue(defaultsCtor.isSynthetic)
+        val everyOptionalDefaulted = (2..15).fold(0) { m, i -> m or (1 shl i) }
+        assertEquals(EvaluateConfig(CoreType.WORD, "apple"), defaultsCtor.newInstance(CoreType.WORD, "apple", *nulls, null, everyOptionalDefaulted, null))
+        assertEquals(
+            EvaluateConfig(CoreType.WORD, "apple", Language.EN_US, extra = mapOf("k" to 1)),
+            defaultsCtor.newInstance(CoreType.WORD, "apple", Language.EN_US, *arrayOfNulls<Any?>(12), mapOf("k" to 1), everyOptionalDefaulted and (1 shl 2).inv() and (1 shl 15).inv(), null),
+        )
+        val live = EvaluateConfig(CoreType.SENTENCE, "今天天气很好", Language.ZH_CN, realtimeFeedback = true)
+        val copy = c.getMethod("copy", *params.toTypedArray())
+        assertTrue(copy.isSynthetic)
+        assertEquals(live.copy(coreType = CoreType.WORD), copy.invoke(live, CoreType.WORD, "今天天气很好", Language.ZH_CN, *arrayOfNulls<Any?>(12), emptyMap<String, Any?>()))
+        val copyDefault = c.getMethod("copy\$default", c, *params.toTypedArray(), Int::class.javaPrimitiveType, Any::class.java)
+        // only language given, everything else defaulted: realtimeFeedback is kept
+        val onlyLanguage = (0..15).fold(0) { m, i -> if (i == 2) m else m or (1 shl i) }
+        assertEquals(live.copy(language = Language.EN_US), copyDefault.invoke(null, live, null, null, Language.EN_US, *arrayOfNulls<Any?>(13), onlyLanguage, null))
     }
 
     @Test

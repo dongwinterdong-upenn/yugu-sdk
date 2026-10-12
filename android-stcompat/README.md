@@ -1,6 +1,6 @@
 # 声通安卓平替接入说明
 
-`com.shengzhiai.yugu:stkouyu-compat:2.0.0` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
+`com.shengzhiai.yugu:stkouyu-compat:2.1.0` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
 
 各端平替层的概览与切换步骤见仓库根目录 [SHENGTONG-MIGRATION.md](../SHENGTONG-MIGRATION.md)，版本兼容矩阵见 [COMPATIBILITY.md](../COMPATIBILITY.md)。
 
@@ -9,10 +9,10 @@
 | 项目 | 说明 |
 |---|---|
 | 对应的声通版本 | `17kouyu_1.0.0.jar`，`Build.VERSION` 为 `1.0.62` |
-| 平替层版本 | `2.0.0`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.0.0 (api 1.0.62)` |
+| 平替层版本 | `2.1.0`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.1.0 (api 1.0.62)` |
 | 系统要求 | Android 5.0 及更高版本，`minSdk 21` |
 | 字节码版本 | Java 8 |
-| 运行时依赖 | 无，网络请求用 `HttpURLConnection`，录音用 `AudioRecord`，JSON 用系统自带的 `org.json` |
+| 运行时依赖 | 无，网络请求用 `HttpURLConnection`，朗读进度用 AAR 内置的 WebSocket 客户端，录音用 `AudioRecord`，JSON 用系统自带的 `org.json` |
 | 评测方式 | 云端评测，离线引擎与双引擎的调用都转到云端 |
 | 许可 | Apache-2.0，见同目录 `LICENSE` 与 `NOTICE` |
 
@@ -56,11 +56,11 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    api 'com.shengzhiai.yugu:stkouyu-compat:2.0.0'
+    api 'com.shengzhiai.yugu:stkouyu-compat:2.1.0'
 }
 ```
 
-不使用远程仓库时，把 `stkouyu-compat-2.0.0.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.0.0.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
+不使用远程仓库时，把 `stkouyu-compat-2.1.0.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.1.0.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
 
 ### 需要删除的文件与配置
 
@@ -164,7 +164,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | `keywords`，`keypoints`，`keypoints_weight`，`negative_keypoints`，`negativeReftext`，`mode`，`qType` | 同名 | 原样传递，评测引擎可能忽略 |
 | `newParams` | 每个 `CustomParam` 对应一个字段 | 键值原样传递，与前面的字段同名时覆盖前者 |
 | `request` | `request` | 原始 JSON 字符串，平台合并其中的标量字段 |
-| `realtime_feedback` | 不发送 | 平台兼容通道没有中间结果 |
+| `realtime_feedback` | 不进表单，设为 1 时改走实时评测通道 | 参数帧带同样的表单字段与 `"realtime_feedback": true`，录音过程中 `onScore` 先收到 `eof` 为 0 的中间结果，见“朗读进度”一节 |
 
 只在本地起作用的字段：`duration`，`durationInterval`，`seek`，`ref_length`，`VADEnabled`，`needSoundIntensity`，`forceRecord`，`muteMusic`，`autoRetry`，`errIds`，`serverTimeout`，`isStream`，`audioPath`，`recordFilePath`，`recordName`，`audioSource`，`audioType`，`sampleRate`，`channel`，`needRequestParamsInResult`。
 
@@ -178,9 +178,9 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 2. `onRecording(vad_status, sound_intensity)`：开启 VAD 或 `needSoundIntensity` 时约每 100 毫秒一次，VAD 状态变化时立即回调。状态 0 为未开始说话，1 为说话中，2 为说话结束，音强取 0 到 100
 3. `onTick(millisUntilFinished, percentUntilFinished)`：设置 `duration` 后每隔 `durationInterval` 毫秒一次，默认 100 毫秒。第二个参数为剩余时长占总时长的百分比，从 100 降到 0
 4. `onRecordEnd`：录音结束，开始评测
-5. `onScore(json)`：结果 JSON 或错误 JSON，每次评测只回调一次
+5. `onScore(json)`：结果 JSON 或错误 JSON，`eof` 为 1，每次评测只回调一次。`realtime_feedback` 设为 1 时另有 `eof` 为 0 的中间结果，都在这一次之前，见“朗读进度”一节
 
-`OnRecordListener` 有 `onRecordStart`，`onRecording` 与 `onRecordEnd(json)` 三个回调，结果 JSON 与错误 JSON 都经 `onRecordEnd(json)` 返回。`setOnRecordBufferListener` 设置的监听器在主线程收到每段录音 PCM 的副本。
+`OnRecordListener` 有 `onRecordStart`，`onRecording` 与 `onRecordEnd(json)` 三个回调，结果 JSON 与错误 JSON 都经 `onRecordEnd(json)` 返回，没有中间结果的回调。`setOnRecordBufferListener` 设置的监听器在主线程收到每段录音 PCM 的副本。
 
 开始阶段的失败按下表回调：
 
@@ -202,6 +202,110 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | `STOP` | 录音结束，等待结果或已返回结果 | `stopRecord`，VAD 判定说话结束，到达 `duration`，录音达到 300 秒，`existsAudioTrans` |
 
 上一次评测的结果返回之前引擎处于忙碌状态，新的 `startRecord` 与 `existsAudioTrans` 会被拒绝。结果回调执行时引擎已经空闲，可以在 `onScore` 中直接开始下一题。开启 VAD 时，说话结束后静音达到 `seek` 乘以 10 毫秒，默认 600 毫秒，录音自动停止。`forceRecord` 为 true 时 VAD 只报告状态，不停止录音。
+
+### 朗读进度
+
+`RecordSetting.setRealtime_feedback(1)` 时，录音开始后平替层经平台的兼容实时评测通道边录边传，学生朗读过程中 `OnRecorderListener.onScore` 收到 `eof` 为 0 的中间结果，给出已经读到参考文本的哪个位置。停止录音后照常回调一次 `eof` 为 1 的最终结果，内容与整段上传时相同。中间结果的结构沿用声通 `realtime_feedback`，`result.words` 为这一次新读到的字或词：
+
+```json
+{
+  "tokenId": "3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c",
+  "recordId": "",
+  "applicationId": "your-app-key",
+  "userId": "user-1",
+  "refText": "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。",
+  "eof": 0,
+  "dtLastResponse": "2026-10-12 08:00:02:516",
+  "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [
+      {
+        "charType": 0,
+        "scores": { "pronunciation": 100, "skipped": 0, "tone": 100, "overall": 100, "overall_pron": 100 },
+        "word": "中",
+        "word_parts": [ { "beginIndex": 0, "charType": 0, "endIndex": 0, "part": "中" } ]
+      }
+    ],
+    "bytes": 64000,
+    "readUnits": 3,
+    "matchedUnits": 3,
+    "totalUnits": 25,
+    "progress": [
+      { "word": "我", "read": true, "matched": true },
+      { "word": "是", "read": true, "matched": true },
+      { "word": "中", "read": true, "matched": true },
+      { "word": "国", "read": false, "matched": false }
+    ]
+  }
+}
+```
+
+示例中的 `progress` 只列出前 4 项，实际列出参考文本的全部 25 个字。
+
+| 字段 | 说明 |
+|---|---|
+| `eof` | 0 表示中间结果 |
+| `recordId` | 空串，评测记录编号在最终结果中给出 |
+| `result.words` | 这一次新读到的字或词，按参考文本顺序，每项结构同最终结果的 `words`。各项分数只表示识别结果与参考文本是否一致：一致时为 100，`skipped` 为 0，不一致时为 0，`skipped` 为 1，英文的 `tone` 为 0。回调之后不再更新，发音与声调的得分以最终结果为准 |
+| `result.progress` | 参考文本全部单位的朗读状态，中文按字，英文按词，标点与空白不计。`read` 为 true 表示朗读位置已越过这个单位，`matched` 为 true 表示识别结果与这个单位一致。`read` 为 true 而 `matched` 为 false 可能是读错，漏读或识别误差，以最终结果为准 |
+| `result.readUnits` | 已读的单位数，即当前朗读位置 |
+| `result.matchedUnits`，`result.totalUnits` | 已对上的单位数与单位总数 |
+| `result.bytes` | 平台已收到的音频字节数 |
+| `result.kernel_version`，`result.resource_version` | 与最终结果相同 |
+
+- 只在有新读到的字或词时回调，`words` 不会为空，把各次的 `words` 依次拼起来就是已读的部分。界面跟随朗读位置时，可以累加 `words` 的个数，也可以直接取 `readUnits`。
+- 进度一般比朗读晚 1 到 2 秒，随网络情况变化。停止录音后平台对句末再识别一次，最后几个字的中间结果在 `onRecordEnd` 之后，最终结果之前到达。最终结果之后不再有中间结果。
+- 中间结果只回调给 `OnRecorderListener.onScore`，`OnRecordListener` 只收到 `onRecordEnd(json)` 的最终结果。
+- 录音与 `setIsStream(true)` 的外部音频都支持，音频须为 16000 Hz 单声道 16 位 PCM，平替层的录音符合这一要求。`existsAudioTrans` 照常整段上传，没有中间结果。参考文本为空或平台当时无法跟踪进度时没有中间结果，最终结果不受影响。
+- 网络：录音开始时连接同一平台地址的实时评测通道，`https://open.shengzhiai.com` 对应 `wss://open.shengzhiai.com/{coreType}`，端口 443，设备所在网络需要放行 WebSocket。握手与 REST 请求使用同一对 appKey 与 secretKey 签名。
+- 退回整段上传：通道在结束帧发出之前连不上或断开时，平替层关闭通道，记录一条 WARN 日志，停止录音后照常经兼容接口上传整段录音，`tokenId` 不变，之后没有新的中间结果。平台在评测开始时才登记幂等键，退回上传不会重复评测，也不会重复计费。
+- 断线重连：结束帧发出之后断开时，平替层用同一个 `tokenId` 重新连接，重发参数帧，全部音频与结束帧，最多 2 次。平台对同一个 `tokenId` 重放首次结果，只计费一次。重连后平台从第一个字重新计算进度，已经回调过的字不再回调。仍然失败时回调 errId 为 20009 的错误 JSON，开启 `autoRetry` 时在实时评测通道上重新提交。
+- `cancel()` 与 `cancle()` 立即关闭通道，之后没有回调，平台不评测，`recycle()` 同样关闭通道。
+- `SkEgn`：`request` 带 `"realtime_feedback": 1`，`audio` 为 16000 Hz 单声道 16 位的 wav 或 pcm 时同样边写边传，中间结果经 `skegn_callback` 回调，结构相同。
+
+### 朗读进度示例
+
+按 `result.progress` 给参考文本着色，未读为灰色，已读已对上为绿色，已读未对上为红色。中文参考文本中的字与 `progress` 逐一对应，标点不在 `progress` 中：
+
+```java
+RecordSetting rs = new RecordSetting(CoreType.CN_SENT_EVAL, refText);
+rs.setRealtime_feedback(1);
+manager.startRecord(rs, new OnRecorderListener() {
+    @Override public void onScore(String json) {
+        JSONObject o;
+        try {
+            o = new JSONObject(json);
+        } catch (JSONException e) {
+            return;
+        }
+        if (o.optInt("eof", 1) != 0) {
+            showResult(o); // 最终结果或错误 JSON
+            return;
+        }
+        JSONArray progress = o.optJSONObject("result").optJSONArray("progress");
+        SpannableString text = new SpannableString(refText);
+        int unit = 0;
+        for (int i = 0; i < refText.length() && unit < progress.length(); i++) {
+            if (!Character.isLetterOrDigit(refText.charAt(i))) {
+                continue;
+            }
+            JSONObject u = progress.optJSONObject(unit++);
+            int color = !u.optBoolean("read") ? Color.GRAY : u.optBoolean("matched") ? 0xFF1B8A3A : Color.RED;
+            text.setSpan(new ForegroundColorSpan(color), i, i + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        refTextView.setText(text);
+    }
+    @Override public void onStart() { }
+    @Override public void onStartRecordFail(String reason) { }
+    @Override public void onPause() { }
+    @Override public void onTick(long millisUntilFinished, double percentUntilFinished) { }
+    @Override public void onRecordEnd() { }
+    @Override public void onRecording(int vadStatus, int soundIntensity) { }
+});
+```
+
+英文参考文本按词对应，`progress` 中的词已去掉首尾标点。
 
 ## 结果 JSON
 
@@ -239,7 +343,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | `applicationId` | appKey |
 | `userId` | `initEngine` 传入的 userId |
 | `refText` | 参考文本 |
-| `eof` | 固定为 1 |
+| `eof` | 结果 JSON 与错误 JSON 为 1，朗读进度的中间结果为 0 |
 | `dtLastResponse` | 收到结果时的本地时间，格式 `yyyy-MM-dd HH:mm:ss:SSS` |
 | `result` | 平台兼容接口返回的 `result`。除段落逐字条目中补充的 `overall` 与 `pronunciation` 外，逐字节保留 |
 | `params` | 设置 `setNeedRequestParamsInResult(true)` 时出现，含 `app`，`audio` 与 `request` |
@@ -292,7 +396,8 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 - 参数错误，鉴权失败等不可重试的错误不重试，直接回调。
 - 一次提交含重试的总时长上限为 300 秒，`autoRetry` 的每次重新提交另计。
 - `RecordSetting.setAutoRetry(true)` 时，错误 JSON 的 errId 若在 `errIds` 中，默认值为 `["20009"]`，同一段音频用同一个 `tokenId` 重新提交，最多再提交 2 次。
-- 连接超时取 `EngineSetting.setConnectTimeout`，默认 10 秒。读取超时依次取 `RecordSetting.setServerTimeout` 与 `EngineSetting.setServerTimeout`，默认 120 秒。
+- 连接超时取 `EngineSetting.setConnectTimeout`，默认 10 秒。读取超时依次取 `RecordSetting.setServerTimeout` 与 `EngineSetting.setServerTimeout`，默认 120 秒。实时评测通道使用同样的连接超时与读取超时。
+- 开启朗读进度时，实时评测通道同样以 `tokenId` 为幂等键。结束帧发出之前断开时退回整段上传，之后断开时在通道上重连，规则见“朗读进度”一节。
 
 ## 平替层配置
 
@@ -311,7 +416,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 
 ## 外部音频与文件评测
 
-- 外部音频：`setIsStream(true)` 后调用 `startRecord`，平替层不打开麦克风，用 `feed(byte[])` 写入 16000 Hz 单声道 16 位 PCM，`stopRecord` 后评测。开头带 WAV 文件头时自动跳过文件头。
+- 外部音频：`setIsStream(true)` 后调用 `startRecord`，平替层不打开麦克风，用 `feed(byte[])` 写入 16000 Hz 单声道 16 位 PCM，`stopRecord` 后评测。开头带 WAV 文件头时自动跳过文件头。`realtime_feedback` 设为 1 时边写入边发送，同样有朗读进度。
 - 文件评测：`existsAudioTrans` 评测 `RecordSetting.setAudioPath` 指定的文件。平替层按文件内容识别 WAV，MP3，OGG，AMR，AAC，M4A，FLAC，然后带上对应的 `Content-Type` 上传，不带文件头的 PCM 先补上 WAV 文件头。其他格式原样上传，能否评测以平台为准。参数 `bufSize` 不起作用，参数 `timeout` 不大于 1000 时按秒计，大于 1000 时按毫秒计。
 - 录音文件保存为 `recordFilePath` 目录中的 `recordName`，未设置时保存为 `<externalFilesDir>/record/<tokenId>.wav`，`getLastRecordPath()` 返回该路径，`playback()` 播放该文件。录音内容一律为 WAV，显式设置的 `recordName` 以 `.mp3` 结尾时沿用该文件名。
 - 上传前的本地检查：文件不存在或不可读给 60001，音频为空给 60002，WAV 与 PCM 短于 1 秒给 60005，大于 50 MB 或 WAV 与 PCM 长于 300 秒给 60009。50 MB 是平台整段上传接口的上限。录音与外部音频达到 300 秒时自动停止，随后照常评测。
@@ -324,7 +429,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | 评测位置 | 端侧引擎，支持离线 | 只在云端，`ENGINE_NATIVE` 与 `ENGINE_MULTI` 记录一条 WARN 日志后按云端运行，`getCurrentEngineType()` 返回 `cloud` |
 | MP3 录音 | 内置 Lame 编码器 | 不带 MP3 编码器，录音一律为 WAV。默认文件名为 `<tokenId>.wav`，显式设置的 `recordName` 以 `.mp3` 结尾时沿用该文件名，文件内容仍为 WAV。`SimpleLame` 的方法保留，返回 -1 |
 | 音频地址 | `attachAudioUrl` 开启时结果带音频下载地址 | 同样返回，`setNeedAttachAudioUrlInResult(true)` 时结果 JSON 带平台返回的 `audioUrl`，地址保留 7 天，到期删除。录音同时保存在本地，`getLastRecordPath()` 返回路径 |
-| 实时反馈 | `realtime_feedback` 开启时有中间结果 | 没有中间结果，`onScore` 在评测结束时回调一次 |
+| 实时反馈 | `realtime_feedback` 开启时有中间结果 | 同样有中间结果，`onScore` 收到 `eof` 为 0 的 JSON，`result.words` 为新读到的字或词，结构同声通，分数只表示是否与参考文本一致。另有 `result.progress` 逐字给出朗读状态。需要访问平台的 wss 地址，连不上时退回整段上传，只有最终结果。`OnRecordListener` 没有中间结果 |
 | 授权文件 | 需要 provision 文件 | 不需要，`updateProvision` 返回 true，`inquireProvision` 回调 `{"provision":"cloud","message":"cloud mode, no provision file needed"}` |
 | VAD | 引擎内置 | 本地能量 VAD，状态取值相同 |
 | 日志上传 | `LogCat` 定时上传 | 只写本地文件，`pushLog` 与 `pushLogManually` 不上传 |
@@ -340,14 +445,14 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 `tools/api-diff/run.sh` 核对平替 AAR 与接入方手中的声通 jar 接口是否一致，接入方可以用自己的 jar 运行：
 
 ```bash
-tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.0.0.aar --report-dir api-diff-report
+tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.1.0.aar --report-dir api-diff-report
 ```
 
 核对分两步。第一步用 japicmp `0.23.1` 检查公共与受保护元素的二进制兼容与源码兼容，japicmp 在首次运行时从 Maven Central 下载，校验 SHA-1 与 SHA-256 后存入 `tools/api-diff/lib`。随后严格检查 japicmp 的报告，注解与修饰符的变化也算差异，只容许类文件版本从 Java 7 升到 Java 8。第二步用 javap 逐条比对类声明，成员签名，泛型签名，异常声明与常量值，`native` 修饰符除外。发现缺失或改变的元素时退出码为 1，报告写入 `--report-dir` 指定的目录。
 
 运行条件为 JDK 11 或更高版本，bash，首次运行还需要 curl 或 wget。环境变量 `JAPICMP_JAR` 可以指定已下载的 japicmp，`ANDROID_JAR` 可以指定 `android.jar`。
 
-`2.0.0` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`。
+`2.1.0` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`。
 
 ## 构建与测试
 
@@ -359,9 +464,9 @@ api-compat-test/run.sh
 ../ci/android-stcompat.sh
 ```
 
-单元测试与 Robolectric 测试覆盖参数映射，结果与错误 JSON，errId 映射，WAV 读写，VAD，状态机，autoRetry，生命周期，回调线程与 `SkEgn` 接口。集成测试启动仓库中 `tools/mock-server` 的平台模拟服务，需要 Node 20 与 `tools/mock-server/node_modules`。`api-compat-test` 中的代码按声通接口编写，分别对声通 jar 与平替 AAR 用 javac 编译，两次都要通过。声通 jar 不随仓库分发，路径由环境变量 `ST_ORIGINAL_JAR` 指定，文件不存在时跳过这一项，同时给出提示。
+单元测试与 Robolectric 测试覆盖参数映射，结果与错误 JSON，errId 映射，WAV 读写，VAD，状态机，autoRetry，生命周期，回调线程与 `SkEgn` 接口，以及朗读进度的中间结果，实时评测通道的退回与重连，WebSocket 客户端的握手，掩码，分片，心跳，关闭与帧大小上限。集成测试启动仓库中 `tools/mock-server` 的平台模拟服务，需要 Node 20 与 `tools/mock-server/node_modules`。`api-compat-test` 中的代码按声通接口编写，分别对声通 jar 与平替 AAR 用 javac 编译，两次都要通过。声通 jar 不随仓库分发，路径由环境变量 `ST_ORIGINAL_JAR` 指定，文件不存在时跳过这一项，同时给出提示。
 
-沙箱集成测试 `SandboxIntegrationTest` 按声通接入方的写法调用真实平台，覆盖句子评测，段落逐字得分，未知 appKey 的鉴权错误与录音下载地址，每次运行最多 6 次平台调用。设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后运行，`YUGU_SANDBOX_BASE` 默认为 `https://open.shengzhiai.com`，平台地址经 `EngineSetting.setServerAddress` 设置。未设置密钥时这些测试跳过，`./gradlew test` 照常通过。
+沙箱集成测试 `SandboxIntegrationTest` 按声通接入方的写法调用真实平台，覆盖句子评测，段落逐字得分，未知 appKey 的鉴权错误，录音下载地址与朗读进度，每次运行最多 7 次平台调用，实时评测连接也计入。朗读进度一项按实时速度送入 `spec/fixtures/audio/zh_progress.wav`。设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后运行，`YUGU_SANDBOX_BASE` 默认为 `https://open.shengzhiai.com`，平台地址经 `EngineSetting.setServerAddress` 设置。未设置密钥时这些测试跳过，`./gradlew test` 照常通过。
 
 示例应用 `compat-demo` 只使用 `com.stkouyu` 接口，appKey 与 secretKey 由 Gradle 属性传入：
 
@@ -398,3 +503,7 @@ api-compat-test/run.sh
 ### 离线评测
 
 平替层只做云端评测，没有网络时返回 errId 20009。需要离线能力的场景请继续使用声通端侧引擎。
+
+### 收不到朗读进度
+
+先确认已设置 `setRealtime_feedback(1)`，回调使用的是 `OnRecorderListener`。日志中有 `realtime channel failed before end` 一行时，实时评测通道没有连上或中途断开，评测已退回整段上传，常见原因是网络拦截了 WebSocket，需要放行平台地址的 wss 连接，端口 443。外部音频须为 16000 Hz 单声道 16 位 PCM，参考文本为空时没有朗读进度。以上情况最终结果都照常返回。

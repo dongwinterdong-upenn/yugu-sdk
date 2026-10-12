@@ -34,6 +34,14 @@ struct SessionSettings {
 /// and idempotency key. The platform cannot resume a server session, so with REPLAY the SDK sends
 /// the start frame again, replays the audio of the round, sends the audio queued meanwhile, and
 /// sends `end` again when `end()` was already called. The same key makes the platform bill once.
+///
+/// Reading progress (CONTRACT 5.5): with realtime feedback on, `onPartial` receives progress
+/// frames on both channels, also after `end()` until the final result. A new server session
+/// counts progress from zero while the audio is replayed, so the session delivers a partial with
+/// reading progress only when `readUnits` and `matchedUnits` are both at least those of the last
+/// delivered one; the others are logged at DEBUG. With DROP the new server session covers only
+/// the audio sent after the reconnect, so the remembered progress is cleared at each successful
+/// reconnect. Partials without reading progress are always delivered.
 public final class YuguStreamSession {
     enum Kind {
         case native(EvaluateConfig)
@@ -90,6 +98,8 @@ public final class YuguStreamSession {
     private var stats = PCMStats()
     private var localWarnings: [YuguWarning] = []
     private var lastCloseCode: Int?
+    /// Reading progress of the last partial delivered to `onPartial`, nil before the first.
+    private var lastProgress: (read: Int, matched: Int)?
     private var awaitingPong = false
     private var handshakeTimer: YuguCancellable?
     private var pingTimer: YuguCancellable?
@@ -341,6 +351,9 @@ public final class YuguStreamSession {
                 droppedBytes = 0
                 core.events?.onReconnect(sessionId: sessionId, attempt: attempt, succeeded: true)
                 core.log.info(op, "\(sessionId) reconnect \(attempt) succeeded")
+                // DROP: the new server session tracks only the audio sent from now on, its
+                // progress is not comparable with the progress delivered before.
+                if settings.bufferPolicy == .drop { lastProgress = nil }
                 deliver { $0.onReconnected(self, attempt: attempt, droppedBytes: dropped) }
             }
             if !everStarted {
@@ -365,13 +378,27 @@ public final class YuguStreamSession {
                 if eof == 1 {
                     complete(json)
                 } else {
-                    let p = StreamPartial(bytes: json["result"]?["bytes"]?.intValue, raw: json)
-                    deliver { $0.onPartial(self, partial: p) }
+                    deliverPartial(ResultParser.streamPartial(json))
                 }
             } else {
                 core.log.debug(op, "\(sessionId) unknown frame ignored")
             }
         }
+    }
+
+    /// Progress never goes back for the listener: after a reconnect with REPLAY the new server
+    /// session restarts at zero while the audio is replayed, and partials behind the last
+    /// delivered progress are dropped until it catches up.
+    private func deliverPartial(_ p: StreamPartial) {
+        if p.hasProgress {
+            if let last = lastProgress, p.readUnits < last.read || p.matchedUnits < last.matched {
+                core.log.debug(
+                    op, "\(sessionId) progress read \(p.readUnits) matched \(p.matchedUnits) is behind the delivered read \(last.read) matched \(last.matched), partial not delivered")
+                return
+            }
+            lastProgress = (p.readUnits, p.matchedUnits)
+        }
+        deliver { $0.onPartial(self, partial: p) }
     }
 
     private func send(text: String) {
@@ -394,6 +421,8 @@ public final class YuguStreamSession {
             for e in config.jsonObject().entries {
                 frame.set(e.key, e.value)
             }
+            // Only when asked, so default start frames stay byte-identical to 2.0.0.
+            if config.realtimeFeedback { frame.set("realtimeFeedback", true) }
             frame.set("idempotencyKey", idempotencyKey)
         case .compat(_, let params):
             frame = params.parameterFrame(idempotencyKey: idempotencyKey)

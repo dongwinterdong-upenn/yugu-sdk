@@ -6,8 +6,9 @@
  *
  * Everything that does not need an Apple framework lives here so that it can be compiled and
  * unit tested on Linux: signing, form field mapping, multipart assembly, WAV handling, VAD,
- * retry decisions, error mapping and result envelope assembly. The Objective-C layer only moves
- * bytes between this core and NSURLSession / AVFoundation.
+ * retry decisions, error mapping, result envelope assembly and, since 2.1.0, the realtime
+ * feedback round over the compat WebSocket (handshake, frames, progress, reconnect decisions).
+ * The Objective-C layer only moves bytes between this core and NSURLSession / AVFoundation.
  *
  * Internal header. Not part of the public module.
  */
@@ -21,7 +22,7 @@
 extern "C" {
 #endif
 
-#define YGST_SDK_VERSION "2.0.0"
+#define YGST_SDK_VERSION "2.1.0"
 #define YGST_USER_AGENT "yugu-ios-stcompat-sdk/" YGST_SDK_VERSION
 #define YGST_DEFAULT_BASE_URL "https://open.shengzhiai.com"
 
@@ -441,6 +442,13 @@ int ygst_envelope_result(ygst_buf *out, const char *token_id, const char *record
                          ygst_span result_raw, const char *params_json, const char *audio_url);
 int ygst_envelope_error(ygst_buf *out, const char *token_id, int err_id, const char *message,
                         const char *app_key);
+/* Reading progress delivered through the result callbacks while the learner reads (2.1.0):
+ * {"tokenId","recordId":"","applicationId","userId","refText","eof":0,"dtLastResponse","result":..}.
+ * result_raw is the "result" object of the platform progress frame, passed through byte for byte
+ * except that the first skip_words items of its "words" array are left out (ygst_words_dedupe). */
+int ygst_envelope_progress(ygst_buf *out, const char *token_id, const char *app_key, const char *user_id,
+                           const char *ref_text, const char *dt_last_response, ygst_span result_raw,
+                           int skip_words);
 int ygst_params_json(ygst_buf *out, const char *app_key, const char *user_id, int64_t timestamp_sec,
                      const char *audio_type, int sample_rate, int channel, int sample_bytes,
                      const char *core_type, const char *token_id, const ygst_fields *request_fields);
@@ -462,6 +470,178 @@ int ygst_build_url(const char *base, const char *core_type, char *out, size_t ca
 int ygst_token_id(const unsigned char rnd[16], char out[33]);
 int ygst_idempotency_key_ok(const char *key);
 void ygst_mask_app_key(const char *app_key, char out[16]);
+
+/* ------------------------------------------------------------------ realtime feedback (2.1.0) */
+
+/* CONTRACT 5.2 and 5.5, DESIGN 14.3, BRIEF change of 2026-10-12 06:00 UTC: with
+ * KYTestConfig.realtime_feedback the round streams over the compat WebSocket wss://<base>/{coreType}
+ * and the platform reports reading progress while the learner reads. A compat progress frame is
+ *   {"eof":0,"recordId":"","result":{"kernel_version","resource_version","bytes","readUnits",
+ *    "matchedUnits","totalUnits","progress":[{word,read,matched}],"words":[Shengtong items]}}
+ * where words holds the units that became read since the previous progress frame, covering units
+ * [readUnits - words.length, readUnits); without tracking the frame is {"eof":0,"result":{"bytes":n}}.
+ * Everything decided here is covered by the Linux tests; the Objective-C layer only moves frames
+ * between this code and NSURLSessionWebSocketTask. */
+
+#define YGST_WS_MAX_FRAME_BYTES 32000u /* audio frames, DESIGN 2.5 */
+
+/* Appends s percent-encoded: RFC 3986 unreserved characters stay, every other byte is %XX. */
+int ygst_url_encode(ygst_buf *out, const char *s);
+/* WebSocket base of a REST base: https becomes wss, http becomes ws, trailing slashes go. */
+int ygst_ws_base_url(const char *rest_base, char *out, size_t cap);
+/* Handshake URL <ws base>/<coreType>?appKey=..&timestamp=..&nonce=..&idempotencyKey=..[&extra]&signature=..
+ * The signature is the REST signer (ygst_sign) over every other query parameter, values as sent
+ * before percent-encoding. extra (may be NULL) adds query parameters in their order, signed as
+ * well; parameters with an empty value are left out. 0, or -1 on bad input. */
+int ygst_ws_handshake_url(const char *rest_base, const char *core_type, const char *app_key, const char *secret,
+                          int64_t timestamp_sec, const char *nonce, const char *idempotency_key,
+                          const ygst_fields *extra, ygst_buf *out);
+/* Compat parameter frame: the REST form fields as JSON strings in their order, then
+ * "realtime_feedback":true and "idempotencyKey". Names the platform reads as commands or sets
+ * itself (cmd, end, data, realtime_feedback, idempotencyKey) are left out. Returns how many
+ * fields were left out, or -1 on bad input. */
+int ygst_ws_param_frame(const ygst_fields *fields, const char *idempotency_key, ygst_buf *out);
+
+typedef enum {
+    YGST_WSF_INVALID = 0,   /* not a JSON object */
+    YGST_WSF_CONNECTED = 1, /* {"event":"connected"} */
+    YGST_WSF_STARTED = 2,   /* {"event":"started"} */
+    YGST_WSF_PONG = 3,      /* {"event":"pong"} */
+    YGST_WSF_ERROR = 4,     /* {"event":"error","code":N,"message":".."} */
+    YGST_WSF_PROGRESS = 5,  /* no event, "eof":0 */
+    YGST_WSF_FINAL = 6,     /* no event, eof other than 0, or a result or recordId; or {"event":"result"} */
+    YGST_WSF_OTHER = 7      /* another event, or an object without any of the above */
+} ygst_wsf_kind;
+
+typedef struct {
+    ygst_wsf_kind kind;
+    ygst_span root;
+    ygst_span result;   /* "result" of PROGRESS and FINAL, p NULL when absent */
+    long long bytes;    /* PROGRESS: result.bytes, -1 when absent */
+    int has_progress;   /* PROGRESS: result.progress is an array, the platform tracks progress */
+    int read_units;     /* PROGRESS: readUnits, counted from progress when absent, else -1 */
+    int matched_units;  /* matchedUnits, counted from progress when absent, else -1 */
+    int total_units;    /* totalUnits, the length of progress when absent, else -1 */
+    int has_words;      /* PROGRESS: result.words is an array */
+    ygst_span words;    /* that array: Shengtong items of the units read since the previous frame */
+    int word_count;     /* its items */
+    int code;           /* ERROR: "code", 0 when absent */
+    int replayed;       /* FINAL: "replayed": true */
+} ygst_ws_frame;
+
+/* Classifies one text frame of the platform. Spans point into text. Returns 0, -1 when invalid. */
+int ygst_ws_frame_parse(const char *text, size_t n, ygst_ws_frame *f);
+/* An {"event":"error"} frame as the outcome of an attempt: the business code decides like a REST
+ * error body (spec/errors.json); a frame without a code is a server failure and retryable. */
+int ygst_ws_classify_error(ygst_span frame, ygst_classification *c);
+
+/* Reconnect rule of the drop-ins (BRIEF change 06:00 UTC): after a reconnect the platform restarts
+ * progress from zero while the audio is replayed. The words of a frame cover the units
+ * [readUnits - word_count, readUnits); items below the number of units already delivered in this
+ * evaluation are dropped, the rest is delivered. One per evaluation. */
+typedef struct {
+    int delivered; /* units [0, delivered) went out through the callbacks */
+} ygst_words_dedupe;
+
+void ygst_words_dedupe_init(ygst_words_dedupe *d);
+/* How many leading items of the frame's words to leave out; word_count (or more) when none is new,
+ * then nothing is delivered. Otherwise the rest is delivered and counted. read_units -1 (unknown)
+ * takes the items as the next ones. */
+int ygst_words_dedupe_skip(ygst_words_dedupe *d, int read_units, int word_count);
+
+/* The round controller. The caller owns the WebSocket and the round audio, feeds every event in
+ * and executes the actions it gets back; the controller makes every decision:
+ *   - connect, parameter frame after "connected", audio after "started" from the first byte,
+ *     audio as it arrives, {"cmd":"end"} at stop (or right after "started" when stop came first);
+ *   - progress frames with new words through the dedupe; frames with empty or no words and
+ *     bytes-only frames are not delivered;
+ *   - heartbeat ping before end, connect and result timeouts;
+ *   - a failure before end closes the connection and the evaluation goes over REST at stop with
+ *     the same tokenId: the platform never evaluated this round;
+ *   - after end every connection is an attempt of the REST call controller (ygst_call, same
+ *     policy, same classification): retryable failures reconnect with the same tokenId and
+ *     replay parameter frame, audio and end, until the policy gives up with the same errId and
+ *     message as REST (20009 when the retries are exhausted);
+ *   - the final frame is classified exactly like a REST response body. */
+typedef enum {
+    YGST_RT_IDLE = 0,       /* not started */
+    YGST_RT_CONNECTING = 1, /* connection requested, waiting for "connected" */
+    YGST_RT_STARTING = 2,   /* parameter frame sent, waiting for "started" */
+    YGST_RT_STREAMING = 3,  /* audio goes out as it arrives */
+    YGST_RT_ENDING = 4,     /* end sent, waiting for the final frame */
+    YGST_RT_BACKOFF = 5,    /* after end: waiting for the next connection */
+    YGST_RT_FALLBACK = 6,   /* failed before end: the evaluation goes over REST */
+    YGST_RT_DONE = 7        /* final frame or error decided, or cancelled */
+} ygst_rt_state;
+
+/* Execute in this order. */
+typedef struct {
+    int close;             /* close the current connection; none of its later events matter */
+    int connect;           /* open a new connection with a fresh ygst_ws_handshake_url */
+    int send_params;       /* send the parameter frame (ygst_ws_param_frame) */
+    size_t audio_from;     /* send round audio [audio_from, audio_to) in binary frames of at most */
+    size_t audio_to;       /* max_frame_bytes each */
+    int send_end;          /* send {"cmd":"end"} */
+    int send_ping;         /* send a protocol ping */
+    int progress;          /* deliver rt->frame.result as an eof 0 envelope (ygst_envelope_progress) */
+    int words_skip;        /*   leaving out this many leading items of its words */
+    int progress_held;     /* a progress frame had only words already delivered (DEBUG log) */
+    int retry;             /* after end: the next connection opens in delay_ms (WARN log) */
+    long delay_ms;
+    int final;             /* deliver the final frame: rt->cls is its classification, spans into it */
+    int fail;              /* deliver error err_id, message from ygst_rt_error_message */
+    int err_id;
+    int fallback;          /* evaluate over REST now: stop was requested and the round failed before end */
+} ygst_rt_actions;
+
+typedef struct {
+    /* configuration, set after ygst_rt_init and before ygst_rt_start */
+    ygst_retry_policy policy;  /* attempts after end, as for one REST submission */
+    uint64_t seed;             /* back-off jitter */
+    int connect_timeout_ms;    /* connection request to "started", default 20000 */
+    int attempt_timeout_ms;    /* end to the final frame, default 60000 */
+    int ping_interval_ms;      /* default 15000, 0 disables the heartbeat */
+    int pong_timeout_ms;       /* default 30000 */
+    size_t max_frame_bytes;    /* default YGST_WS_MAX_FRAME_BYTES */
+    /* state, read only */
+    ygst_rt_state state;
+    int end_requested;         /* stop was called */
+    int end_sent;              /* end went out on some connection: failures are attempts from now on */
+    int connections;           /* connections requested */
+    size_t total;              /* round audio known to the controller */
+    size_t sent;               /* audio sent on the current connection */
+    int64_t deadline_ms;       /* connect or result deadline of the current connection, 0 none */
+    int64_t next_ping_ms;      /* 0 none */
+    int64_t pong_deadline_ms;  /* 0: no ping outstanding */
+    int64_t reconnect_at_ms;
+    ygst_words_dedupe dedupe;
+    ygst_ws_frame frame;       /* last frame given to ygst_rt_on_text, spans into that text */
+    ygst_call call;            /* attempts after end */
+    ygst_classification cls;   /* outcome of the last attempt after end */
+    ygst_buf failure;          /* why the last connection failed, for logs */
+} ygst_rt;
+
+void ygst_rt_init(ygst_rt *rt);
+void ygst_rt_free(ygst_rt *rt);
+ygst_rt_actions ygst_rt_start(ygst_rt *rt, int64_t now_ms);
+/* total_bytes: the whole round audio so far (it only grows). */
+ygst_rt_actions ygst_rt_on_audio(ygst_rt *rt, size_t total_bytes, int64_t now_ms);
+/* stopEngine: the round audio is complete. fallback in the result: evaluate over REST now. */
+ygst_rt_actions ygst_rt_on_stop(ygst_rt *rt, size_t total_bytes, int64_t now_ms);
+ygst_rt_actions ygst_rt_on_text(ygst_rt *rt, const char *text, size_t n, int64_t now_ms);
+ygst_rt_actions ygst_rt_on_pong(ygst_rt *rt, int64_t now_ms);
+/* The connection failed: local_code YGST_LOCAL_* without a response, or the HTTP status of a
+ * rejected handshake (local_code 0). message: what happened, for logs and the error text. */
+ygst_rt_actions ygst_rt_on_failure(ygst_rt *rt, int local_code, int http_status, const char *message,
+                                   int64_t now_ms);
+/* Timers: call at least every 250 ms while ygst_rt_active. */
+ygst_rt_actions ygst_rt_on_tick(ygst_rt *rt, int64_t now_ms);
+/* cancelEngine: no further actions. The caller closes the connection. */
+void ygst_rt_cancel(ygst_rt *rt);
+/* 1 while a connection is open or a reconnect is pending. */
+int ygst_rt_active(const ygst_rt *rt);
+/* error text of a fail action, like the REST error JSON. */
+int ygst_rt_error_message(const ygst_rt *rt, int err_id, ygst_buf *out);
 
 #ifdef __cplusplus
 }

@@ -4,13 +4,13 @@
 
 | 端 | 制品 | 仓库 |
 |---|---|---|
-| 服务端 Java | `com.shengzhiai.yugu:yugu-java-sdk:2.0.0` | Maven `https://open.shengzhiai.com/maven/` |
-| 安卓 | `com.shengzhiai.yugu:yugu-android-sdk:2.0.0` | 同上 |
-| 安卓声通平替 | `com.shengzhiai.yugu:stkouyu-compat:2.0.0` | 同上 |
-| 网页 | `@shengzhiai/yugu-web-sdk@2.0.0` | npm `https://open.shengzhiai.com/npm/` |
-| 微信小程序 | `@shengzhiai/yugu-miniprogram-sdk@2.0.0` | 同上 |
-| iOS | 包 `yugu-ios-sdk`，产品 `YuguSDK`，标签 `2.0.0` | SwiftPM `https://open.shengzhiai.com/git/yugu-ios-sdk.git` |
-| iOS 声通平替 | 包 `stkouyu-ios-compat`，模块 `STKouyuEngine`，标签 `2.0.0` | SwiftPM `https://open.shengzhiai.com/git/stkouyu-ios-compat.git` |
+| 服务端 Java | `com.shengzhiai.yugu:yugu-java-sdk:2.1.0` | Maven `https://open.shengzhiai.com/maven/` |
+| 安卓 | `com.shengzhiai.yugu:yugu-android-sdk:2.1.0` | 同上 |
+| 安卓声通平替 | `com.shengzhiai.yugu:stkouyu-compat:2.1.0` | 同上 |
+| 网页 | `@shengzhiai/yugu-web-sdk@2.1.0` | npm `https://open.shengzhiai.com/npm/` |
+| 微信小程序 | `@shengzhiai/yugu-miniprogram-sdk@2.1.0` | 同上 |
+| iOS | 包 `yugu-ios-sdk`，产品 `YuguSDK`，标签 `2.1.0` | SwiftPM `https://open.shengzhiai.com/git/yugu-ios-sdk.git` |
+| iOS 声通平替 | 包 `stkouyu-ios-compat`，模块 `STKouyuEngine`，标签 `2.1.0` | SwiftPM `https://open.shengzhiai.com/git/stkouyu-ios-compat.git` |
 
 ## 添加依赖
 
@@ -50,7 +50,7 @@ items:
   - { label: CocoaPods, ref: 'ios/README.md#安装#CocoaPods 方式', lang: ruby, title: Podfile }
 ```
 
-Xcode 里选择 File 菜单的 Add Package Dependencies，输入仓库地址，Dependency Rule 选择 Up to Next Major Version，版本填 `2.0.0`，产品勾选 `YuguSDK`。录音需要在 `Info.plist` 声明 `NSMicrophoneUsageDescription`。
+Xcode 里选择 File 菜单的 Add Package Dependencies，输入仓库地址，Dependency Rule 选择 Up to Next Major Version，版本填 `2.1.0`，产品勾选 `YuguSDK`。录音需要在 `Info.plist` 声明 `NSMicrophoneUsageDescription`。
 
 ### 网页
 
@@ -86,6 +86,6 @@ lang: bash
 |---|---|---|
 | Maven | 依赖写成具体版本号 | 每个文件附带 `.md5`，`.sha1`，`.sha256`，`.sha512`，另有 `-sources.jar` 与 `-javadoc.jar` |
 | npm | `npm install` 写入 `package-lock.json` | 包元数据带 `sha512` 完整性值，npm 安装时自动核对 |
-| SwiftPM | 每个版本对应一个 Git 标签，`exact: "2.0.0"` 固定 | `Package.resolved` 记录标签对应的提交 |
+| SwiftPM | 每个版本对应一个 Git 标签，`exact: "2.1.0"` 固定 | `Package.resolved` 记录标签对应的提交 |
 
 回退时把版本号改回历史版本。`1.x` 版本没有发布到制品仓库，已停止维护，升级方法见[升级到 2.0](page:migrate-v2)。

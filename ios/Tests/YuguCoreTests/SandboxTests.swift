@@ -11,9 +11,9 @@ import FoundationNetworking
 /// nightly CI; push builds skip every case and never call the platform. `YUGU_SANDBOX_BASE` (or
 /// `YUGU_SANDBOX_BASE_URL`) overrides the default base `https://open.shengzhiai.com`.
 ///
-/// Call budget: 4 platform calls per run (the replayed second evaluation is not counted against the
-/// daily quota), 5 at most if the stream needs its single allowed reconnect. Retries are off and
-/// reconnects are limited to keep a run within 6 calls. Nothing here prints the keys; SDK logs mask
+/// Call budget: 5 platform calls per run (the replayed second evaluation is not counted against the
+/// daily quota), 7 at most if both streams need their single allowed reconnect. Retries are off and
+/// reconnects are limited to keep a run within 7 calls. Nothing here prints the keys; SDK logs mask
 /// the appKey and never contain the secret or a signature.
 final class SandboxTests: XCTestCase {
     struct Sandbox {
@@ -131,6 +131,49 @@ final class SandboxTests: XCTestCase {
         XCTAssertEqual(result.idempotencyKey, s.idempotencyKey)
         XCTAssertEqual(s.state, .closed)
         print("[sandbox] native streaming overall \(overall), recordId \(result.recordId ?? "-"), connections \(result.attempts), callbacks \(callbacks.joined(separator: " "))")
+    }
+
+    /// Reading progress (2.1.0): the customer sentence at speaking pace with `realtimeFeedback`.
+    /// Progress partials name the 25 characters and never go back, then the result arrives.
+    func test4NativeStreamingReadingProgress() throws {
+        var o = options()
+        #if canImport(FoundationNetworking)
+        // Linux: same relay as test3.
+        guard let bridge = try WssBridge.start(target: WssBridge.wsBase(of: sb.base)) else {
+            throw XCTSkip("node or tools/mock-server/node_modules/ws not found, the Linux streaming sandbox test needs them")
+        }
+        defer { bridge.stop() }
+        o.wsBaseUrl = "ws://127.0.0.1:\(bridge.port)"
+        o.webSocketTransportFactory = { PosixWebSocketTransport() }
+        #endif
+        let c = YuguClient(options: o)
+        defer { c.close() }
+        let w = SandboxWaiter(expectation(description: "closed"))
+        let config = EvaluateConfig(coreType: .sentence, referenceText: ReadingProgressTests.customerText, language: "zh-CN", realtimeFeedback: true)
+        let s = try c.streamEvaluate(config: config, listener: w)
+        try s.start()
+        for f in frames(Fixture.pcm("audio/zh_progress.wav")) {
+            try? s.sendAudio(f)
+            Thread.sleep(forTimeInterval: 0.02) // 640 bytes are 20 ms of audio
+        }
+        try? s.end()
+        wait(for: [w.closed], timeout: 120)
+
+        XCTAssertEqual(w.l.terminalCallbacks, ["result"], "\(w.l.events)")
+        let progress = w.l.progressPartials
+        XCTAssertFalse(progress.isEmpty, "no reading progress: \(w.l.callbacks)")
+        for p in progress {
+            XCTAssertEqual(p.totalUnits, 25)
+            XCTAssertEqual(p.progress.map { $0.word }, ReadingProgressTests.customerUnits)
+            XCTAssertTrue(p.progress.allSatisfy { $0.read || !$0.matched })
+        }
+        let read = progress.map { $0.readUnits }
+        XCTAssertEqual(read, read.sorted())
+        XCTAssertEqual(progress.map { $0.matchedUnits }, progress.map { $0.matchedUnits }.sorted())
+        XCTAssertGreaterThan(read.last ?? 0, 0, "nothing marked as read")
+        let overall = try XCTUnwrap(w.l.result?.overall, "the streaming result has no overall")
+        let steps = progress.map { "\($0.readUnits)/\($0.matchedUnits)" }.joined(separator: " ")
+        print("[sandbox] reading progress \(steps) of 25, \(w.l.partials.count) partials, overall \(overall), connections \(w.l.result?.attempts ?? 0)")
     }
 }
 

@@ -6,7 +6,7 @@
 
     <groupId>com.shengzhiai.yugu</groupId>
     <artifactId>yugu-java-sdk</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0</version>
     <packaging>jar</packaging>
 
     <name>Yugu Speech Evaluation Java SDK</name>
@@ -40,7 +40,7 @@
         <connection>scm:git:https://open.shengzhiai.com/git/yugu-sdk.git</connection>
         <developerConnection>scm:git:https://open.shengzhiai.com/git/yugu-sdk.git</developerConnection>
         <url>https://open.shengzhiai.com/git/yugu-sdk.git</url>
-        <tag>2.0.0</tag>
+        <tag>2.1.0</tag>
     </scm>
 
     <distributionManagement>

@@ -10,8 +10,10 @@ import java.util.LinkedHashMap;
 
 /**
  * RecordSetting to compat REST form fields (DESIGN 6.1). Fields with empty values are not sent
- * and therefore not signed. {@code realtime_feedback}, VAD and recording options stay local.
- * Paragraph kernels always send {@code paragraph_need_word_score=1} (DESIGN 6, result-shape alignment).
+ * and therefore not signed. VAD and recording options stay local; {@code realtime_feedback} is no
+ * form field, it selects the realtime channel, whose parameter frame carries these same fields
+ * (DESIGN 14.3). Paragraph kernels always send {@code paragraph_need_word_score=1} (DESIGN 6,
+ * result-shape alignment).
  */
 public final class FormMapper {
     private FormMapper() {

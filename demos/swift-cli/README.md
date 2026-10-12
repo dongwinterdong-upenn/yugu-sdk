@@ -10,7 +10,7 @@ cd yugu-sdk/demos/swift-cli
 swift build -c release
 ```
 
-缺省依赖已发布的 `https://open.shengzhiai.com/git/yugu-ios-sdk.git` 的 `2.0.0` 版本。针对本地 SDK 源码构建时设置 `YUGU_SDK_PATH`：
+缺省依赖已发布的 `https://open.shengzhiai.com/git/yugu-ios-sdk.git` 的 `2.1.0` 版本。针对本地 SDK 源码构建时设置 `YUGU_SDK_PATH`：
 
 ```bash
 YUGU_SDK_PATH=../../ios swift build -c release

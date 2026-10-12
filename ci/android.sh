@@ -143,15 +143,16 @@ PY
 
 # ---------------------------------------------------------------------------- 4 verify publication
 BASE="$REPO/com/shengzhiai/yugu/yugu-android-sdk"
-for f in 2.0.0/yugu-android-sdk-2.0.0.aar 2.0.0/yugu-android-sdk-2.0.0.pom 2.0.0/yugu-android-sdk-2.0.0-sources.jar \
-         2.0.0/yugu-android-sdk-2.0.0-javadoc.jar 2.0.0/yugu-android-sdk-2.0.0.module maven-metadata.xml; do
+V=2.1.0
+for f in $V/yugu-android-sdk-$V.aar $V/yugu-android-sdk-$V.pom $V/yugu-android-sdk-$V-sources.jar \
+         $V/yugu-android-sdk-$V-javadoc.jar $V/yugu-android-sdk-$V.module maven-metadata.xml; do
   [ -s "$BASE/$f" ] || fail "missing published file $f"
   for sum in md5 sha1 sha256 sha512; do
     [ -s "$BASE/$f.$sum" ] || fail "missing checksum $f.$sum"
   done
 done
-if [ -s "$BASE/2.0.0/yugu-android-sdk-2.0.0-javadoc.jar" ]; then
-  python3 -I - "$BASE/2.0.0/yugu-android-sdk-2.0.0-javadoc.jar" <<'PY' || fail "javadoc jar has no HTML"
+if [ -s "$BASE/$V/yugu-android-sdk-$V-javadoc.jar" ]; then
+  python3 -I - "$BASE/$V/yugu-android-sdk-$V-javadoc.jar" <<'PY' || fail "javadoc jar has no HTML"
 import sys, zipfile
 names = zipfile.ZipFile(sys.argv[1]).namelist()
 html = [n for n in names if n.endswith(".html")]

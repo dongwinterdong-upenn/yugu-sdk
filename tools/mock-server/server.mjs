@@ -480,6 +480,21 @@ function attachWs(server) {
   });
 }
 
+// Reading progress (2.1.0, CONTRACT 5.5): units of refText, Chinese by character, English by word.
+const truthy = (v) => v === true || v === 1 || v === '1' || v === 'true';
+function readingUnits(text, chinese) {
+  if (!text) return [];
+  if (chinese) return Array.from(text).filter((c) => !/[\p{P}\p{S}\p{Z}\p{C}\s]/u.test(c));
+  return text.trim().split(/[\s\u00a0\u3000]+/).map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')).filter((w) => w.length > 0);
+}
+function isChinese(params, ctx) {
+  const lang = String(params.language || params.lang || '').toLowerCase();
+  if (lang.startsWith('zh') || lang.startsWith('cn')) return true;
+  if (lang.startsWith('en')) return false;
+  if (ctx.isNative) return true;
+  return ctx.coreType.endsWith('.cn') || ctx.coreType === 'pinyin';
+}
+
 function wsSession(ws, ctx) {
   // An oversized frame (over maxPayload) raises an error on the socket; ws then closes it with 1009.
   // Without a handler the error would be unhandled and take the whole mock process down.
@@ -490,14 +505,40 @@ function wsSession(ws, ctx) {
   let inbound = 0;
   let silent = false;
   let progress = 0;
+  let units = null;
+  let chinese = true;
+  let reported = 0;
+  const [fkind, farg] = (ctx.fault || '').split(':');
+  const realtime = () => params && (truthy(params.realtime_feedback) || (ctx.isNative && truthy(params.realtimeFeedback)));
+  // Deterministic progress: one unit per 8000 bytes (0.25 s of 16 kHz PCM16) read and matched.
+  // mockFault progress-mismatch:<i> leaves unit i read but not matched, progress-off sends bytes only.
+  // Compat frames follow the Shengtong intermediate result: recordId "", kernel and resource version, and
+  // words = Shengtong-shaped items for the units read since the previous progress frame (CONTRACT 5.5).
+  const progressFrame = (n, extraUnit = 0) => {
+    if (!units || units.length === 0 || fkind === 'progress-off') return { eof: 0, result: { bytes: n } };
+    const read = Math.min(units.length, Math.max(reported, Math.floor(n / 8000) + extraUnit));
+    const bad = fkind === 'progress-mismatch' ? Number(farg) : -1;
+    const progress = units.map((w, i) => ({ word: w, read: i < read, matched: i < read && i !== bad }));
+    const counts = { readUnits: read, matchedUnits: progress.filter((w) => w.matched).length, totalUnits: units.length };
+    if (ctx.isNative) return { eof: 0, result: { bytes: n, ...counts, progress } };
+    const words = [];
+    for (let i = reported; i < read; i++) {
+      const ok = progress[i].matched;
+      const charType = chinese && /\p{Ideographic}/u.test(units[i]) ? 0 : 1;
+      const s = ok ? 100 : 0;
+      words.push({ charType, scores: { pronunciation: s, skipped: ok ? 0 : 1, tone: chinese ? s : 0, overall: s, overall_pron: s },
+        word: units[i], word_parts: [{ beginIndex: 0, charType, endIndex: Array.from(units[i]).length - 1, part: units[i] }] });
+    }
+    reported = read;
+    return { eof: 0, recordId: '', result: { kernel_version: '1.0.0', resource_version: '1.0.0', words, bytes: n, ...counts, progress } };
+  };
   const pushAudio = (b) => {
     audio.push(b);
-    if (!ctx.isNative && params && (params.realtime_feedback === true || params.realtime_feedback === 1 || params.realtime_feedback === '1' || params.realtime_feedback === 'true')) {
+    if (realtime()) {
       const n = audio.reduce((a, x) => a + x.length, 0);
-      if (n - progress >= 16000) { progress = n; send({ eof: 0, result: { bytes: n } }); }
+      if (n - progress >= 16000) { progress = n; send(progressFrame(n)); }
     }
   };
-  const [fkind, farg] = (ctx.fault || '').split(':');
   send(ctx.isNative ? { event: 'connected', message: 'stream channel ready' } : { event: 'connected', coreType: ctx.coreType });
 
   ws.on('message', async (data, isBinary) => {
@@ -516,6 +557,9 @@ function wsSession(ws, ctx) {
     params = j;
     audio = [];
     progress = 0;
+    chinese = isChinese(j, ctx);
+    reported = 0;
+    units = realtime() ? readingUnits(ctx.isNative ? j.referenceText : (j.refText || j.text), chinese) : null;
     send(ctx.isNative ? { event: 'started' } : { event: 'started', coreType: ctx.coreType });
   });
 
@@ -524,6 +568,8 @@ function wsSession(ws, ctx) {
     const buf = Buffer.concat(audio);
     if (buf.length === 0) { send({ event: 'error', message: 'no audio' }); return; }
     if (fkind === 'ws-error') { send({ event: 'error', code: Number(farg || 50200), message: 'mock upstream error' }); return; }
+    // Like the platform: the recognition of the last audio still arrives as a progress frame after end.
+    if (realtime() && units && units.length > 0) send(progressFrame(buf.length, 1));
     const idemKey = params.idempotencyKey || ctx.url.searchParams.get('idempotencyKey') || null;
     const p = { ...params };
     delete p.idempotencyKey;

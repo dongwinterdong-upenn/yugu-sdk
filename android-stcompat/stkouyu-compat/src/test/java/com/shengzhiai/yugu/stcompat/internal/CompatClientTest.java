@@ -67,8 +67,8 @@ public class CompatClientTest {
             assertEquals("app", c.header("X-App-Key"));
             assertEquals(Signer.sign(request().fields, "secret"), c.header("X-Signature"));
             assertTrue(c.header("X-Timestamp").matches("\\d{10}"));
-            assertEquals("yugu-stkouyu-compat/2.0.0", c.header("User-Agent"));
-            assertEquals("yugu-stkouyu-compat/2.0.0", c.header("X-Yugu-SDK"));
+            assertEquals("yugu-stkouyu-compat/2.1.0", c.header("User-Agent"));
+            assertEquals("yugu-stkouyu-compat/2.1.0", c.header("X-Yugu-SDK"));
             nonces.add(c.header("X-Nonce"));
             assertEquals("https://open.shengzhiai.com/sent.eval.cn", c.request.url);
             assertEquals("POST", c.request.method);

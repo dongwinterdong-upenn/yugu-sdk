@@ -1,6 +1,6 @@
 # 优谷雅言 Android 示例工程
 
-独立的 Gradle 工程，通过 Maven 依赖 `com.shengzhiai.yugu:yugu-android-sdk:2.0.0`，不包含 SDK 源码。可直接用 Android Studio 打开，也可在命令行构建。
+独立的 Gradle 工程，通过 Maven 依赖 `com.shengzhiai.yugu:yugu-android-sdk:2.1.0`，不包含 SDK 源码。可直接用 Android Studio 打开，也可在命令行构建。
 
 ## 功能
 

@@ -31,7 +31,10 @@ import com.stkouyu.setting.RecordSetting;
  *
  * Every callback runs on the main thread. {@code onScore} receives the result JSON
  * {@code {tokenId, recordId, applicationId, userId, refText, eof, dtLastResponse, result, ...}} or
- * the error JSON {@code {tokenId, errId, error, eof, applicationId}}.
+ * the error JSON {@code {tokenId, errId, error, eof, applicationId}}. With
+ * {@code RecordSetting.setRealtime_feedback(1)} the recording streams over the compat realtime
+ * channel and {@code onScore} also receives intermediate results with {@code "eof":0} before the
+ * final one.
  */
 public class SkEgnManager {
     public static final String SERVER_TYPE_CLOUD = "cloud";
@@ -325,7 +328,7 @@ public class SkEgnManager {
         return SERVER_TYPE_CLOUD;
     }
 
-    /** {@code yugu-stkouyu-compat/2.0.0 (api 1.0.62)}. */
+    /** {@code yugu-stkouyu-compat/2.1.0 (api 1.0.62)}. */
     public String getSDKVersion() {
         return CompatConfig.SDK_VERSION;
     }

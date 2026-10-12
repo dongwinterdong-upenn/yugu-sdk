@@ -291,6 +291,138 @@ class ResultParsingTest {
         assertNull(c.idempotencyKey)
     }
 
+    @Suppress("UNCHECKED_CAST")
+    private fun recordedFrames(name: String): List<JObj> =
+        (Json.parse(TestEnv.fixtureText("platform/$name")) as List<Map<String, Any?>>).map { JObj(it["frame"] as Map<String, Any?>) }
+
+    private fun recordedPartials(name: String): List<PartialResult> =
+        recordedFrames(name).filter { it.int("eof") == 0 }.map { ResultParser.partial(it) }
+
+    @Test
+    fun progressFrameFixtures() {
+        // rounds recorded from production (CONTRACT 5.5): the per-unit state is result.progress on both
+        // channels; compat frames also carry "recordId": "" and Shengtong-shaped incremental result.words
+        val zh = "我是中国人我是中国人我们都是中国人中华民族是一家人".map { it.toString() }
+        val en = listOf("Nice", "to", "see", "you", "again", "I", "am", "a", "student", "and", "I", "like", "reading", "books", "every", "day")
+        val cases = listOf(
+            "ws_compat_sent_eval_cn_progress_frames.json" to zh,
+            "ws_compat_sent_eval_cn_progress_misread_frames.json" to zh,
+            "ws_compat_sent_eval_progress_frames.json" to en,
+            "ws_native_sentence_progress_frames.json" to zh,
+        )
+        for ((name, units) in cases) {
+            val compat = name.startsWith("ws_compat")
+            val partials = recordedPartials(name)
+            assertTrue(name, partials.size >= 10)
+            var previous: PartialResult? = null
+            var shengtongItems = 0
+            for (p in partials) {
+                assertTrue(name, p.hasProgress)
+                assertEquals(name, units.size, p.totalUnits)
+                assertEquals(name, units, p.progress.map { it.word })
+                assertEquals(name, p.progress.count { it.read }, p.readUnits)
+                assertEquals(name, p.progress.count { it.matched }, p.matchedUnits)
+                assertTrue("$name: matched implies read", p.progress.all { it.read || !it.matched })
+                previous?.let { assertTrue("$name: progress never goes back", p.readUnits >= it.readUnits && p.matchedUnits >= it.matchedUnits) }
+                assertEquals("PartialResult(bytes=${p.bytes}, readUnits=${p.readUnits}, matchedUnits=${p.matchedUnits}, totalUnits=${units.size})", p.toString())
+                assertNotNull(name, p.bytes)
+                @Suppress("UNCHECKED_CAST")
+                val result = JObj(p.raw["result"] as Map<String, Any?>)
+                if (compat) {
+                    // raw keeps the Shengtong items; they cover [readUnits - n, readUnits) of the same units
+                    assertEquals(name, "", p.raw["recordId"])
+                    val items = result.objList("words")
+                    for ((k, item) in items.withIndex()) {
+                        val unit = p.progress[p.readUnits - items.size + k]
+                        assertEquals(name, unit.word, item.str("word"))
+                        assertEquals(name, if (unit.matched) 0 else 1, item.obj("scores")!!.int("skipped"))
+                    }
+                    shengtongItems += items.size
+                } else {
+                    assertFalse("$name: native frames carry no words", result.has("words"))
+                }
+                previous = p
+            }
+            if (compat) assertEquals("$name: incremental items add up to the read units", partials.last().readUnits, shengtongItems)
+            assertEquals(name, units.size, partials.last().readUnits)
+            // the final frame comes last and parses as before
+            val last = recordedFrames(name).last()
+            val r = ResultParser.evalResult(last, Json.write(last.map), "k", false, emptyList())
+            assertEquals(name, 1, r.eof)
+            assertNotNull(name, r.overall)
+        }
+        val full = recordedPartials("ws_compat_sent_eval_cn_progress_frames.json").last()
+        assertTrue(full.progress.all { it.read && it.matched })
+        // second sentence: 中 read as 外, the unit is read but not matched
+        val misread = recordedPartials("ws_compat_sent_eval_cn_progress_misread_frames.json").last()
+        assertEquals(ReadingWord("中", read = true, matched = false), misread.progress[7])
+        assertEquals(misread.readUnits - 1, misread.matchedUnits)
+    }
+
+    @Test
+    fun progressComesOnlyFromResultProgress() {
+        // compat shape: Shengtong items in result.words list only the units read since the previous frame
+        val compat = """{"eof":0,"recordId":"","result":{"bytes":48000,"readUnits":2,"matchedUnits":1,"totalUnits":4,""" +
+            """"kernel_version":"1.0.0","resource_version":"1.0.0","words":[{"charType":0,"scores":{"pronunciation":0,"skipped":1,""" +
+            """"tone":0,"overall":0,"overall_pron":0},"word":"京","word_parts":[{"beginIndex":0,"charType":0,"endIndex":0,"part":"京"}]}],""" +
+            """"progress":[{"word":"北","read":true,"matched":true},{"word":"京","read":true,"matched":false},""" +
+            """{"word":"你","read":false,"matched":false},{"word":"好","read":false,"matched":false}]}}"""
+        val p = ResultParser.partial(JObj.parseOrNull(compat)!!)
+        assertTrue(p.hasProgress)
+        assertEquals(
+            listOf(ReadingWord("北", true, true), ReadingWord("京", true, false), ReadingWord("你", false, false), ReadingWord("好", false, false)),
+            p.progress,
+        )
+        assertEquals(listOf(48000L, 2L, 1L, 4L), listOf(p.bytes, p.readUnits.toLong(), p.matchedUnits.toLong(), p.totalUnits.toLong()))
+        assertEquals("", p.raw["recordId"])
+        // Shengtong words alone never count as progress
+        val wordsOnly = """{"eof":0,"recordId":"","result":{"bytes":16000,"words":[{"word":"北","read":true,"matched":true}]}}"""
+        val w = ResultParser.partial(JObj.parseOrNull(wordsOnly)!!)
+        assertFalse(w.hasProgress)
+        assertTrue(w.progress.isEmpty())
+        // native shape: progress without words
+        val native = """{"eof":0,"result":{"bytes":16000,"readUnits":0,"matchedUnits":0,"totalUnits":1,"progress":[{"word":"好","read":false,"matched":false}]}}"""
+        assertEquals(listOf(ReadingWord("好", false, false)), ResultParser.partial(JObj.parseOrNull(native)!!).progress)
+    }
+
+    @Test
+    fun partialWithoutProgressKeepsThe200Shape() {
+        val p = ResultParser.partial(JObj.parseOrNull("""{"eof":0,"result":{"bytes":32000}}""")!!)
+        assertFalse(p.hasProgress)
+        assertEquals(32000L, p.bytes)
+        assertEquals(listOf(-1, -1, -1), listOf(p.readUnits, p.matchedUnits, p.totalUnits))
+        assertTrue(p.progress.isEmpty())
+        assertEquals("PartialResult(bytes=32000)", p.toString())
+        // the 2.0.0 constructor signature builds the same partial
+        val old = PartialResult(32000L, p.raw)
+        assertEquals(listOf(false, -1, -1, -1), listOf(old.hasProgress, old.readUnits, old.matchedUnits, old.totalUnits))
+        assertEquals(p.toString(), old.toString())
+        // an empty progress list is still progress, refText without units
+        val empty = ResultParser.partial(JObj.parseOrNull("""{"eof":0,"result":{"bytes":0,"readUnits":0,"matchedUnits":0,"totalUnits":0,"progress":[]}}""")!!)
+        assertTrue(empty.hasProgress)
+        assertEquals(0, empty.totalUnits)
+        // lenient reading of odd items, absent counts are -1
+        val odd = ResultParser.partial(JObj.parseOrNull("""{"eof":0,"result":{"progress":[{"word":"我"},7,{"read":true,"matched":"1"}]}}""")!!)
+        assertTrue(odd.hasProgress)
+        assertEquals(listOf(ReadingWord("我", false, false), ReadingWord("", true, true)), odd.progress)
+        assertEquals(-1, odd.readUnits)
+        assertNull(odd.bytes)
+        assertFalse(ResultParser.partial(JObj.parseOrNull("""{"eof":0,"result":{"bytes":1,"progress":null}}""")!!).hasProgress)
+        assertFalse(ResultParser.partial(JObj.parseOrNull("""{"eof":0}""")!!).hasProgress)
+    }
+
+    @Test
+    fun readingWordIsAValue() {
+        val w = ReadingWord("我", read = true, matched = false)
+        assertEquals(ReadingWord("我", true, false), w)
+        assertEquals(ReadingWord("我", true, false).hashCode(), w.hashCode())
+        assertFalse(w == ReadingWord("我", true, true))
+        assertEquals("ReadingWord(word=我, read=true, matched=false)", w.toString())
+        assertEquals(ReadingWord("我", true, true), w.copy(matched = true))
+        val (word, read, matched) = w
+        assertEquals(Triple("我", true, false), Triple(word, read, matched))
+    }
+
     @Test
     fun replayFlagFromFrame() {
         val text = """{"event":"result","recordId":"eval_r","eof":1,"result":{"overall":80},"replayed":true}"""

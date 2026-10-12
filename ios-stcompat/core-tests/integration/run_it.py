@@ -5,9 +5,11 @@
 
 Starts tools/mock-server/server.mjs on a free port, drives it_driver through the scenarios of
 DESIGN 10 (V-02 replay and billing, V-03 retry with the same Idempotency-Key, no retry on 400)
-plus the Shengtong compat rules (errIds, envelope, no network I/O for local errors), asserts on
-the driver output and on the mock's /__mock/log and /__mock/billing, writes a JUnit report and
-stops the mock server in every case.
+plus the Shengtong compat rules (errIds, envelope, no network I/O for local errors) and the
+realtime_feedback rounds of 2.1.0 over the compat WebSocket (signed handshake, parameter frame,
+eof 0 progress with incremental words, REST fallback before end, reconnect and replay after end,
+heartbeat, result timeout), asserts on the driver output and on the mock's /__mock/log and
+/__mock/billing, writes a JUnit report and stops the mock server in every case.
 
   run_it.py --driver build/it_driver --mock ../tools/mock-server/server.mjs --spec ../spec
             [--junit it.xml] [--log it.log]
@@ -147,7 +149,7 @@ def s_success_envelope(c):
         c(e["idempotencyKey"] == r["tokenId"], "Idempotency-Key is the tokenId")
         c(e.get("fields") == {"refText": "今天天气很好", "phoneme_output": "1"}, "form fields %r" % e.get("fields"))
         c(e["contentType"].startswith("multipart/form-data; boundary=----YuguSTCompat"), "multipart content type")
-        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.0.0", "User-Agent %r" % e["userAgent"])
+        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.1.0", "User-Agent %r" % e["userAgent"])
     b = billing()
     c(b["billed"] == 1 and b["byKey"].get(r["tokenId"]) == 1, "billed once %r" % b)
 
@@ -433,11 +435,244 @@ def s_paragraph_word_details(c):
     c(e and "paragraph_need_word_score" not in e[0].get("fields", {}), "other kernels unchanged")
 
 
+# ------------------------------------------------------------------ realtime_feedback (2.1.0)
+
+ZH_TEXT = "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。"
+EN_TEXT = "Nice to see you again. I am a student, and I like reading books every day."
+PROGRESS_KEYS = ["tokenId", "recordId", "applicationId", "userId", "refText", "eof", "dtLastResponse", "result"]
+
+
+def units_of(text, chinese):
+    """Reading units of CONTRACT 5.5: Chinese by character without punctuation, English by word."""
+    if chinese:
+        return [ch for ch in text if not re.match(r"[\s\W_]", ch)]
+    return [w for w in (re.sub(r"^\W+|\W+$", "", t) for t in text.split()) if w]
+
+
+def pcm_len(name):
+    """Bytes of the data chunk of a PCM WAV fixture."""
+    with open(audio(name), "rb") as f:
+        b = f.read()
+    pos = 12
+    while pos + 8 <= len(b):
+        size = int.from_bytes(b[pos + 4:pos + 8], "little")
+        if b[pos:pos + 4] == b"data":
+            return size
+        pos += 8 + size + (size & 1)
+    raise AssertionError("no data chunk in " + name)
+
+
+def realtime(*extra):
+    return driver("--realtime", "--audio", audio("zh_progress.wav"), "--ref-text", ZH_TEXT, *extra)
+
+
+def check_progress(c, r, units, ref_text=ZH_TEXT):
+    """Every eof 0 envelope: the key order, recordId "", the result passed through with its words.
+    The words of all envelopes together are the units read so far, each exactly once and in order."""
+    seen = []
+    last = 0
+    for p in r["progress"]:
+        c(list(p.keys()) == PROGRESS_KEYS, "eof 0 envelope keys %r" % list(p.keys()))
+        c(p.get("eof") == 0 and p.get("recordId") == "" and p.get("tokenId") == r["tokenId"], "eof 0, recordId \"\"")
+        c(p.get("applicationId") == "mock-app-key" and p.get("userId") == "it-user" and p.get("refText") == ref_text,
+          "envelope fields")
+        c(DT.match(p.get("dtLastResponse", "")) is not None, "dtLastResponse format")
+        res = p.get("result", {})
+        for k in ("kernel_version", "resource_version", "bytes", "readUnits", "matchedUnits", "totalUnits", "progress",
+                  "words"):
+            c(k in res, "result.%s passed through" % k)
+        words = res.get("words") or []
+        c(len(words) > 0, "an eof 0 callback carries words")
+        c(res.get("readUnits", 0) > last, "every callback reaches further: %r after %r" % (res.get("readUnits"), last))
+        last = res.get("readUnits", last)
+        c(res.get("totalUnits") == len(units), "totalUnits %r" % res.get("totalUnits"))
+        for w in words:
+            c(sorted(w.keys()) == ["charType", "scores", "word", "word_parts"], "Shengtong item %r" % w)
+            seen.append(w.get("word"))
+    c(seen == units[:len(seen)], "words in order without repeats: %r" % seen)
+    return seen
+
+
+def s_realtime_progress(c):
+    """realtime_feedback over the compat WebSocket: signed handshake, parameter frame, eof 0 progress
+    through the result callback, the final envelope exactly like REST, one evaluation billed."""
+    reset()
+    r = realtime("--chunk-bytes", "6400", "--pace-ms", "20")
+    units = units_of(ZH_TEXT, True)
+    c(r["outcome"] == "result" and r.get("mode") == "ws", "evaluated over the WebSocket %r" % {
+        k: r.get(k) for k in ("outcome", "mode", "restReason")})
+    c(r["connections"] == 1 and r["attempts"] == 1 and r["held"] == 0, "one connection")
+    pf = r.get("paramFrame") or {}
+    c(list(pf.keys()) == ["refText", "phoneme_output", "realtime_feedback", "idempotencyKey"],
+      "parameter frame members %r" % list(pf.keys()))
+    c(pf == {"refText": ZH_TEXT, "phoneme_output": "1", "realtime_feedback": True, "idempotencyKey": r["tokenId"]},
+      "parameter frame = the REST form fields plus realtime_feedback and idempotencyKey %r" % pf)
+    seen = check_progress(c, r, units)
+    # the mock reads one unit per 8000 bytes and one more after end
+    c(len(seen) == pcm_len("zh_progress.wav") // 8000 + 1, "units read %d" % len(seen))
+    c(all(w["scores"]["skipped"] == 0 and w["scores"]["overall"] == 100 and w["charType"] == 0
+          for p in r["progress"] for w in p["result"]["words"]), "matched characters score 100")
+    j = r["json"]
+    c(list(j.keys()) == ["tokenId", "recordId", "applicationId", "userId", "refText", "eof", "dtLastResponse", "result"],
+      "final envelope keys %r" % list(j.keys()))
+    c(j.get("eof") == 1 and str(j.get("recordId", "")).startswith("eval_"), "final eof 1 with recordId")
+    c(j.get("result") == aligned(fixture_result("compat_sent.eval.cn.json")), "final result as REST, aligned")
+    log_entries = mock_log()
+    c([(e.get("method"), e.get("path"), e.get("idempotencyKey")) for e in log_entries] ==
+      [("WS", "/sent.eval.cn", r["tokenId"])], "one WebSocket round, idempotencyKey = tokenId: %r" % log_entries)
+    b = billing()
+    c(b["billed"] == 1 and b["records"][0]["op"] == "ws-compat" and b["records"][0]["idemKey"] == r["tokenId"],
+      "billed once %r" % b)
+    c(b["records"] and b["records"][0].get("bytes") == pcm_len("zh_progress.wav"), "every PCM byte reached the platform")
+
+
+def s_realtime_english(c):
+    reset()
+    r = driver("--realtime", "--audio", audio("en_progress.wav"), "--core-type", "sent.eval", "--ref-text", EN_TEXT,
+               "--chunk-bytes", "6400", "--pace-ms", "10")
+    c(r["outcome"] == "result" and r.get("mode") == "ws", "evaluated over the WebSocket %r" % r.get("restReason"))
+    seen = check_progress(c, r, units_of(EN_TEXT, False), EN_TEXT)
+    c(len(seen) > 5, "English words delivered %r" % seen)
+    c(all(w["charType"] == 1 and w["scores"]["tone"] == 0 for p in r["progress"] for w in p["result"]["words"]),
+      "English items: charType 1, tone 0")
+
+
+def s_realtime_refused_rest(c):
+    """Handshake refused (503): no progress, the round goes over REST at stop with the same tokenId."""
+    reset()
+    faults(("/sent.eval.cn", "ws-refuse"))
+    r = realtime("--chunk-bytes", "6400", "--pace-ms", "10")
+    c(r["outcome"] == "result" and r.get("mode") == "rest", "REST after the refused handshake %r" % r.get("mode"))
+    c(r["progress"] == [], "no progress without the WebSocket")
+    c("refused" in r.get("restReason", ""), "reason %r" % r.get("restReason"))
+    c(r["json"].get("result") == aligned(fixture_result("compat_sent.eval.cn.json")), "REST result")
+    entries = mock_log()
+    c([(e["method"], e.get("rejected"), e.get("idempotencyKey")) for e in entries] ==
+      [("WS", 503, r["tokenId"]), ("POST", None, r["tokenId"])], "WebSocket refused, then POST, one tokenId %r" % entries)
+    b = billing()
+    c(b["billed"] == 1 and b["records"][0]["op"] == "compat", "billed once over REST %r" % b)
+
+
+def s_realtime_kill_before_end(c):
+    """The connection dies while the learner reads: progress stops, REST evaluates at stop."""
+    reset()
+    faults(("/sent.eval.cn", "ws-kill-after:5"))
+    r = realtime("--chunk-bytes", "6400", "--pace-ms", "20", "--feed-after-start")
+    c(r["outcome"] == "result" and r.get("mode") == "rest", "REST after the dead connection %r" % r.get("mode"))
+    c(r["connections"] == 1, "no reconnect before end")
+    check_progress(c, r, units_of(ZH_TEXT, True))
+    entries = mock_log()
+    c([(e["method"], e.get("idempotencyKey")) for e in entries] == [("WS", r["tokenId"]), ("POST", r["tokenId"])],
+      "WebSocket then POST with the same tokenId %r" % entries)
+    c(billing()["billed"] == 1, "billed once")
+
+
+def s_realtime_kill_after_end_reconnect(c):
+    """The connection dies right on end: reconnect with the same tokenId, replay, the progress of the
+    replay is not delivered again, one evaluation billed."""
+    reset()
+    pcm = pcm_len("zh_progress.wav")
+    frames = 1 + (pcm + 6399) // 6400 + 1  # parameter frame, one frame per step, end
+    faults(("/sent.eval.cn", "ws-kill-after:%d" % frames))
+    r = realtime("--chunk-bytes", "6400", "--pace-ms", "0", "--feed-after-start")
+    c(r["outcome"] == "result" and r.get("mode") == "ws", "result over the WebSocket %r" % r.get("restReason"))
+    c(r["connections"] == 2 and r["attempts"] == 2, "one reconnect, attempts %r" % r["attempts"])
+    c(r["held"] >= 1, "replayed progress held back, held %r" % r["held"])
+    seen = check_progress(c, r, units_of(ZH_TEXT, True))
+    c(len(seen) == pcm // 8000 + 1, "every unit once across both connections: %d" % len(seen))
+    entries = mock_log()
+    c([(e["method"], e.get("idempotencyKey")) for e in entries] == [("WS", r["tokenId"])] * 2,
+      "two WebSocket rounds with one tokenId %r" % entries)
+    b = billing()
+    c(b["billed"] == 1 and b["records"][0]["bytes"] == pcm, "billed once, full replay %r" % b)
+
+
+def s_realtime_retries_exhausted(c):
+    """Every connection fails after end (retryable error frame): the same 20009 as REST, attempts 3."""
+    reset()
+    r = realtime("--chunk-bytes", "32000", "--ws-fault", "ws-error:50200")
+    j = r["json"]
+    c(r["outcome"] == "error" and j.get("errId") == 20009, "20009 %r" % j)
+    c(j.get("error", "").endswith(": code=50200 mock upstream error (attempts 3)"), "message %r" % j.get("error"))
+    c(list(j.keys()) == ["tokenId", "errId", "error", "eof", "applicationId"], "error JSON keys")
+    c(r["connections"] == 3, "three connections")
+    entries = mock_log()
+    # the mockFault query parameter is signed with the others: a wrong signature would be refused with 403
+    c(len(entries) == 3 and all(e.get("fault") == "ws-error:50200" and "rejected" not in e for e in entries),
+      "three signed handshakes %r" % entries)
+    c(billing()["billed"] == 0, "nothing billed")
+
+
+def s_realtime_error_not_retryable(c):
+    reset()
+    r = realtime("--chunk-bytes", "32000", "--ws-fault", "ws-error:40001")
+    j = r["json"]
+    c(r["outcome"] == "error" and j.get("errId") == 40001 and r["connections"] == 1, "errId 40001, no reconnect %r" % j)
+    c(j.get("error") == "mock upstream error", "platform message %r" % j.get("error"))
+
+
+def s_realtime_progress_mismatch(c):
+    reset()
+    faults(("/sent.eval.cn", "progress-mismatch:7"))
+    r = realtime("--chunk-bytes", "6400", "--pace-ms", "10")
+    c(r["outcome"] == "result" and r.get("mode") == "ws", "result %r" % r.get("restReason"))
+    seen = check_progress(c, r, units_of(ZH_TEXT, True))
+    items = [w for p in r["progress"] for w in p["result"]["words"]]
+    c(len(items) > 8, "unit 7 was read")
+    if len(items) > 8:
+        c(items[7]["scores"]["skipped"] == 1 and items[7]["scores"]["overall"] == 0, "unit 7 read, not matched %r" % items[7])
+        c(all(w["scores"]["skipped"] == 0 for i, w in enumerate(items) if i != 7), "the others matched")
+    c(len(seen) == len(items), "items")
+
+
+def s_realtime_progress_off(c):
+    reset()
+    faults(("/sent.eval.cn", "progress-off"))
+    r = realtime("--chunk-bytes", "6400", "--pace-ms", "10")
+    c(r["outcome"] == "result" and r.get("mode") == "ws", "result over the WebSocket")
+    c(r["progress"] == [], "bytes-only frames are not delivered")
+    c(billing()["billed"] == 1, "billed once")
+
+
+def s_realtime_heartbeat(c):
+    """No pong from the platform: the heartbeat ends the connection before end, REST at stop."""
+    reset()
+    r = realtime("--chunk-bytes", "3200", "--pace-ms", "50", "--ws-fault", "ws-silent:3", "--ping-interval-ms", "200",
+                 "--pong-timeout-ms", "400")
+    c(r["outcome"] == "result" and r.get("mode") == "rest", "REST after the heartbeat %r" % r.get("restReason"))
+    c(r.get("restReason") == "timeout: no pong within 400 ms", "reason %r" % r.get("restReason"))
+    c(billing()["billed"] == 1, "billed once")
+
+
+def s_realtime_result_timeout_replay(c):
+    """No final within the attempt timeout: reconnect, the platform replays the first evaluation."""
+    reset()
+    faults(("/sent.eval.cn", "ws-delay-result:3000"))
+    r = realtime("--chunk-bytes", "32000", "--attempt-timeout-ms", "2500")
+    c(r["outcome"] == "result" and r["replayed"] == 1 and r["connections"] == 2, "replayed after the timeout %r" % {
+        k: r.get(k) for k in ("outcome", "replayed", "connections", "attempts")})
+    time.sleep(0.3)
+    c(billing()["billed"] == 1, "billed once")
+
+
+def s_realtime_too_short(c):
+    """A recording under 1 s: the local check answers 60005 at stop, no end, nothing evaluated."""
+    reset()
+    r = driver("--realtime", "--audio-synth-ms", "500", "--ref-text", ZH_TEXT, "--chunk-bytes", "3200", "--pace-ms", "20")
+    c(r["outcome"] == "error" and r["json"].get("errId") == 60005 and r.get("mode") == "local", "60005 %r" % r["json"])
+    time.sleep(0.3)
+    c(billing()["billed"] == 0, "nothing evaluated")
+
+
 SCENARIOS = [
     s_success_envelope, s_word_params_custom, s_attach_audio_url, s_retry_500_same_key, s_retry_429_retry_after, s_timeout_then_replay,
     s_slow_inflight_replay, s_inflight_conflict_40901, s_nonce_reuse_rejected, s_no_retry_400, s_retries_exhausted, s_auto_retry, s_auto_retry_custom_errid, s_drop_then_success,
     s_hang_then_success, s_fastapi_detail, s_auth_errors, s_local_errors_no_network, s_pinyin, s_fixture_passthrough,
     s_paragraph_word_details,
+    s_realtime_progress, s_realtime_english, s_realtime_refused_rest, s_realtime_kill_before_end,
+    s_realtime_kill_after_end_reconnect, s_realtime_retries_exhausted, s_realtime_error_not_retryable,
+    s_realtime_progress_mismatch, s_realtime_progress_off, s_realtime_heartbeat, s_realtime_result_timeout_replay,
+    s_realtime_too_short,
 ]
 
 

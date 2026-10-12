@@ -2,6 +2,25 @@
 
 STKouyuEngine 声通 iOS 平替包的版本记录。版本号遵循语义化版本，包地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`。
 
+## `2.1.0` 2026-10-12
+
+### 新增
+
+1. 朗读进度。`KYTestConfig.realtime_feedback` 设为 YES 时，录音与 feed 模式的评测改走声通兼容实时评测接口，边读边上传音频，结果回调在终评之前收到 `eof` 为 0 的进度 JSON。`result.words` 为新读到的字或词，结构同声通 `realtime_feedback` 的中间结果，`result.progress` 为参考文本全部字或词的朗读状态，`result.readUnits` 为当前朗读位置。进度里的分数只表示是否读对，发音与声调的得分以终评为准。
+2. 结束帧发出之前连接失败时，`stopEngine` 之后用同一个 tokenId 整段评测。结束帧发出之后连接失败时用同一个 tokenId 重新连接，重放全部音频，次数与整段评测的重试次数相同，已回调的字或词不再重复回调，同一次评测只评测一次，只计费一次。
+3. README 新增朗读进度一节，含按进度给参考文本着色的示例。
+
+### 变更
+
+1. 版本号 `2.1.0`。`YuguCompat.sdkVersion` 为 `2.1.0`，User-Agent 为 `yugu-ios-stcompat-sdk/2.1.0`，`STKouyuEngineVersionNumber` 为 2.1。
+2. 打开 `realtime_feedback` 的评测在结果回调里先收到进度 JSON，再收到终评或错误 JSON。终评 JSON 与错误 JSON 的格式不变。
+
+### 已知限制
+
+1. 朗读进度需要 iOS 13，iOS 12 上照旧整段评测。只对 16 kHz 16 位单声道 PCM 生效，`audioPath` 模式与其他音频照旧整段评测。
+2. C 接口 `skegn_*` 不回调朗读进度。
+3. 实时评测的 Objective-C 部分在 Linux 上通过了语法与类型检查，尚未在 macOS 构建机上编译与运行，验证情况见 README 的验证状态一节。
+
 ## `2.0.0` 2026-10-08
 
 首个版本。

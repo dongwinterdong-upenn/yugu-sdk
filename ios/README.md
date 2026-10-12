@@ -4,7 +4,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 版本 | `2.0.0`，2026-10-08 |
+| 版本 | `2.1.0`，2026-10-12 |
 | 仓库 | `https://open.shengzhiai.com/git/yugu-ios-sdk.git`，匿名只读 |
 | 产品 | `YuguCore`，`YuguSDK` |
 | 平台 | iOS 13 起，macOS 11 起，`YuguCore` 另支持 Linux |
@@ -27,7 +27,7 @@ App 一般选 `YuguSDK`。服务端或命令行工具只做评测时选 `YuguCor
 
 1. 在 Xcode 菜单 File 中选择 Add Package Dependencies。
 2. 在搜索框输入 `https://open.shengzhiai.com/git/yugu-ios-sdk.git`。
-3. Dependency Rule 选择 Up to Next Major Version，版本填 `2.0.0`。
+3. Dependency Rule 选择 Up to Next Major Version，版本填 `2.1.0`。
 4. 产品勾选 `YuguSDK`，点击 Add Package。
 
 ### Package.swift 声明
@@ -40,7 +40,7 @@ let package = Package(
     name: "MyApp",
     platforms: [.iOS(.v13)],
     dependencies: [
-        .package(url: "https://open.shengzhiai.com/git/yugu-ios-sdk.git", from: "2.0.0"),
+        .package(url: "https://open.shengzhiai.com/git/yugu-ios-sdk.git", from: "2.1.0"),
     ],
     targets: [
         .target(name: "MyApp", dependencies: [
@@ -54,12 +54,12 @@ let package = Package(
 
 ### 版本固定与回退
 
-每个版本对应仓库里的一个 Git 标签，已发布的标签不会改动。固定在某个版本写 `.package(url: "https://open.shengzhiai.com/git/yugu-ios-sdk.git", exact: "2.0.0")`，回退时把版本号改成更早的标签，然后在 Xcode 中执行 File 菜单的 Packages 下的 Reset Package Caches。
+每个版本对应仓库里的一个 Git 标签，已发布的标签不会改动。固定在某个版本写 `.package(url: "https://open.shengzhiai.com/git/yugu-ios-sdk.git", exact: "2.1.0")`，回退时把版本号改成更早的标签，然后在 Xcode 中执行 File 菜单的 Packages 下的 Reset Package Caches。
 
 ### CocoaPods 方式
 
 ```ruby
-pod 'YuguSDK', :git => 'https://open.shengzhiai.com/git/yugu-ios-sdk.git', :tag => '2.0.0'
+pod 'YuguSDK', :git => 'https://open.shengzhiai.com/git/yugu-ios-sdk.git', :tag => '2.1.0'
 ```
 
 CocoaPods 把两个产品编进同一个模块 `YuguSDK`，代码里写 `import YuguSDK`。
@@ -150,7 +150,7 @@ recorder.release()
 | `eventListener` | 无 | 指标回调 |
 | `audioPrecheck` | `.warn` | 音频预检方式 |
 | `strictAudio` | `false` | 平台报 1001 时改为返回音频错误 |
-| `userAgent` | `yugu-ios-sdk/2.0.0` | 请求头 `User-Agent` |
+| `userAgent` | `yugu-ios-sdk/2.1.0` | 请求头 `User-Agent` |
 | `reconnect` | `ReconnectPolicy.default` | 实时评测重连策略 |
 | `audioBufferPolicy` | `.replay` | 重连时的音频缓冲策略 |
 | `pingIntervalMs` | 15000 | 协议层心跳间隔 |
@@ -177,7 +177,7 @@ recorder.release()
 
 REST 方法都有两种写法，`async throws` 写法跟随任务取消，完成回调写法返回 `YuguCall`，调用 `cancel()` 取消。客户端的全部方法线程安全。
 
-评测参数在 `EvaluateConfig` 中设置，常用字段为 `coreType`，`referenceText`，`language`，`slack`，`scale`，`precision`，`agegroup`，`includeReport`，`includeAsrText`，`refPinyin`，`taskType`，`paragraphNeedWordScore`，平台新增的字段放进 `extra`。`config` 分片的 JSON 文本由 SDK 按固定顺序生成，整数值的小数写成整数，发出的文本与签名的文本一字不差。
+评测参数在 `EvaluateConfig` 中设置，常用字段为 `coreType`，`referenceText`，`language`，`slack`，`scale`，`precision`，`agegroup`，`includeReport`，`includeAsrText`，`refPinyin`，`taskType`，`paragraphNeedWordScore`，平台新增的字段放进 `extra`。`config` 分片的 JSON 文本由 SDK 按固定顺序生成，整数值的小数写成整数，发出的文本与签名的文本一字不差。`realtimeFeedback` 只用于原生实时评测，打开朗读进度，见实时评测的朗读进度一节，整段评测不发送这个字段。
 
 ## 结果字段
 
@@ -341,7 +341,7 @@ CONNECTING | CONNECTED | STARTED | ENDING -> RECONNECTING -> CONNECTING
 | `onStateChanged` | 每次状态变化 |
 | `onConnected` | 首次连接建立 |
 | `onStarted` | 服务端首次接受参数，此后送入的音频直接发出 |
-| `onPartial` | 声通兼容会话打开 `realtimeFeedback` 后的进度帧 |
+| `onPartial` | 进度帧，原生会话与声通兼容会话打开 `realtimeFeedback` 后收到，`end()` 之后到终评之前也会收到，见朗读进度一节 |
 | `onReconnecting` | 连接中断，第几次重连，等待多久，原因 |
 | `onReconnected` | 重连成功，DROP 策略下附带丢弃的字节数 |
 | `onWarning` | `end()` 时的本地预检警告 |
@@ -370,6 +370,61 @@ CONNECTING | CONNECTED | STARTED | ENDING -> RECONNECTING -> CONNECTING
 ### 心跳与超时
 
 会话进入 STARTED 后每 15 秒发一次协议层 ping，30 秒收不到 pong 视为连接中断。`connectTimeoutMs` 限定从发起连接到服务端接受参数的时间，`resultTimeoutMs` 限定 `end()` 之后等待终评的时间。任何状态都有时限，会话不会无回调地停住。
+
+### 朗读进度
+
+原生会话在 `EvaluateConfig` 中设 `realtimeFeedback: true`，声通兼容会话在 `CompatParams` 中设 `realtimeFeedback: true`，平台在收音过程中下发进度帧，按参考文本逐字或逐词给出已经读到的位置，`onPartial` 回调 `StreamPartial`。按进度给参考文本着色的写法：
+
+```swift
+let refText = "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。"
+let config = EvaluateConfig(coreType: .sentence, referenceText: refText, language: "zh-CN", realtimeFeedback: true)
+
+let handlers = YuguStreamHandlers()
+handlers.onPartial = { partial in
+    guard partial.hasProgress else { return }
+    label.attributedText = colored(refText, partial.progress)
+}
+handlers.onResult = { result in show(result) }
+handlers.onError = { error in showError(error) }
+let session = try client.streamEvaluate(config: config, listener: handlers)
+
+// 已对上的字为绿色，读过但没对上的为橙色，还没读到的与标点为灰色
+func colored(_ refText: String, _ progress: [ReadingWord]) -> NSAttributedString {
+    let text = NSMutableAttributedString(string: refText, attributes: [.foregroundColor: UIColor.systemGray])
+    let ns = refText as NSString
+    var from = 0
+    for w in progress {
+        let range = ns.range(of: w.word, options: [], range: NSRange(location: from, length: ns.length - from))
+        if range.location == NSNotFound { break }
+        let color: UIColor = w.matched ? .systemGreen : (w.read ? .systemOrange : .systemGray)
+        text.addAttribute(.foregroundColor, value: color, range: range)
+        from = range.location + range.length
+    }
+    return text
+}
+```
+
+| 属性 | 内容 |
+|---|---|
+| `bytes` | 服务端在当前连接上已收到的音频字节数，重连后从零重新累计 |
+| `progress` | 参考文本的全部单位，按原文顺序排列，取自进度帧的 `result.progress`，元素为 `ReadingWord`，没有进度时为空数组。中文按字，英文按空白分词，标点与空白不算单位 |
+| `readUnits` | `read` 为 `true` 的单位数，没有进度时为 -1 |
+| `matchedUnits` | `matched` 为 `true` 的单位数，没有进度时为 -1 |
+| `totalUnits` | 单位总数，等于 `progress` 的长度，没有进度时为 -1 |
+| `hasProgress` | 进度帧带 `result.progress` 时为 `true` |
+| `raw` | 进度帧的原始 JSON |
+
+`ReadingWord` 有三个属性：`word` 是取自参考文本的字或词，`read` 表示朗读位置已越过这个单位，`matched` 表示识别结果与这个单位一致。一轮之内 `read` 与 `matched` 只会由 `false` 变为 `true`，`matched` 为 `true` 时 `read` 也为 `true`。`read` 为 `true` 而 `matched` 为 `false`，表示朗读已越过这个位置但识别结果与参考文本不一致，可能是读错，漏读或识别误差，以终评为准。
+
+进度变化时平台立即下发一帧，此外每收约 0.5 秒音频下发一帧，进度一般比朗读晚 1 到 2 秒，随网络情况变化。`end()` 之后会话处于 ENDING，平台对最后一段音频的识别结果仍以进度帧送达，`onResult` 之后不再回调 `onPartial`。进度帧不含发音评分，打开朗读进度不改变终评，也不额外计费。
+
+进度只对 16 kHz 16 位单声道 PCM 生效，一轮开头带 WAV 头的同样生效。参考文本为空，音频为其他格式，或平台当时无法跟踪进度时，进度帧只有 `bytes`，`hasProgress` 为 `false`，终评不受影响。
+
+声通兼容会话的进度帧另带声通格式的 `result.words`，只列出上一帧之后新读到的单位，覆盖第 `readUnits - words.count` 到第 `readUnits - 1` 个单位，顶层 `recordId` 为空字符串，记录号只在终评里给出。`words` 里的分数只表示识别结果与参考文本是否一致，发音与声调的实际得分以终评为准。逐字状态以 `progress` 为准，SDK 不读取 `words`，需要声通格式时从 `raw` 读取。重连后平台从第一个单位重新下发 `words`，拼接时按单位位置去重。原生会话的进度帧没有 `words`。
+
+断线重连后，服务端在新的会话上从零重新计算进度。缓冲策略为 `.replay` 时，重放音频期间进度逐步追上，会话记住最近一次回调的 `readUnits` 与 `matchedUnits`，只回调两者都不小于上一次的进度帧，界面上的进度不会倒退，没有回调的进度帧各写一条 DEBUG 日志。缓冲策略为 `.drop` 时，新的服务端会话只评测重连之后送入的音频，重连成功时会话清除记住的进度，此后的进度按新的服务端会话重新开始，可能小于重连之前。不带进度的帧照常回调。每个会话单独记录，新的会话从零开始。
+
+`realtimeFeedback` 缺省为 `false`，此时开始帧与 `2.0.0` 一字不差。声通兼容会话的 `CompatParams.realtimeFeedback` 发送的仍是 `realtime_feedback`。
 
 ## 生命周期
 
@@ -479,17 +534,18 @@ swift test
 swift test --enable-code-coverage
 ```
 
-测试覆盖签名的全部跨端向量，错误码表的每一项，各评测模式的真实返回，multipart 字节布局，退避计算，幂等键复用，实时会话状态机与三种缓冲策略，生命周期与音频预检。在 SDK 总仓库中执行时，测试还会启动 `tools/mock-server` 的平台模拟服务，验证重试，计费只计一次，以及实时会话在服务端断开，网络中断 10 秒，连接重置时的行为。没有 Node.js，单独克隆本仓库，或在不能启动进程的 iOS 模拟器上时，这部分测试自动跳过。持续集成脚本为总仓库的 `ci/ios.sh` 与 `ci/ios-macos.sh`。
+测试覆盖签名的全部跨端向量，错误码表的每一项，各评测模式的真实返回，线上录制的朗读进度帧，multipart 字节布局，退避计算，幂等键复用，实时会话状态机与三种缓冲策略，重连后的进度过滤，生命周期与音频预检。在 SDK 总仓库中执行时，测试还会启动 `tools/mock-server` 的平台模拟服务，验证重试，计费只计一次，两条通道的朗读进度，以及实时会话在服务端断开，网络中断 10 秒，连接重置时的行为。没有 Node.js，单独克隆本仓库，或在不能启动进程的 iOS 模拟器上时，这部分测试自动跳过。持续集成脚本为总仓库的 `ci/ios.sh` 与 `ci/ios-macos.sh`。
 
 2026-10-08 在 GitHub Actions 的 macos-14 构建机上用 Xcode 15.4 跑 `ci/ios-macos.sh`：macOS 上 195 项测试 192 项通过，3 项沙箱用例跳过，`YuguCore` 行覆盖率 96.77%。iOS 17.5 模拟器上 195 项测试 155 项通过，需要启动模拟服务的 37 项与 3 项沙箱用例跳过，`YuguCore` 行覆盖率 88.46%。iOS 真机版，命令行演示与演示 App 均构建通过，全部零警告。录音器 `YuguRecorder` 只经过编译，没有单元测试，录音与音频中断尚未在真机验证。
 
-设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，测试另外连接沙箱跑三条端到端用例，未设置时这三条自动跳过，不连接平台。基址缺省为 `https://open.shengzhiai.com`，可用 `YUGU_SANDBOX_BASE` 修改。一次运行在沙箱上产生 4 次评测调用，第二次整段评测是重放，不占当日次数。
+设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，测试另外连接沙箱跑四条端到端用例，未设置时这四条自动跳过，不连接平台。基址缺省为 `https://open.shengzhiai.com`，可用 `YUGU_SANDBOX_BASE` 修改。一次运行在沙箱上产生 5 次评测调用，第二次整段评测是重放，不占当日次数。
 
 | 用例 | 内容 |
 |---|---|
 | 原生整段评测 | 同一个幂等键提交两次，第二次为重放，记录号相同 |
 | 声通兼容整段评测 | `sent.eval.cn` |
 | 原生实时评测 | 完整会话，核对回调顺序与总分，Linux 上经测试用的 WebSocket 客户端与本地转发连接沙箱 |
+| 原生实时评测朗读进度 | 打开 `realtimeFeedback`，按实际语速送入 25 个字的中文例句，核对进度帧逐字给出，进度不倒退，终评带总分 |
 
 ```bash
 export YUGU_SANDBOX_APPKEY='<appKey>'

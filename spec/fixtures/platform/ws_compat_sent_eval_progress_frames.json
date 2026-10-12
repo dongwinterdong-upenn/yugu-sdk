@@ -1,0 +1,5764 @@
+[
+ {
+  "at": 0,
+  "frame": {
+   "coreType": "sent.eval",
+   "event": "connected"
+  }
+ },
+ {
+  "at": 0,
+  "frame": {
+   "coreType": "sent.eval",
+   "event": "started"
+  }
+ },
+ {
+  "at": 922,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 16000,
+    "readUnits": 0,
+    "matchedUnits": 0,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "see",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "you",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "again",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "am",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 1422,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 32000,
+    "readUnits": 0,
+    "matchedUnits": 0,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "see",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "you",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "again",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "am",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 2159,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 48000,
+    "readUnits": 0,
+    "matchedUnits": 0,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "see",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "you",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "again",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "am",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 2210,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 0,
+       "skipped": 1,
+       "tone": 0,
+       "overall": 0,
+       "overall_pron": 0
+      },
+      "word": "Nice",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 3,
+        "part": "Nice"
+       }
+      ]
+     },
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "to",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 1,
+        "part": "to"
+       }
+      ]
+     },
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "see",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 2,
+        "part": "see"
+       }
+      ]
+     }
+    ],
+    "bytes": 56320,
+    "readUnits": 3,
+    "matchedUnits": 2,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "again",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "am",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 2422,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 64000,
+    "readUnits": 3,
+    "matchedUnits": 2,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "again",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "am",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 3145,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "you",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 2,
+        "part": "you"
+       }
+      ]
+     },
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "again",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 4,
+        "part": "again"
+       }
+      ]
+     }
+    ],
+    "bytes": 76160,
+    "readUnits": 5,
+    "matchedUnits": 4,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "am",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 3150,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 80000,
+    "readUnits": 5,
+    "matchedUnits": 4,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "am",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 3585,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 96000,
+    "readUnits": 5,
+    "matchedUnits": 4,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "am",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 4012,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 112000,
+    "readUnits": 5,
+    "matchedUnits": 4,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "am",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 4910,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "I",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 0,
+        "part": "I"
+       }
+      ]
+     },
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "am",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 1,
+        "part": "am"
+       }
+      ]
+     }
+    ],
+    "bytes": 120320,
+    "readUnits": 7,
+    "matchedUnits": 6,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "student",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 4910,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "a",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 0,
+        "part": "a"
+       }
+      ]
+     },
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "student",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 6,
+        "part": "student"
+       }
+      ]
+     }
+    ],
+    "bytes": 127360,
+    "readUnits": 9,
+    "matchedUnits": 8,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "student",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 4911,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 128000,
+    "readUnits": 9,
+    "matchedUnits": 8,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "student",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "and",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "I",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "like",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 4911,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "and",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 2,
+        "part": "and"
+       }
+      ]
+     },
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "I",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 0,
+        "part": "I"
+       }
+      ]
+     },
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "like",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 3,
+        "part": "like"
+       }
+      ]
+     }
+    ],
+    "bytes": 140160,
+    "readUnits": 12,
+    "matchedUnits": 11,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "student",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "and",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "like",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 4991,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 144000,
+    "readUnits": 12,
+    "matchedUnits": 11,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "student",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "and",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "like",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 5639,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 160000,
+    "readUnits": 12,
+    "matchedUnits": 11,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "student",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "and",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "like",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "reading",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 5735,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "reading",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 6,
+        "part": "reading"
+       }
+      ]
+     }
+    ],
+    "bytes": 169600,
+    "readUnits": 13,
+    "matchedUnits": 12,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "student",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "and",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "like",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "reading",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 5944,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [],
+    "bytes": 176000,
+    "readUnits": 13,
+    "matchedUnits": 12,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "student",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "and",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "like",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "reading",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "books",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 6588,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "books",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 4,
+        "part": "books"
+       }
+      ]
+     }
+    ],
+    "bytes": 177920,
+    "readUnits": 14,
+    "matchedUnits": 13,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "student",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "and",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "like",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "reading",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "books",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "every",
+      "read": false,
+      "matched": false
+     },
+     {
+      "word": "day",
+      "read": false,
+      "matched": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 6876,
+  "frame": {
+   "eof": 0,
+   "recordId": "",
+   "result": {
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "words": [
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "every",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 4,
+        "part": "every"
+       }
+      ]
+     },
+     {
+      "charType": 1,
+      "scores": {
+       "pronunciation": 100,
+       "skipped": 0,
+       "tone": 0,
+       "overall": 100,
+       "overall_pron": 100
+      },
+      "word": "day",
+      "word_parts": [
+       {
+        "beginIndex": 0,
+        "charType": 1,
+        "endIndex": 2,
+        "part": "day"
+       }
+      ]
+     }
+    ],
+    "bytes": 177920,
+    "readUnits": 16,
+    "matchedUnits": 15,
+    "totalUnits": 16,
+    "progress": [
+     {
+      "word": "Nice",
+      "read": true,
+      "matched": false
+     },
+     {
+      "word": "to",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "see",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "you",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "again",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "am",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "a",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "student",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "and",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "I",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "like",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "reading",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "books",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "every",
+      "read": true,
+      "matched": true
+     },
+     {
+      "word": "day",
+      "read": true,
+      "matched": true
+     }
+    ]
+   }
+  }
+ },
+ {
+  "at": 13073,
+  "frame": {
+   "recordId": "eval_0b2d8a084a3e",
+   "result": {
+    "paragraphs": [],
+    "kernel_version": "1.0.0",
+    "resource_version": "1.0.0",
+    "overall": 94.4,
+    "pronunciation": 91.08,
+    "tone": 0,
+    "fluency": 98,
+    "rhythm": 90,
+    "integrity": 100,
+    "speed": 209,
+    "rear_tone": "flat",
+    "duration": "5.000",
+    "numeric_duration": 5,
+    "warning": [],
+    "words": [
+     {
+      "word": "Nice",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "nice",
+         "phoneme_offset": 1,
+         "phonetic": "AY"
+        }
+       ]
+      },
+      "span": {
+       "start": 17,
+       "end": 54
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "n",
+        "phone": "n",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 17,
+         "end": 34
+        }
+       },
+       {
+        "phoneme": "ay",
+        "phone": "ay",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 35,
+         "end": 44
+        }
+       },
+       {
+        "phoneme": "s",
+        "phone": "s",
+        "category": 0,
+        "pronunciation": 79,
+        "tone_index": "0",
+        "span": {
+         "start": 45,
+         "end": 54
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "Nice",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 3
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "n",
+        "phoneme": [
+         "N"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "i",
+        "phoneme": [
+         "AY"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "c",
+        "phoneme": [
+         "S"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "e",
+        "phoneme": [
+         "S"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "nays",
+        "grapheme": "nice",
+        "accuracy": 94
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "to",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "to",
+         "phoneme_offset": 1,
+         "phonetic": "UW"
+        }
+       ]
+      },
+      "span": {
+       "start": 55,
+       "end": 68
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "t",
+        "phone": "t",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 55,
+         "end": 62
+        }
+       },
+       {
+        "phoneme": "ax",
+        "phone": "ax",
+        "category": 0,
+        "pronunciation": 81,
+        "tone_index": "0",
+        "span": {
+         "start": 63,
+         "end": 68
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "to",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 1
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "t",
+        "phoneme": [
+         "T"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "o",
+        "phoneme": [
+         "UW"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "tax",
+        "grapheme": "to",
+        "accuracy": 92
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "see",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 100,
+       "pronunciation": 100,
+       "tone": 0,
+       "overall_pron": 100,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "see",
+         "phoneme_offset": 1,
+         "phonetic": "IY"
+        }
+       ]
+      },
+      "span": {
+       "start": 69,
+       "end": 90
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "s",
+        "phone": "s",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 69,
+         "end": 80
+        }
+       },
+       {
+        "phoneme": "iy",
+        "phone": "iy",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 81,
+         "end": 90
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "see",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 2
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "s",
+        "phoneme": [
+         "S"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "ee",
+        "phoneme": [
+         "IY"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "siy",
+        "grapheme": "see",
+        "accuracy": 100
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "you",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "you",
+         "phoneme_offset": 1,
+         "phonetic": "UW"
+        }
+       ]
+      },
+      "span": {
+       "start": 91,
+       "end": 106
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "y",
+        "phone": "y",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 91,
+         "end": 96
+        }
+       },
+       {
+        "phoneme": "uw",
+        "phone": "uw",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 97,
+         "end": 106
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "you",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 2
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "y",
+        "phoneme": [
+         "Y"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "ou",
+        "phoneme": [
+         "UW"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "yuw",
+        "grapheme": "you",
+        "accuracy": 97
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "again",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 0,
+         "stress": 0,
+         "overall": 100,
+         "spell": "again",
+         "phoneme_offset": 0,
+         "phonetic": "AH"
+        },
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "again",
+         "phoneme_offset": 2,
+         "phonetic": "EH"
+        }
+       ]
+      },
+      "span": {
+       "start": 107,
+       "end": 167
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "ax",
+        "phone": "ax",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 107,
+         "end": 115
+        }
+       },
+       {
+        "phoneme": "g",
+        "phone": "g",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 116,
+         "end": 126
+        }
+       },
+       {
+        "phoneme": "eh",
+        "phone": "eh",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 127,
+         "end": 144
+        }
+       },
+       {
+        "phoneme": "n",
+        "phone": "n",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 145,
+         "end": 167
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "again",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 4
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "a",
+        "phoneme": [
+         "AH"
+        ],
+        "overall": 99
+       },
+       {
+        "spell": "g",
+        "phoneme": [
+         "G"
+        ],
+        "overall": 99
+       },
+       {
+        "spell": "ai",
+        "phoneme": [
+         "EH"
+        ],
+        "overall": 99
+       },
+       {
+        "spell": "n",
+        "phoneme": [
+         "N"
+        ],
+        "overall": 99
+       }
+      ],
+      "linkable": true,
+      "syllables": [
+       {
+        "syllable": "ax",
+        "grapheme": "a",
+        "accuracy": 97
+       },
+       {
+        "syllable": "gehn",
+        "grapheme": "gain",
+        "accuracy": 97
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "I",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "i",
+         "phoneme_offset": 0,
+         "phonetic": "AY"
+        }
+       ]
+      },
+      "span": {
+       "start": 173,
+       "end": 194
+      },
+      "pause": {
+       "type": 1,
+       "duration": 5
+      },
+      "phonemes": [
+       {
+        "phoneme": "ay",
+        "phone": "ay",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 173,
+         "end": 194
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "I",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "i",
+        "phoneme": [
+         "AY"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "ay",
+        "grapheme": "i",
+        "accuracy": 97
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "am",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 100,
+       "pronunciation": 100,
+       "tone": 0,
+       "overall_pron": 100,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "am",
+         "phoneme_offset": 0,
+         "phonetic": "AE"
+        }
+       ]
+      },
+      "span": {
+       "start": 195,
+       "end": 214
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "ae",
+        "phone": "ae",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 195,
+         "end": 206
+        }
+       },
+       {
+        "phoneme": "m",
+        "phone": "m",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 207,
+         "end": 214
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "am",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 1
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "a",
+        "phoneme": [
+         "AE"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "m",
+        "phoneme": [
+         "M"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": true,
+      "syllables": [
+       {
+        "syllable": "aem",
+        "grapheme": "am",
+        "accuracy": 100
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "a",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 0,
+         "stress": 0,
+         "overall": 100,
+         "spell": "a",
+         "phoneme_offset": 0,
+         "phonetic": "AH"
+        }
+       ]
+      },
+      "span": {
+       "start": 215,
+       "end": 224
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "ax",
+        "phone": "ax",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 215,
+         "end": 224
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "a",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "a",
+        "phoneme": [
+         "AH"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "ax",
+        "grapheme": "a",
+        "accuracy": 97
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "student",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "student",
+         "phoneme_offset": 2,
+         "phonetic": "UW"
+        },
+        {
+         "ref_stress": 0,
+         "stress": 0,
+         "overall": 100,
+         "spell": "student",
+         "phoneme_offset": 4,
+         "phonetic": "AH"
+        }
+       ]
+      },
+      "span": {
+       "start": 225,
+       "end": 284
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "s",
+        "phone": "s",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 225,
+         "end": 234
+        }
+       },
+       {
+        "phoneme": "t",
+        "phone": "t",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 235,
+         "end": 249
+        }
+       },
+       {
+        "phoneme": "uw",
+        "phone": "uw",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 250,
+         "end": 256
+        }
+       },
+       {
+        "phoneme": "d",
+        "phone": "d",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 257,
+         "end": 262
+        }
+       },
+       {
+        "phoneme": "ax",
+        "phone": "ax",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 263,
+         "end": 270
+        }
+       },
+       {
+        "phoneme": "n",
+        "phone": "n",
+        "category": 0,
+        "pronunciation": 100,
+        "tone_index": "0",
+        "span": {
+         "start": 271,
+         "end": 278
+        }
+       },
+       {
+        "phoneme": "t",
+        "phone": "t",
+        "category": 0,
+        "pronunciation": 63,
+        "tone_index": "0",
+        "span": {
+         "start": 279,
+         "end": 284
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "student",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 6
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "s",
+        "phoneme": [
+         "S"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "t",
+        "phoneme": [
+         "T"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "u",
+        "phoneme": [
+         "UW"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "d",
+        "phoneme": [
+         "D"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "e",
+        "phoneme": [
+         "AH"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "n",
+        "phoneme": [
+         "N"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "t",
+        "phoneme": [
+         "T"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": true,
+      "syllables": [
+       {
+        "syllable": "stuw",
+        "grapheme": "stu",
+        "accuracy": 100
+       },
+       {
+        "syllable": "daxnt",
+        "grapheme": "dent",
+        "accuracy": 92
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "and",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 0,
+         "stress": 0,
+         "overall": 100,
+         "spell": "and",
+         "phoneme_offset": 0,
+         "phonetic": "AH"
+        }
+       ]
+      },
+      "span": {
+       "start": 287,
+       "end": 302
+      },
+      "pause": {
+       "type": 1,
+       "duration": 2
+      },
+      "phonemes": [
+       {
+        "phoneme": "ax",
+        "phone": "ax",
+        "category": 0,
+        "pronunciation": 80,
+        "tone_index": "0",
+        "span": {
+         "start": 287,
+         "end": 294
+        }
+       },
+       {
+        "phoneme": "n",
+        "phone": "n",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 295,
+         "end": 302
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "and",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 2
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "a",
+        "phoneme": [
+         "AH"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "n",
+        "phoneme": [
+         "N"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "d",
+        "phoneme": [
+         "D"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": true,
+      "syllables": [
+       {
+        "syllable": "axn",
+        "grapheme": "and",
+        "accuracy": 87
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "I",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "i",
+         "phoneme_offset": 0,
+         "phonetic": "AY"
+        }
+       ]
+      },
+      "span": {
+       "start": 303,
+       "end": 312
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "ay",
+        "phone": "ay",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 303,
+         "end": 312
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "I",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 0
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "i",
+        "phoneme": [
+         "AY"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "ay",
+        "grapheme": "i",
+        "accuracy": 97
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "like",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 97,
+       "pronunciation": 97,
+       "tone": 0,
+       "overall_pron": 97,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "like",
+         "phoneme_offset": 1,
+         "phonetic": "AY"
+        }
+       ]
+      },
+      "span": {
+       "start": 313,
+       "end": 348
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "l",
+        "phone": "l",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 313,
+         "end": 324
+        }
+       },
+       {
+        "phoneme": "ay",
+        "phone": "ay",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 325,
+         "end": 336
+        }
+       },
+       {
+        "phoneme": "k",
+        "phone": "k",
+        "category": 0,
+        "pronunciation": 97,
+        "tone_index": "0",
+        "span": {
+         "start": 337,
+         "end": 348
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "like",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 3
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "l",
+        "phoneme": [
+         "L"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "i",
+        "phoneme": [
+         "AY"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "k",
+        "phoneme": [
+         "K"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "e",
+        "phoneme": [
+         "K"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "layk",
+        "grapheme": "like",
+        "accuracy": 97
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "reading",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 94,
+       "pronunciation": 94,
+       "tone": 0,
+       "overall_pron": 94,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "reading",
+         "phoneme_offset": 1,
+         "phonetic": "IY"
+        },
+        {
+         "ref_stress": 0,
+         "stress": 0,
+         "overall": 100,
+         "spell": "reading",
+         "phoneme_offset": 3,
+         "phonetic": "IH"
+        }
+       ]
+      },
+      "span": {
+       "start": 349,
+       "end": 376
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "r",
+        "phone": "r",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 349,
+         "end": 354
+        }
+       },
+       {
+        "phoneme": "iy",
+        "phone": "iy",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 355,
+         "end": 360
+        }
+       },
+       {
+        "phoneme": "d",
+        "phone": "d",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 361,
+         "end": 364
+        }
+       },
+       {
+        "phoneme": "ih",
+        "phone": "ih",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 365,
+         "end": 372
+        }
+       },
+       {
+        "phoneme": "ng",
+        "phone": "ng",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 373,
+         "end": 376
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "reading",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 6
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "r",
+        "phoneme": [
+         "R"
+        ],
+        "overall": 99
+       },
+       {
+        "spell": "ea",
+        "phoneme": [
+         "IY"
+        ],
+        "overall": 99
+       },
+       {
+        "spell": "d",
+        "phoneme": [
+         "D"
+        ],
+        "overall": 99
+       },
+       {
+        "spell": "i",
+        "phoneme": [
+         "IH"
+        ],
+        "overall": 99
+       },
+       {
+        "spell": "ng",
+        "phoneme": [
+         "NG"
+        ],
+        "overall": 99
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "riyd",
+        "grapheme": "read",
+        "accuracy": 94
+       },
+       {
+        "syllable": "ihng",
+        "grapheme": "ing",
+        "accuracy": 94
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "books",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 94,
+       "pronunciation": 94,
+       "tone": 0,
+       "overall_pron": 94,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "books",
+         "phoneme_offset": 1,
+         "phonetic": "UH"
+        }
+       ]
+      },
+      "span": {
+       "start": 377,
+       "end": 416
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "b",
+        "phone": "b",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 377,
+         "end": 386
+        }
+       },
+       {
+        "phoneme": "uh",
+        "phone": "uh",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 387,
+         "end": 392
+        }
+       },
+       {
+        "phoneme": "k",
+        "phone": "k",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 393,
+         "end": 402
+        }
+       },
+       {
+        "phoneme": "s",
+        "phone": "s",
+        "category": 0,
+        "pronunciation": 94,
+        "tone_index": "0",
+        "span": {
+         "start": 403,
+         "end": 416
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "books",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 4
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "b",
+        "phoneme": [
+         "B"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "oo",
+        "phoneme": [
+         "UH"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "k",
+        "phoneme": [
+         "K"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "s",
+        "phoneme": [
+         "S"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": true,
+      "syllables": [
+       {
+        "syllable": "buhks",
+        "grapheme": "books",
+        "accuracy": 94
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "every",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 73,
+       "pronunciation": 73,
+       "tone": 0,
+       "overall_pron": 73,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 100,
+         "spell": "every",
+         "phoneme_offset": 0,
+         "phonetic": "EH"
+        },
+        {
+         "ref_stress": 0,
+         "stress": 0,
+         "overall": 100,
+         "spell": "every",
+         "phoneme_offset": 2,
+         "phonetic": "ER"
+        },
+        {
+         "ref_stress": 0,
+         "stress": 0,
+         "overall": 100,
+         "spell": "every",
+         "phoneme_offset": 3,
+         "phonetic": "IY"
+        }
+       ]
+      },
+      "span": {
+       "start": 417,
+       "end": 442
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "eh",
+        "phone": "eh",
+        "category": 0,
+        "pronunciation": 73,
+        "tone_index": "0",
+        "span": {
+         "start": 417,
+         "end": 420
+        }
+       },
+       {
+        "phoneme": "v",
+        "phone": "v",
+        "category": 0,
+        "pronunciation": 73,
+        "tone_index": "0",
+        "span": {
+         "start": 421,
+         "end": 428
+        }
+       },
+       {
+        "phoneme": "r",
+        "phone": "r",
+        "category": 0,
+        "pronunciation": 73,
+        "tone_index": "0",
+        "span": {
+         "start": 429,
+         "end": 436
+        }
+       },
+       {
+        "phoneme": "iy",
+        "phone": "iy",
+        "category": 0,
+        "pronunciation": 73,
+        "tone_index": "0",
+        "span": {
+         "start": 437,
+         "end": 442
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "every",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 4
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "e",
+        "phoneme": [
+         "EH"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "v",
+        "phoneme": [
+         "V"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "er",
+        "phoneme": [
+         "ER"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "y",
+        "phoneme": [
+         "IY"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "eh",
+        "grapheme": "e",
+        "accuracy": 73
+       },
+       {
+        "syllable": "v",
+        "grapheme": "ve",
+        "accuracy": 73
+       },
+       {
+        "syllable": "riy",
+        "grapheme": "ry",
+        "accuracy": 73
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     },
+     {
+      "word": "day",
+      "charType": 1,
+      "readType": 0,
+      "scores": {
+       "overall": 82,
+       "pronunciation": 82,
+       "tone": 0,
+       "overall_pron": 82,
+       "prominence": 0,
+       "stress": [
+        {
+         "ref_stress": 1,
+         "stress": 1,
+         "overall": 99,
+         "spell": "day",
+         "phoneme_offset": 1,
+         "phonetic": "EY"
+        }
+       ]
+      },
+      "span": {
+       "start": 443,
+       "end": 482
+      },
+      "pause": {
+       "type": 0,
+       "duration": 0
+      },
+      "phonemes": [
+       {
+        "phoneme": "d",
+        "phone": "d",
+        "category": 0,
+        "pronunciation": 82,
+        "tone_index": "0",
+        "span": {
+         "start": 443,
+         "end": 454
+        }
+       },
+       {
+        "phoneme": "ey",
+        "phone": "ey",
+        "category": 0,
+        "pronunciation": 82,
+        "tone_index": "0",
+        "span": {
+         "start": 455,
+         "end": 482
+        }
+       }
+      ],
+      "normalized_syllables": [],
+      "word_parts": [
+       {
+        "part": "day",
+        "charType": 1,
+        "beginIndex": 0,
+        "endIndex": 2
+       }
+      ],
+      "phonics": [
+       {
+        "spell": "d",
+        "phoneme": [
+         "D"
+        ],
+        "overall": 100
+       },
+       {
+        "spell": "ay",
+        "phoneme": [
+         "EY"
+        ],
+        "overall": 100
+       }
+      ],
+      "linkable": false,
+      "syllables": [
+       {
+        "syllable": "dey",
+        "grapheme": "day",
+        "accuracy": 82
+       }
+      ],
+      "readStatus": "correct",
+      "read_status": "correct"
+     }
+    ],
+    "sentences": [
+     {
+      "sentence": "Nice to see you again.",
+      "text": "Nice to see you again.",
+      "index": 0,
+      "overall": 98,
+      "scores": {
+       "overall": 98,
+       "pronunciation": 98,
+       "fluency": 98,
+       "integrity": 100
+      },
+      "span": {
+       "start": 17,
+       "end": 167
+      },
+      "details": [
+       {
+        "word": "Nice",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "nice",
+           "phoneme_offset": 1,
+           "phonetic": "AY"
+          }
+         ]
+        },
+        "span": {
+         "start": 17,
+         "end": 54
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "n",
+          "phone": "n",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 17,
+           "end": 34
+          }
+         },
+         {
+          "phoneme": "ay",
+          "phone": "ay",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 35,
+           "end": 44
+          }
+         },
+         {
+          "phoneme": "s",
+          "phone": "s",
+          "category": 0,
+          "pronunciation": 79,
+          "tone_index": "0",
+          "span": {
+           "start": 45,
+           "end": 54
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "Nice",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 3
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "n",
+          "phoneme": [
+           "N"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "i",
+          "phoneme": [
+           "AY"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "c",
+          "phoneme": [
+           "S"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "e",
+          "phoneme": [
+           "S"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "nays",
+          "grapheme": "nice",
+          "accuracy": 94
+         }
+        ]
+       },
+       {
+        "word": "to",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "to",
+           "phoneme_offset": 1,
+           "phonetic": "UW"
+          }
+         ]
+        },
+        "span": {
+         "start": 55,
+         "end": 68
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "t",
+          "phone": "t",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 55,
+           "end": 62
+          }
+         },
+         {
+          "phoneme": "ax",
+          "phone": "ax",
+          "category": 0,
+          "pronunciation": 81,
+          "tone_index": "0",
+          "span": {
+           "start": 63,
+           "end": 68
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "to",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 1
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "t",
+          "phoneme": [
+           "T"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "o",
+          "phoneme": [
+           "UW"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "tax",
+          "grapheme": "to",
+          "accuracy": 92
+         }
+        ]
+       },
+       {
+        "word": "see",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 100,
+         "pronunciation": 100,
+         "tone": 0,
+         "overall_pron": 100,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "see",
+           "phoneme_offset": 1,
+           "phonetic": "IY"
+          }
+         ]
+        },
+        "span": {
+         "start": 69,
+         "end": 90
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "s",
+          "phone": "s",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 69,
+           "end": 80
+          }
+         },
+         {
+          "phoneme": "iy",
+          "phone": "iy",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 81,
+           "end": 90
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "see",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 2
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "s",
+          "phoneme": [
+           "S"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "ee",
+          "phoneme": [
+           "IY"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "siy",
+          "grapheme": "see",
+          "accuracy": 100
+         }
+        ]
+       },
+       {
+        "word": "you",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "you",
+           "phoneme_offset": 1,
+           "phonetic": "UW"
+          }
+         ]
+        },
+        "span": {
+         "start": 91,
+         "end": 106
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "y",
+          "phone": "y",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 91,
+           "end": 96
+          }
+         },
+         {
+          "phoneme": "uw",
+          "phone": "uw",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 97,
+           "end": 106
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "you",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 2
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "y",
+          "phoneme": [
+           "Y"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "ou",
+          "phoneme": [
+           "UW"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "yuw",
+          "grapheme": "you",
+          "accuracy": 97
+         }
+        ]
+       },
+       {
+        "word": "again",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 0,
+           "stress": 0,
+           "overall": 100,
+           "spell": "again",
+           "phoneme_offset": 0,
+           "phonetic": "AH"
+          },
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "again",
+           "phoneme_offset": 2,
+           "phonetic": "EH"
+          }
+         ]
+        },
+        "span": {
+         "start": 107,
+         "end": 167
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "ax",
+          "phone": "ax",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 107,
+           "end": 115
+          }
+         },
+         {
+          "phoneme": "g",
+          "phone": "g",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 116,
+           "end": 126
+          }
+         },
+         {
+          "phoneme": "eh",
+          "phone": "eh",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 127,
+           "end": 144
+          }
+         },
+         {
+          "phoneme": "n",
+          "phone": "n",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 145,
+           "end": 167
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "again",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 4
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "a",
+          "phoneme": [
+           "AH"
+          ],
+          "overall": 99
+         },
+         {
+          "spell": "g",
+          "phoneme": [
+           "G"
+          ],
+          "overall": 99
+         },
+         {
+          "spell": "ai",
+          "phoneme": [
+           "EH"
+          ],
+          "overall": 99
+         },
+         {
+          "spell": "n",
+          "phoneme": [
+           "N"
+          ],
+          "overall": 99
+         }
+        ],
+        "linkable": true,
+        "syllables": [
+         {
+          "syllable": "ax",
+          "grapheme": "a",
+          "accuracy": 97
+         },
+         {
+          "syllable": "gehn",
+          "grapheme": "gain",
+          "accuracy": 97
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "sentence": "I am a student, and I like reading books every day.",
+      "text": "I am a student, and I like reading books every day.",
+      "index": 1,
+      "overall": 93,
+      "scores": {
+       "overall": 93,
+       "pronunciation": 93,
+       "fluency": 93,
+       "integrity": 100
+      },
+      "span": {
+       "start": 173,
+       "end": 482
+      },
+      "details": [
+       {
+        "word": "I",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "i",
+           "phoneme_offset": 0,
+           "phonetic": "AY"
+          }
+         ]
+        },
+        "span": {
+         "start": 173,
+         "end": 194
+        },
+        "pause": {
+         "type": 1,
+         "duration": 5
+        },
+        "phonemes": [
+         {
+          "phoneme": "ay",
+          "phone": "ay",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 173,
+           "end": 194
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "I",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "i",
+          "phoneme": [
+           "AY"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "ay",
+          "grapheme": "i",
+          "accuracy": 97
+         }
+        ]
+       },
+       {
+        "word": "am",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 100,
+         "pronunciation": 100,
+         "tone": 0,
+         "overall_pron": 100,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "am",
+           "phoneme_offset": 0,
+           "phonetic": "AE"
+          }
+         ]
+        },
+        "span": {
+         "start": 195,
+         "end": 214
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "ae",
+          "phone": "ae",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 195,
+           "end": 206
+          }
+         },
+         {
+          "phoneme": "m",
+          "phone": "m",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 207,
+           "end": 214
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "am",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 1
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "a",
+          "phoneme": [
+           "AE"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "m",
+          "phoneme": [
+           "M"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": true,
+        "syllables": [
+         {
+          "syllable": "aem",
+          "grapheme": "am",
+          "accuracy": 100
+         }
+        ]
+       },
+       {
+        "word": "a",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 0,
+           "stress": 0,
+           "overall": 100,
+           "spell": "a",
+           "phoneme_offset": 0,
+           "phonetic": "AH"
+          }
+         ]
+        },
+        "span": {
+         "start": 215,
+         "end": 224
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "ax",
+          "phone": "ax",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 215,
+           "end": 224
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "a",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "a",
+          "phoneme": [
+           "AH"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "ax",
+          "grapheme": "a",
+          "accuracy": 97
+         }
+        ]
+       },
+       {
+        "word": "student",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "student",
+           "phoneme_offset": 2,
+           "phonetic": "UW"
+          },
+          {
+           "ref_stress": 0,
+           "stress": 0,
+           "overall": 100,
+           "spell": "student",
+           "phoneme_offset": 4,
+           "phonetic": "AH"
+          }
+         ]
+        },
+        "span": {
+         "start": 225,
+         "end": 284
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "s",
+          "phone": "s",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 225,
+           "end": 234
+          }
+         },
+         {
+          "phoneme": "t",
+          "phone": "t",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 235,
+           "end": 249
+          }
+         },
+         {
+          "phoneme": "uw",
+          "phone": "uw",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 250,
+           "end": 256
+          }
+         },
+         {
+          "phoneme": "d",
+          "phone": "d",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 257,
+           "end": 262
+          }
+         },
+         {
+          "phoneme": "ax",
+          "phone": "ax",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 263,
+           "end": 270
+          }
+         },
+         {
+          "phoneme": "n",
+          "phone": "n",
+          "category": 0,
+          "pronunciation": 100,
+          "tone_index": "0",
+          "span": {
+           "start": 271,
+           "end": 278
+          }
+         },
+         {
+          "phoneme": "t",
+          "phone": "t",
+          "category": 0,
+          "pronunciation": 63,
+          "tone_index": "0",
+          "span": {
+           "start": 279,
+           "end": 284
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "student",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 6
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "s",
+          "phoneme": [
+           "S"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "t",
+          "phoneme": [
+           "T"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "u",
+          "phoneme": [
+           "UW"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "d",
+          "phoneme": [
+           "D"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "e",
+          "phoneme": [
+           "AH"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "n",
+          "phoneme": [
+           "N"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "t",
+          "phoneme": [
+           "T"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": true,
+        "syllables": [
+         {
+          "syllable": "stuw",
+          "grapheme": "stu",
+          "accuracy": 100
+         },
+         {
+          "syllable": "daxnt",
+          "grapheme": "dent",
+          "accuracy": 92
+         }
+        ]
+       },
+       {
+        "word": "and",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 0,
+           "stress": 0,
+           "overall": 100,
+           "spell": "and",
+           "phoneme_offset": 0,
+           "phonetic": "AH"
+          }
+         ]
+        },
+        "span": {
+         "start": 287,
+         "end": 302
+        },
+        "pause": {
+         "type": 1,
+         "duration": 2
+        },
+        "phonemes": [
+         {
+          "phoneme": "ax",
+          "phone": "ax",
+          "category": 0,
+          "pronunciation": 80,
+          "tone_index": "0",
+          "span": {
+           "start": 287,
+           "end": 294
+          }
+         },
+         {
+          "phoneme": "n",
+          "phone": "n",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 295,
+           "end": 302
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "and",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 2
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "a",
+          "phoneme": [
+           "AH"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "n",
+          "phoneme": [
+           "N"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "d",
+          "phoneme": [
+           "D"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": true,
+        "syllables": [
+         {
+          "syllable": "axn",
+          "grapheme": "and",
+          "accuracy": 87
+         }
+        ]
+       },
+       {
+        "word": "I",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "i",
+           "phoneme_offset": 0,
+           "phonetic": "AY"
+          }
+         ]
+        },
+        "span": {
+         "start": 303,
+         "end": 312
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "ay",
+          "phone": "ay",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 303,
+           "end": 312
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "I",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 0
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "i",
+          "phoneme": [
+           "AY"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "ay",
+          "grapheme": "i",
+          "accuracy": 97
+         }
+        ]
+       },
+       {
+        "word": "like",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 97,
+         "pronunciation": 97,
+         "tone": 0,
+         "overall_pron": 97,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "like",
+           "phoneme_offset": 1,
+           "phonetic": "AY"
+          }
+         ]
+        },
+        "span": {
+         "start": 313,
+         "end": 348
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "l",
+          "phone": "l",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 313,
+           "end": 324
+          }
+         },
+         {
+          "phoneme": "ay",
+          "phone": "ay",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 325,
+           "end": 336
+          }
+         },
+         {
+          "phoneme": "k",
+          "phone": "k",
+          "category": 0,
+          "pronunciation": 97,
+          "tone_index": "0",
+          "span": {
+           "start": 337,
+           "end": 348
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "like",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 3
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "l",
+          "phoneme": [
+           "L"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "i",
+          "phoneme": [
+           "AY"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "k",
+          "phoneme": [
+           "K"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "e",
+          "phoneme": [
+           "K"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "layk",
+          "grapheme": "like",
+          "accuracy": 97
+         }
+        ]
+       },
+       {
+        "word": "reading",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 94,
+         "pronunciation": 94,
+         "tone": 0,
+         "overall_pron": 94,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "reading",
+           "phoneme_offset": 1,
+           "phonetic": "IY"
+          },
+          {
+           "ref_stress": 0,
+           "stress": 0,
+           "overall": 100,
+           "spell": "reading",
+           "phoneme_offset": 3,
+           "phonetic": "IH"
+          }
+         ]
+        },
+        "span": {
+         "start": 349,
+         "end": 376
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "r",
+          "phone": "r",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 349,
+           "end": 354
+          }
+         },
+         {
+          "phoneme": "iy",
+          "phone": "iy",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 355,
+           "end": 360
+          }
+         },
+         {
+          "phoneme": "d",
+          "phone": "d",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 361,
+           "end": 364
+          }
+         },
+         {
+          "phoneme": "ih",
+          "phone": "ih",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 365,
+           "end": 372
+          }
+         },
+         {
+          "phoneme": "ng",
+          "phone": "ng",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 373,
+           "end": 376
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "reading",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 6
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "r",
+          "phoneme": [
+           "R"
+          ],
+          "overall": 99
+         },
+         {
+          "spell": "ea",
+          "phoneme": [
+           "IY"
+          ],
+          "overall": 99
+         },
+         {
+          "spell": "d",
+          "phoneme": [
+           "D"
+          ],
+          "overall": 99
+         },
+         {
+          "spell": "i",
+          "phoneme": [
+           "IH"
+          ],
+          "overall": 99
+         },
+         {
+          "spell": "ng",
+          "phoneme": [
+           "NG"
+          ],
+          "overall": 99
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "riyd",
+          "grapheme": "read",
+          "accuracy": 94
+         },
+         {
+          "syllable": "ihng",
+          "grapheme": "ing",
+          "accuracy": 94
+         }
+        ]
+       },
+       {
+        "word": "books",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 94,
+         "pronunciation": 94,
+         "tone": 0,
+         "overall_pron": 94,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "books",
+           "phoneme_offset": 1,
+           "phonetic": "UH"
+          }
+         ]
+        },
+        "span": {
+         "start": 377,
+         "end": 416
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "b",
+          "phone": "b",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 377,
+           "end": 386
+          }
+         },
+         {
+          "phoneme": "uh",
+          "phone": "uh",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 387,
+           "end": 392
+          }
+         },
+         {
+          "phoneme": "k",
+          "phone": "k",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 393,
+           "end": 402
+          }
+         },
+         {
+          "phoneme": "s",
+          "phone": "s",
+          "category": 0,
+          "pronunciation": 94,
+          "tone_index": "0",
+          "span": {
+           "start": 403,
+           "end": 416
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "books",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 4
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "b",
+          "phoneme": [
+           "B"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "oo",
+          "phoneme": [
+           "UH"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "k",
+          "phoneme": [
+           "K"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "s",
+          "phoneme": [
+           "S"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": true,
+        "syllables": [
+         {
+          "syllable": "buhks",
+          "grapheme": "books",
+          "accuracy": 94
+         }
+        ]
+       },
+       {
+        "word": "every",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 73,
+         "pronunciation": 73,
+         "tone": 0,
+         "overall_pron": 73,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 100,
+           "spell": "every",
+           "phoneme_offset": 0,
+           "phonetic": "EH"
+          },
+          {
+           "ref_stress": 0,
+           "stress": 0,
+           "overall": 100,
+           "spell": "every",
+           "phoneme_offset": 2,
+           "phonetic": "ER"
+          },
+          {
+           "ref_stress": 0,
+           "stress": 0,
+           "overall": 100,
+           "spell": "every",
+           "phoneme_offset": 3,
+           "phonetic": "IY"
+          }
+         ]
+        },
+        "span": {
+         "start": 417,
+         "end": 442
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "eh",
+          "phone": "eh",
+          "category": 0,
+          "pronunciation": 73,
+          "tone_index": "0",
+          "span": {
+           "start": 417,
+           "end": 420
+          }
+         },
+         {
+          "phoneme": "v",
+          "phone": "v",
+          "category": 0,
+          "pronunciation": 73,
+          "tone_index": "0",
+          "span": {
+           "start": 421,
+           "end": 428
+          }
+         },
+         {
+          "phoneme": "r",
+          "phone": "r",
+          "category": 0,
+          "pronunciation": 73,
+          "tone_index": "0",
+          "span": {
+           "start": 429,
+           "end": 436
+          }
+         },
+         {
+          "phoneme": "iy",
+          "phone": "iy",
+          "category": 0,
+          "pronunciation": 73,
+          "tone_index": "0",
+          "span": {
+           "start": 437,
+           "end": 442
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "every",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 4
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "e",
+          "phoneme": [
+           "EH"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "v",
+          "phoneme": [
+           "V"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "er",
+          "phoneme": [
+           "ER"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "y",
+          "phoneme": [
+           "IY"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "eh",
+          "grapheme": "e",
+          "accuracy": 73
+         },
+         {
+          "syllable": "v",
+          "grapheme": "ve",
+          "accuracy": 73
+         },
+         {
+          "syllable": "riy",
+          "grapheme": "ry",
+          "accuracy": 73
+         }
+        ]
+       },
+       {
+        "word": "day",
+        "charType": 1,
+        "readType": 0,
+        "scores": {
+         "overall": 82,
+         "pronunciation": 82,
+         "tone": 0,
+         "overall_pron": 82,
+         "prominence": 0,
+         "stress": [
+          {
+           "ref_stress": 1,
+           "stress": 1,
+           "overall": 99,
+           "spell": "day",
+           "phoneme_offset": 1,
+           "phonetic": "EY"
+          }
+         ]
+        },
+        "span": {
+         "start": 443,
+         "end": 482
+        },
+        "pause": {
+         "type": 0,
+         "duration": 0
+        },
+        "phonemes": [
+         {
+          "phoneme": "d",
+          "phone": "d",
+          "category": 0,
+          "pronunciation": 82,
+          "tone_index": "0",
+          "span": {
+           "start": 443,
+           "end": 454
+          }
+         },
+         {
+          "phoneme": "ey",
+          "phone": "ey",
+          "category": 0,
+          "pronunciation": 82,
+          "tone_index": "0",
+          "span": {
+           "start": 455,
+           "end": 482
+          }
+         }
+        ],
+        "normalized_syllables": [],
+        "word_parts": [
+         {
+          "part": "day",
+          "charType": 1,
+          "beginIndex": 0,
+          "endIndex": 2
+         }
+        ],
+        "phonics": [
+         {
+          "spell": "d",
+          "phoneme": [
+           "D"
+          ],
+          "overall": 100
+         },
+         {
+          "spell": "ay",
+          "phoneme": [
+           "EY"
+          ],
+          "overall": 100
+         }
+        ],
+        "linkable": false,
+        "syllables": [
+         {
+          "syllable": "dey",
+          "grapheme": "day",
+          "accuracy": 82
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "_language": "en",
+    "_coreType": "sent.eval",
+    "compositeReport": {
+     "compositeScore": 94.4,
+     "integrityScore": 100,
+     "accuracyScore": 91.08,
+     "pronunciationScore": 91.08,
+     "phonemeScore": 96,
+     "fluencyScore": 98,
+     "fluentScore": 98,
+     "readSpeedScore": 93,
+     "readSpeed": 209,
+     "skillScore": 90.08,
+     "stopConnScore": 60,
+     "intonationScore": 100,
+     "emotionScore": 100,
+     "literalTotal": 94,
+     "rhythmScore": 100,
+     "completenessScore": 100,
+     "accuracySuggest": "Review the per-word phonics/phoneme scores and practice the lowest-scoring sounds first.；Mind word stress placement; imitate the stress pattern of the standard demo audio.",
+     "fluencySuggest": "Keep an even reading pace and avoid long pauses at the beginning or end.",
+     "_engineCompositeScore": 94
+    },
+    "yuguScores": {
+     "overall": 94.4,
+     "integrity": 100,
+     "accuracy": {
+      "overall": 91.08,
+      "phoneme": 96.2
+     },
+     "fluency": {
+      "overall": 98,
+      "speed_score": 93.3,
+      "naturalness": 100
+     },
+     "reading_skill": {
+      "overall": 90.076,
+      "pause": 60,
+      "intonation": 100,
+      "rhythm": 100
+     },
+     "prosody": 90.076,
+     "emotion": 100,
+     "rear_tone": "flat",
+     "speed": 209,
+     "duration_s": 5
+    },
+    "accuracy": 91.08,
+    "reading_skill": 90.08,
+    "_engineOverall": 94,
+    "_overallCalibration": {
+     "reason": "engine",
+     "evidenceScore": 94.4,
+     "delta": -0.4
+    }
+   },
+   "eof": 1
+  }
+ }
+]

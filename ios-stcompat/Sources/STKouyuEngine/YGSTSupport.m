@@ -189,7 +189,7 @@ NSString *YGSTValueText(id value) {
     return [value description];
 }
 
-NSString *YGSTStringFromBuf(ygst_buf *b) {
+NSString *YGSTStringFromBuf(const ygst_buf *b) {
     NSString *s;
     if (!b->len) return @"";
     s = [[NSString alloc] initWithBytes:b->data length:b->len encoding:NSUTF8StringEncoding];
@@ -359,6 +359,35 @@ NSURLSession *YGSTSharedURLSession(void) {
 @implementation YGSTUploadResult
 @end
 
+YGSTUploadResult *YGSTUploadResultMake(const ygst_classification *c, ygst_action_kind kind, int errId, NSData *body,
+                                       const ygst_call *call, BOOL replayed) {
+    YGSTUploadResult *r = [[YGSTUploadResult alloc] init];
+    r.attempts = call->total_attempts;
+    r.replayed = replayed;
+    if (kind == YGST_ACT_SUCCESS && body && c->result.p) {
+        r.success = YES;
+        r.body = body;
+        r.resultRange = NSMakeRange((NSUInteger)(c->result.p - (const char *)body.bytes), c->result.n);
+        r.recordId = YGSTStringFromBuf(&c->record_id);
+        r.recordIdJSON = c->has_record_id ? [[NSString alloc] initWithBytes:c->record_id_raw.p
+                                                                     length:c->record_id_raw.n
+                                                                   encoding:NSUTF8StringEncoding]
+                                          : nil;
+        r.audioUrl = c->has_audio_url ? YGSTStringFromBuf(&c->audio_url) : nil;
+        r.message = @"";
+    } else {
+        ygst_buf m;
+        r.success = NO;
+        r.errId = kind == YGST_ACT_SUCCESS ? YGST_LOCAL_PROTOCOL : errId;
+        ygst_buf_init(&m);
+        ygst_error_message(c, r.errId, call->attempt, &m);
+        r.message = YGSTStringFromBuf(&m);
+        ygst_buf_free(&m);
+        r.recordId = @"";
+    }
+    return r;
+}
+
 static NSString *YGSTHeader(NSHTTPURLResponse *response, NSString *name) {
     NSDictionary *headers = response.allHeaderFields;
     for (id key in headers) {
@@ -370,7 +399,7 @@ static NSString *YGSTHeader(NSHTTPURLResponse *response, NSString *name) {
     return nil;
 }
 
-static int YGSTLocalCodeForError(NSError *error) {
+int YGSTLocalCodeForError(NSError *error) {
     if ([error.domain isEqualToString:NSURLErrorDomain]) {
         switch (error.code) {
         case NSURLErrorTimedOut:
@@ -389,6 +418,18 @@ static int YGSTLocalCodeForError(NSError *error) {
         }
     }
     return YGST_LOCAL_NETWORK;
+}
+
+NSString *YGSTLocalMessageForError(NSError *error) {
+    NSString *desc = error.localizedDescription ?: @"";
+    int code = YGSTLocalCodeForError(error);
+    if (error.code == NSURLErrorAppTransportSecurityRequiresSecureConnection) {
+        return @"TLS certificate check failed: App Transport Security blocks this http address, use https "
+               @"or an ATS exception";
+    }
+    if (code == YGST_LOCAL_TIMEOUT) return [@"timeout: " stringByAppendingString:desc];
+    if (code == YGST_LOCAL_TLS) return [@"TLS certificate check failed: " stringByAppendingString:desc];
+    return [NSString stringWithFormat:@"network error: %@ %ld %@", error.domain ?: @"", (long)error.code, desc];
 }
 
 @implementation YGSTUploader {
@@ -489,18 +530,8 @@ static int YGSTLocalCodeForError(NSError *error) {
     memset(&o, 0, sizeof o);
     o.retry_after_ms = -1;
     if (error) {
-        NSString *desc = error.localizedDescription ?: @"";
         o.local_code = YGSTLocalCodeForError(error);
-        if (error.code == NSURLErrorAppTransportSecurityRequiresSecureConnection) {
-            localMessage = @"TLS certificate check failed: App Transport Security blocks this http address, use https "
-                           @"or an ATS exception";
-        } else if (o.local_code == YGST_LOCAL_TIMEOUT) {
-            localMessage = [@"timeout: " stringByAppendingString:desc];
-        } else if (o.local_code == YGST_LOCAL_TLS) {
-            localMessage = [@"TLS certificate check failed: " stringByAppendingString:desc];
-        } else {
-            localMessage = [NSString stringWithFormat:@"network error: %@ %ld %@", error.domain, (long)error.code, desc];
-        }
+        localMessage = YGSTLocalMessageForError(error);
     } else {
         NSString *ra, *rep;
         http = [response isKindOfClass:[NSHTTPURLResponse class]] ? (NSHTTPURLResponse *)response : nil;
@@ -537,32 +568,12 @@ static int YGSTLocalCodeForError(NSError *error) {
         });
         return;
     } else {
-        YGSTUploadResult *r = [[YGSTUploadResult alloc] init];
         void (^completion)(YGSTUploadResult *) = _completion;
-        r.attempts = _call.total_attempts;
-        r.replayed = replayed;
-        if (a.kind == YGST_ACT_SUCCESS && data) {
-            r.success = YES;
-            r.body = data;
-            r.resultRange = NSMakeRange((NSUInteger)(c.result.p - (const char *)data.bytes), c.result.n);
-            r.recordId = YGSTStringFromBuf(&c.record_id);
-            r.recordIdJSON = c.has_record_id ? [[NSString alloc] initWithBytes:c.record_id_raw.p
-                                                                         length:c.record_id_raw.n
-                                                                       encoding:NSUTF8StringEncoding]
-                                             : nil;
-            r.audioUrl = c.has_audio_url ? YGSTStringFromBuf(&c.audio_url) : nil;
-            r.message = @"";
+        YGSTUploadResult *r = YGSTUploadResultMake(&c, a.kind, a.err_id, data, &_call, replayed);
+        if (r.success) {
             YGSTLogf(YGST_LEVEL_INFO, @"evaluated %@ recordId %@ in %d attempt(s)%@", _url.path, r.recordId,
                      r.attempts, replayed ? @" (replayed)" : @"");
         } else {
-            ygst_buf m;
-            r.success = NO;
-            r.errId = a.kind == YGST_ACT_SUCCESS ? YGST_LOCAL_PROTOCOL : a.err_id;
-            ygst_buf_init(&m);
-            ygst_error_message(&c, r.errId, _call.attempt, &m);
-            r.message = YGSTStringFromBuf(&m);
-            ygst_buf_free(&m);
-            r.recordId = @"";
             YGSTLogf(YGST_LEVEL_WARN, @"evaluation failed after %d attempt(s): errId %d %@", r.attempts, r.errId,
                      r.message);
         }

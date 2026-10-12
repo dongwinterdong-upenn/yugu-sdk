@@ -236,7 +236,7 @@ describe('other REST calls against the mock platform', () => {
     assert.ok(reportLog.every((e) => e.idempotencyKey === null));
     const writes = (await mock.log()).filter((e) => e.method === 'POST');
     assert.ok(writes.every((e) => /^[0-9a-f]{32}$/.test(e.idempotencyKey)));
-    assert.ok(writes.every((e) => e.userAgent === 'yugu-web-sdk/2.0.0'));
+    assert.ok(writes.every((e) => e.userAgent === 'yugu-web-sdk/2.1.0'));
     const bill = await mock.billing();
     assert.deepEqual(bill.records.map((x) => x.op).sort(), ['compat', 'evaluate', 'tts']);
   });

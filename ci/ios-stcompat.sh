@@ -23,7 +23,8 @@
 #
 # Steps: C error table in sync with spec/errors.json, strict C99 build of the core, core unit tests
 # with gcov coverage, the same tests under ASan and UBSan, integration tests against the mock
-# platform, sandbox cases through the same C core over HTTPS (OpenSSL), coverage report, header
+# platform (REST and the realtime_feedback rounds over the compat WebSocket), sandbox cases through
+# the same C core over HTTPS (OpenSSL), coverage report, header
 # identity check and its self test, Objective-C syntax check with libclang against stub SDK
 # declarations, docs lint. The last line is "COVERAGE <pct>".
 set -uo pipefail
@@ -257,9 +258,10 @@ echo
 echo "ios-stcompat CI summary"
 printf '%s\n' "${SUMMARY[@]}"
 echo
-echo "NOTE: the Objective-C layer (KYTestEngine, recorder, NSURLSession uploader, skegn C API) is verified only"
-echo "      on macOS by ci/ios-stcompat-macos.sh. On Linux it is syntax-checked with libclang against stub"
-echo "      declarations, not compiled against the Apple SDK, not linked and not run."
+echo "NOTE: the Objective-C layer (KYTestEngine, recorder, NSURLSession uploader, realtime WebSocket round, skegn C"
+echo "      API) is verified only on macOS by ci/ios-stcompat-macos.sh. On Linux it is syntax-checked with libclang"
+echo "      against stub declarations, not compiled against the Apple SDK, not linked and not run. The realtime round's"
+echo "      decisions (ygst_rt) run on Linux in the core tests and against the mock in the integration step."
 echo "results in $OUT"
 echo "COVERAGE $COVERAGE"
 exit "$FAILED"

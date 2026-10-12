@@ -16,7 +16,7 @@ import {
 } from '@shengzhiai/yugu-miniprogram-sdk';
 import type {
   YuguClientOptions, RequestOptions, EvaluateParams, EvaluateCompatParams, TtsParams, EvalResult, TtsResult,
-  ReportData, StreamListener, StreamOptions, StreamEvaluateParams, StreamCompatParams, PartialResult,
+  ReportData, StreamListener, StreamOptions, StreamEvaluateParams, StreamCompatParams, PartialResult, ReadingWord,
   ReconnectInfo, RecordingResult, RecorderListener, RecorderOptions, PipeOptions, Warning, WordScore,
   SentenceScore, Dimensions, ConnectedScores, ConnectedBoundary, OpenScores, OpenContent, OpenDelivery,
   OpenLanguageUse, OpenFeedback, OpenTaskAudit, AsrText, AsrAlignment, Report, StandardAudio, RetryPolicy,
@@ -29,7 +29,7 @@ declare const wx: WxLike;
 declare const audioBuffer: ArrayBuffer;
 declare function show(text: string): void;
 
-const version: '2.0.0' = SDK_VERSION;
+const version: '2.1.0' = SDK_VERSION;
 const ua: string = USER_AGENT;
 const firstCore: CoreType = CORE_TYPES[0];
 const firstCompat: CompatCoreType = COMPAT_CORE_TYPES[0];
@@ -143,15 +143,31 @@ function streaming(): void {
     onStateChanged(oldState: SessionState, newState: SessionState) { show(oldState + newState); },
     onConnected() { show('connected'); },
     onStarted() { show('started'); },
-    onPartial(p: PartialResult) { show(String(p.bytes)); },
+    onPartial(p: PartialResult) {
+      show(String(p.bytes));
+      if (!p.hasProgress) return;
+      const units: ReadingWord[] = p.progress;
+      const counts: number[] = [p.readUnits, p.matchedUnits, p.totalUnits];
+      show(units.map((w) => w.word + (w.matched ? '+' : w.read ? '?' : '-')).join('') + counts.join('/') + JSON.stringify(p.raw));
+      // @ts-expect-error the per-unit list is progress, result.words of compat frames stays in raw
+      show(String(p.words));
+    },
     onReconnecting(attempt, delayMs, cause) { show(attempt + ' ' + delayMs + cause.message); },
     onReconnected(attempt, info: ReconnectInfo) { show(attempt + ' ' + info.droppedBytes + info.replayedBytes); },
     onWarning(w) { show(String(w.code)); },
     onClosed(code, reason) { show(code + reason); },
   };
   const so: StreamOptions = { reconnect: false, audioBufferPolicy: 'DROP', heartbeatIntervalMs: 0, query: { trace: 1 } };
-  const sp: StreamEvaluateParams = { coreType: 'sentence', referenceText: '今天天气很好', sampleRate: 16000 };
+  const sp: StreamEvaluateParams = { coreType: 'sentence', referenceText: '今天天气很好', sampleRate: 16000, realtimeFeedback: true };
   const session: StreamSession = client.streamEvaluate(sp, listener, so);
+  // @ts-expect-error realtimeFeedback is a boolean
+  client.streamEvaluate({ coreType: 'sentence', referenceText: 'x', realtimeFeedback: 'yes' }, listener);
+  // @ts-expect-error realtimeFeedback belongs to streaming, whole-file evaluation has no progress
+  void client.evaluate({ coreType: 'sentence', referenceText: 'x', audio: audioBuffer, realtimeFeedback: true });
+  const word: ReadingWord = { word: '我', read: true, matched: false };
+  // @ts-expect-error a reading word has word, read and matched
+  const partialWord: ReadingWord = { word: '我', read: true };
+  show(word.word + partialWord.word);
   const cp: StreamCompatParams = { refText: '北京你好', realtimeFeedback: true };
   const compat = client.streamEvaluateCompat('sent.eval.cn', cp, listener);
   const state: SessionState = session.getState();

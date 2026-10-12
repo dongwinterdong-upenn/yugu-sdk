@@ -132,6 +132,50 @@ export function parseEvalResult(resp) {
   };
 }
 
+// A count of a progress frame: the integer, or -1 when the frame has none (CONTRACT 5.5).
+function countOrAbsent(v) {
+  if (typeof v === 'number' && isFinite(v)) return Math.trunc(v);
+  if (typeof v === 'string' && /^\s*-?\d+\s*$/.test(v)) return parseInt(v, 10);
+  return -1;
+}
+
+/**
+ * onPartial model of a partial frame {"eof":0,"result":{...}} of either realtime channel (CONTRACT
+ * 5.5). `bytes` and `raw` (the whole frame) keep their 2.0.0 meaning. Reading progress: result.progress
+ * lists every unit of the reference text as {word, read, matched}; readUnits, matchedUnits and
+ * totalUnits are the platform's counts. A frame without progress (realtime feedback off, audio that is
+ * not 16 kHz 16 bit mono PCM, tracking not running) gives -1 counts, an empty progress list and
+ * hasProgress false. hasProgress is true when the frame has a result.progress array.
+ * The Shengtong style result.words of compat frames (only the units read since the previous frame)
+ * is never used for the per-unit state; it stays available in `raw`.
+ */
+export function parsePartialResult(frame) {
+  const f = frame && typeof frame === 'object' ? frame : {};
+  const res = f.result && typeof f.result === 'object' && !Array.isArray(f.result) ? f.result : {};
+  const hasProgress = Array.isArray(res.progress);
+  const progress = [];
+  if (hasProgress) {
+    for (let i = 0; i < res.progress.length; i++) {
+      // Every item is kept, so indexes stay aligned with the reference text even for a damaged item.
+      const w = res.progress[i] && typeof res.progress[i] === 'object' ? res.progress[i] : {};
+      progress.push({
+        word: w.word === undefined || w.word === null ? '' : String(w.word),
+        read: w.read === true,
+        matched: w.matched === true,
+      });
+    }
+  }
+  return {
+    bytes: toInt(res.bytes),
+    readUnits: countOrAbsent(res.readUnits),
+    matchedUnits: countOrAbsent(res.matchedUnits),
+    totalUnits: countOrAbsent(res.totalUnits),
+    progress,
+    hasProgress,
+    raw: f,
+  };
+}
+
 export function isReplayedHeader(headers) {
   const v = headerValue(headers, 'Idempotency-Replayed');
   return typeof v === 'string' && v.trim().toLowerCase() === 'true';

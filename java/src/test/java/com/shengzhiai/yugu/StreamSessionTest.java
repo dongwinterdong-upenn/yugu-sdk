@@ -172,7 +172,7 @@ class StreamSessionTest {
         assertTrue(s.getIdempotencyKey().matches("[0-9a-f]{32}"));
         String sig = q.remove("signature");
         assertEquals(Signer.sign(q, "mock-secret-key"), sig, "every query parameter except signature is signed");
-        assertEquals("yugu-java-sdk/2.0.0", conn.headers.get("User-Agent"));
+        assertEquals("yugu-java-sdk/2.1.0", conn.headers.get("User-Agent"));
         JsonNode start = Json.read(conn.texts.get(0));
         assertEquals("start", start.get("cmd").asText());
         assertEquals("sentence", start.get("coreType").asText());

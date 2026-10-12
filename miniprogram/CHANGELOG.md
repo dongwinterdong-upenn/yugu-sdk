@@ -2,6 +2,23 @@
 
 微信小程序 SDK `@shengzhiai/yugu-miniprogram-sdk` 的变更记录，格式参照 Keep a Changelog，版本号规则见仓库根目录的 `COMPATIBILITY.md`。
 
+## 版本 `2.1.0`，2026-10-12
+
+### 新增
+
+- 实时评测朗读进度：`onPartial` 的参数增加 `readUnits`，`matchedUnits`，`totalUnits`，`progress` 与 `hasProgress`。`progress` 取自帧里的 `result.progress`，按参考文本的顺序逐字或逐词给出 `{ word, read, matched }`，帧里没有朗读进度时三个数为 `-1`，`progress` 为空数组，`hasProgress` 为 `false`。`bytes` 与 `raw` 不变，格式见 `CONTRACT.md` 5.5 节。
+- 声通兼容通道的进度帧另带 `"recordId": ""` 与声通格式的增量 `words`，SDK 原样保留在 `raw` 里，逐字状态只取 `result.progress`。
+- 原生实时评测 `streamEvaluate` 新增参数 `realtimeFeedback`，默认 `false`。为 `true` 时开始帧带 `"realtimeFeedback": true`，不打开时开始帧与 `2.0.0` 逐字节相同。声通兼容实时评测的 `realtimeFeedback` 写法不变，打开后同样回调朗读进度。
+- 两条通道的朗读进度都经 `onPartial` 回调，`end()` 之后到终评之前仍有进度回调，终评是这一轮的最后一个回调。
+- 断线重连后进度不倒退：会话记住上一次回调的 `readUnits` 与 `matchedUnits`，新的服务端会话重放音频期间重新算出的进度，两个数都不小于上一次时才回调，其余丢弃，记一条 DEBUG 日志。不带朗读进度的帧照常回调，每个新会话从零开始记。`DROP` 策略下新会话只评重连之后的音频，每次重连成功后清空记住的进度。
+- TypeScript 声明新增 `ReadingWord`，`PartialResult` 增加朗读进度字段，`StreamEvaluateParams` 增加 `realtimeFeedback`。
+- 单元测试解析平台录下的四轮朗读进度帧，集成测试覆盖两条通道的朗读进度，模拟服务的 `progress-mismatch` 与 `progress-off` 故障，以及 `REPLAY` 与 `DROP` 两种策略下断线重连前后的进度。
+
+### 变更
+
+- 版本号改为 `2.1.0`，请求头 `X-Yugu-SDK` 的默认值改为 `yugu-miniprogram-sdk/2.1.0`。
+- 与 `2.0.0` 源码兼容，`onPartial` 的参数只增加字段，只读 `bytes` 的代码不受影响，升级只需替换版本号。
+
 ## 版本 `2.0.0`，2026-10-08
 
 ### 新增

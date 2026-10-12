@@ -51,7 +51,7 @@ test('415 regression: a config part without application/json is rejected, the SD
   assert.equal(log.length, 2);
   assert.match(log[1].contentType, /^multipart\/form-data; boundary=----YuguFormBoundary/);
   assert.deepEqual(log[1].config, SENTENCE);
-  assert.equal(log[1].sdk, 'yugu-miniprogram-sdk/2.0.0');
+  assert.equal(log[1].sdk, 'yugu-miniprogram-sdk/2.1.0');
 });
 
 test('every REST call with signature auth and with token auth', async () => {

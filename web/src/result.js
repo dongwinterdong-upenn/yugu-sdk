@@ -1,5 +1,6 @@
 // Copyright 2026 优谷雅言 open.shengzhiai.com. Licensed under the Apache License, Version 2.0.
-// Result parsing for native REST, compat REST, native WS and compat WS (bare result JSON, no envelope).
+// Result parsing for native REST, compat REST, native WS and compat WS (bare result JSON, no envelope),
+// and the progress frames of both WS channels.
 
 import { WARNING_TABLE } from './error-table.js';
 
@@ -147,6 +148,44 @@ export function normalizeEvalResult(raw, meta) {
     idempotencyKey: m.idempotencyKey || null,
     replayed: m.replayed === true || o.replayed === true,
     raw: o,
+  };
+}
+
+/** Integer count of a progress frame; -1 when absent or not an integer. */
+function count(v) {
+  if (v === null || v === undefined || v === '' || typeof v === 'boolean') return -1;
+  const n = Number(v);
+  return Number.isInteger(n) ? n : -1;
+}
+
+/**
+ * Partial delivered to onPartial from a progress frame {"eof":0,"result":{...}} of either streaming
+ * channel (CONTRACT 5.5). bytes and raw are unchanged from 2.0.0. With reading progress the frame
+ * has result.progress (every unit of the reference text, {word, read, matched}) and the three
+ * counts; without it hasProgress is false, the counts are -1 and progress is empty. Compat frames
+ * also carry the Shengtong-shaped incremental result.words, recordId "" and the kernel and resource
+ * versions; they stay in raw and are never read here.
+ */
+export function normalizePartial(frame) {
+  const f = obj(frame) || {};
+  const r = obj(f.result) || {};
+  const hasProgress = Array.isArray(r.progress);
+  const progress = [];
+  if (hasProgress) {
+    for (const item of r.progress) {
+      const u = obj(item);
+      if (!u) continue;
+      progress.push(Object.freeze({ word: u.word == null ? '' : String(u.word), read: u.read === true, matched: u.matched === true }));
+    }
+  }
+  return {
+    bytes: r.bytes != null && Number.isFinite(Number(r.bytes)) ? Number(r.bytes) : null,
+    readUnits: count(r.readUnits),
+    matchedUnits: count(r.matchedUnits),
+    totalUnits: count(r.totalUnits),
+    progress,
+    hasProgress,
+    raw: f,
   };
 }
 

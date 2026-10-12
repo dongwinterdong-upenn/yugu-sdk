@@ -39,7 +39,18 @@ public interface StreamListener {
     }
 
     /**
-     * Progress frame of a compat stream with {@code realtimeFeedback}.
+     * Intermediate frame of a stream that requested realtime feedback, native
+     * ({@code EvaluateConfig.realtimeFeedback}) or compat ({@code CompatConfig.realtimeFeedback}): the
+     * reading progress while audio arrives, see {@link StreamPartial}. Frames also arrive in ENDING,
+     * after {@code end()}, until the final result, which always comes last.
+     *
+     * <p>After a reconnect the new server session computes the progress again from zero. With the
+     * {@code REPLAY} buffer policy it catches up while the audio is replayed, and a frame with progress is
+     * delivered only when its {@code readUnits} and {@code matchedUnits} are both at least those of the
+     * last delivered frame of this session, so the progress shown never goes back; dropped frames are
+     * logged at DEBUG. With {@code DROP} the new server session scores only the later audio, so the
+     * remembered progress is reset at every successful reconnect and the progress starts again from zero.
+     * Frames without progress are always delivered.
      *
      * @param partial progress
      */

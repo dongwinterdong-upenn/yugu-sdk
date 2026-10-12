@@ -108,13 +108,14 @@ final class WebSocketIntegrationTests: XCTestCase {
         return YuguClient(options: o)
     }
 
-    /// Streams the audio in 640-byte frames, `pace` seconds apart, calling `during` after the
-    /// given frame index, then ends.
+    /// Streams the audio (`pcm` by default) in 640-byte frames, `pace` seconds apart, calling
+    /// `during` after the given frame index, then ends.
     private func run(
-        _ session: YuguStreamSession, waiter: Waiter, pace: TimeInterval = 0, during: (Int, () -> Void)? = nil, timeout: TimeInterval = 40
+        _ session: YuguStreamSession, waiter: Waiter, pace: TimeInterval = 0, during: (Int, () -> Void)? = nil, timeout: TimeInterval = 40,
+        audio: Data? = nil
     ) throws {
         try session.start()
-        for (i, f) in frames(pcm).enumerated() {
+        for (i, f) in frames(audio ?? pcm).enumerated() {
             // The session may already have failed (refused handshake): then sendAudio throws.
             try? session.sendAudio(f)
             if let d = during, d.0 == i { d.1() }
@@ -426,6 +427,176 @@ final class WebSocketIntegrationTests: XCTestCase {
         XCTAssertTrue(w.l.callbacks.contains("reconnecting:1:90007"))
         XCTAssertEqual(w.l.result?.replayed, true)
         XCTAssertEqual(server.billing()["billed"]?.intValue, 1)
+    }
+
+    // MARK: Reading progress (2.1.0, CONTRACT 5.5)
+
+    /// The customer sentence, 25 units, and its audio: 145920 bytes of PCM, 228 frames of 640 bytes.
+    let progressPCM = Fixture.pcm("audio/zh_progress.wav")
+    let progressParams = CompatParams(refText: ReadingProgressTests.customerText, language: "zh-CN", realtimeFeedback: true)
+    let progressConfig = EvaluateConfig(coreType: .sentence, referenceText: ReadingProgressTests.customerText, language: "zh-CN", realtimeFeedback: true)
+
+    /// readUnits the platform simulator reports for `progressPCM` (tools/mock-server README): a
+    /// frame per 16000 bytes, one unit read per 8000 bytes, one more unit in the frame after end.
+    private var expectedReadUnits: [Int] {
+        let n = progressPCM.count
+        return (1...(n / 16000)).map { min(25, 2 * $0) } + [min(25, n / 8000 + 1)]
+    }
+
+    /// Every progress frame of the round reaches onPartial in order with the 25 units, the last
+    /// one after end() while ENDING, and the result comes after it.
+    private func assertProgressRound(_ w: Waiter, file: StaticString = #filePath, line: UInt = #line) {
+        let progress = w.l.progressPartials
+        XCTAssertEqual(progress.map { $0.readUnits }, expectedReadUnits, "\(w.l.callbacks)", file: file, line: line)
+        for p in progress {
+            XCTAssertEqual(p.totalUnits, 25, file: file, line: line)
+            XCTAssertEqual(p.progress.map { $0.word }, ReadingProgressTests.customerUnits, file: file, line: line)
+            XCTAssertEqual(p.progress.prefix(max(0, p.readUnits)).allSatisfy { $0.read }, true, file: file, line: line)
+        }
+        XCTAssertEqual(w.l.partialStates.last, .ending, file: file, line: line)
+        let events = w.l.events
+        let ending = events.firstIndex(of: "state:STARTED->ENDING") ?? -1
+        let lastPartial = events.lastIndex { $0.hasPrefix("partial:") } ?? -1
+        let result = events.firstIndex(of: "result") ?? -1
+        XCTAssertTrue(ending >= 0 && ending < lastPartial && lastPartial < result, "\(events)", file: file, line: line)
+    }
+
+    /// Compatible frames: empty recordId and Shengtong-shaped `words` for the units read since the
+    /// previous frame; the per-unit state the SDK reports comes from `progress`.
+    private func assertCompatFrames(_ w: Waiter, file: StaticString = #filePath, line: UInt = #line) {
+        var previous = 0
+        for p in w.l.progressPartials {
+            XCTAssertEqual(p.raw["recordId"]?.stringValue, "", file: file, line: line)
+            let items = p.raw["result"]?["words"]?.arrayValue ?? []
+            XCTAssertEqual(items.count, p.readUnits - previous, file: file, line: line)
+            XCTAssertEqual(items.compactMap { $0["word"]?.stringValue }, p.progress[(p.readUnits - items.count)..<p.readUnits].map { $0.word }, file: file, line: line)
+            previous = p.readUnits
+        }
+    }
+
+    func testCompatReadingProgressOnTheWire() throws {
+        let net = Network()
+        let c = client(net)
+        defer { c.close() }
+        let w = Waiter(expectation(description: "closed"))
+        let s = try c.streamEvaluateCompat(coreType: .sentEvalCn, params: progressParams, listener: w)
+        try run(s, waiter: w, audio: progressPCM)
+        XCTAssertEqual(w.l.terminalCallbacks, ["result"], "\(w.l.events)")
+        assertProgressRound(w)
+        assertCompatFrames(w)
+        XCTAssertTrue(w.l.progressPartials.allSatisfy { $0.matchedUnits == $0.readUnits })
+        XCTAssertEqual(w.l.partials.count, w.l.progressPartials.count, "every frame carries progress")
+        XCTAssertEqual(server.billing()["records"]?[0]?["bytes"]?.intValue, progressPCM.count)
+    }
+
+    func testNativeReadingProgressOnTheWire() throws {
+        let net = Network()
+        let c = client(net)
+        defer { c.close() }
+        let w = Waiter(expectation(description: "closed"))
+        let s = try c.streamEvaluate(config: progressConfig, listener: w)
+        try run(s, waiter: w, audio: progressPCM)
+        XCTAssertEqual(w.l.terminalCallbacks, ["result"], "\(w.l.events)")
+        assertProgressRound(w)
+        XCTAssertTrue(w.l.progressPartials.allSatisfy { $0.matchedUnits == $0.readUnits })
+        XCTAssertTrue(w.l.partials.allSatisfy { $0.raw["result"]?["words"] == nil && $0.raw["recordId"] == nil }, "native frames have no words")
+        XCTAssertEqual(w.l.result?.overall, 93.7)
+        XCTAssertEqual(server.billing()["billed"]?.intValue, 1)
+    }
+
+    /// mockFault progress-mismatch:3: unit 3 (国) read but not matched once the reading passes it.
+    func testProgressMismatchOnTheWire() throws {
+        server.queueFaults([("/sent.eval.cn", "progress-mismatch:3")])
+        let net = Network()
+        let c = client(net)
+        defer { c.close() }
+        let w = Waiter(expectation(description: "closed"))
+        let s = try c.streamEvaluateCompat(coreType: .sentEvalCn, params: progressParams, listener: w)
+        try run(s, waiter: w, audio: progressPCM)
+        XCTAssertEqual(w.l.terminalCallbacks, ["result"], "\(w.l.events)")
+        assertProgressRound(w)
+        assertCompatFrames(w)
+        for p in w.l.progressPartials {
+            XCTAssertEqual(p.matchedUnits, p.readUnits > 3 ? p.readUnits - 1 : p.readUnits)
+            XCTAssertEqual(p.progress[3], ReadingWord(word: "国", read: p.readUnits > 3, matched: false))
+        }
+        XCTAssertEqual(wsLog("/sent.eval.cn").first?["fault"]?.stringValue, "progress-mismatch:3")
+    }
+
+    /// mockFault progress-off: the platform cannot track the round, frames carry only bytes and
+    /// are delivered as such.
+    func testProgressOffOnTheWire() throws {
+        server.queueFaults([("/api/v1/ws/evaluate", "progress-off")])
+        let net = Network()
+        let c = client(net)
+        defer { c.close() }
+        let w = Waiter(expectation(description: "closed"))
+        let s = try c.streamEvaluate(config: progressConfig, listener: w)
+        try run(s, waiter: w, audio: progressPCM)
+        XCTAssertEqual(w.l.terminalCallbacks, ["result"], "\(w.l.events)")
+        let n = progressPCM.count
+        XCTAssertEqual(w.l.partials.map { $0.bytes ?? -1 }, (1...(n / 16000)).map { $0 * 16000 } + [n])
+        XCTAssertTrue(w.l.partials.allSatisfy { !$0.hasProgress && $0.progress.isEmpty })
+        XCTAssertTrue(w.l.partials.allSatisfy { $0.readUnits == -1 && $0.matchedUnits == -1 && $0.totalUnits == -1 })
+        XCTAssertEqual(w.l.partialStates.last, .ending)
+    }
+
+    /// REPLAY: the server kills the first connection after the start frame and 118 audio frames
+    /// (75520 bytes, progress up to 8 units); the replay on the new server session restarts progress
+    /// at zero. Delivered progress never goes back, the held back partials are logged at DEBUG.
+    func testReplayReadingProgressNeverGoesBackAcrossServerKill() throws {
+        server.queueFaults([("/api/v1/ws/evaluate", "ws-kill-after:120")])
+        let logger = TestLogger()
+        let net = Network()
+        let c = client(net) {
+            $0.logger = logger
+            $0.logLevel = .debug
+        }
+        defer { c.close() }
+        let w = Waiter(expectation(description: "closed"))
+        let s = try c.streamEvaluate(config: progressConfig, listener: w)
+        try run(s, waiter: w, pace: 0.005, audio: progressPCM)
+        XCTAssertEqual(w.l.terminalCallbacks, ["result"], "\(w.l.events)")
+        XCTAssertTrue(w.l.callbacks.contains("reconnecting:1:90001"), "\(w.l.callbacks)")
+        XCTAssertTrue(w.l.callbacks.contains("reconnected:1:0"), "\(w.l.callbacks)")
+        let progress = w.l.progressPartials
+        let read = progress.map { $0.readUnits }
+        XCTAssertEqual(read, read.sorted(), "readUnits went back: \(read)")
+        XCTAssertEqual(progress.map { $0.matchedUnits }, progress.map { $0.matchedUnits }.sorted())
+        XCTAssertGreaterThanOrEqual(read.first ?? 0, 2)
+        XCTAssertEqual(read.last, expectedReadUnits.last)
+        let dropped = logger.messages(.debug).filter { $0.contains("partial not delivered") }
+        XCTAssertFalse(dropped.isEmpty, "the replay restarted the server's progress at zero")
+        XCTAssertEqual(wsLog().count, 2)
+        XCTAssertEqual(server.billing()["billed"]?.intValue, 1)
+        XCTAssertEqual(server.billing()["records"]?[0]?["bytes"]?.intValue, progressPCM.count, "the replay delivered the whole round")
+    }
+
+    /// DROP: the server kills the first connection after the start frame and 78 audio frames
+    /// (49920 bytes, progress up to 6 units); the new server session gets only the audio sent after
+    /// the reconnect, so its progress starts over and is delivered although it is lower.
+    func testDropReadingProgressStartsOverAcrossServerKill() throws {
+        server.queueFaults([("/api/v1/ws/evaluate", "ws-kill-after:80")])
+        let net = Network()
+        let c = client(net) {
+            $0.audioBufferPolicy = .drop
+            $0.reconnect = ReconnectPolicy(initialDelayMs: 100)
+        }
+        defer { c.close() }
+        let w = Waiter(expectation(description: "closed"))
+        let s = try c.streamEvaluate(config: progressConfig, listener: w)
+        try run(s, waiter: w, pace: 0.005, audio: progressPCM)
+        XCTAssertEqual(w.l.terminalCallbacks, ["result"], "\(w.l.events)")
+        XCTAssertTrue(w.l.callbacks.contains("reconnecting:1:90001"), "\(w.l.callbacks)")
+        let around = w.l.partialsAroundReconnect
+        let before = around.before.filter { $0.hasProgress }.map { $0.readUnits }
+        let after = around.after.filter { $0.hasProgress }.map { $0.readUnits }
+        XCTAssertGreaterThanOrEqual(before.max() ?? 0, 4, "\(before)")
+        XCTAssertFalse(after.isEmpty)
+        XCTAssertLessThan(after.first ?? 99, before.max() ?? 0, "progress of the new server session starts over: \(before) then \(after)")
+        XCTAssertEqual(after, after.sorted())
+        XCTAssertEqual(server.billing()["billed"]?.intValue, 1)
+        XCTAssertLessThan(server.billing()["records"]?[0]?["bytes"]?.intValue ?? .max, progressPCM.count, "only the audio after the reconnect")
     }
 
     func testCancelOnTheWire() throws {

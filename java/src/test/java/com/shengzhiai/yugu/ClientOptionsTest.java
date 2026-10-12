@@ -28,7 +28,7 @@ class ClientOptionsTest {
         assertNull(o.getEventListener());
         assertEquals(AudioPrecheckMode.WARN, o.getAudioPrecheck());
         assertFalse(o.isStrictAudio());
-        assertEquals("yugu-java-sdk/2.0.0", o.getUserAgent());
+        assertEquals("yugu-java-sdk/2.1.0", o.getUserAgent());
         assertSame(ReconnectPolicy.defaults(), o.getReconnect());
         assertEquals(AudioBufferPolicy.REPLAY, o.getAudioBufferPolicy());
         assertEquals(15000, o.getPingIntervalMs());

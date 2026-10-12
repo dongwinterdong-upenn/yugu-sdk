@@ -1,7 +1,7 @@
 // Fixed values of the wire contract and the SDK identity.
 
 export const SDK_NAME = 'yugu-miniprogram-sdk';
-export const SDK_VERSION = '2.0.0';
+export const SDK_VERSION = '2.1.0';
 export const USER_AGENT = SDK_NAME + '/' + SDK_VERSION;
 
 export const DEFAULT_BASE_URL = 'https://open.shengzhiai.com';

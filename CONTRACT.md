@@ -1,6 +1,6 @@
 # 优谷雅言语音评测接口契约
 
-契约版本 `2.0`，登记日期 2026-10-08，适用接口版本 v1 与 SDK `2.0.0`。五端 SDK 与服务端按本契约对齐，字段，签名算法，协议帧均取自线上服务端代码。`1.x` 版本契约的全部接口与字段继续有效，`2.0` 新增幂等，重试，实时评测心跳与断线重连语义，错误码分类，沙箱与声通平替层。
+契约版本 `2.1`，登记日期 2026-10-12，适用接口版本 v1 与 SDK `2.1.0`。五端 SDK 与服务端按本契约对齐，字段，签名算法，协议帧均取自线上服务端代码。`1.x` 版本契约的全部接口与字段继续有效，`2.0` 新增幂等，重试，实时评测心跳与断线重连语义，错误码分类，沙箱与声通平替层。`2.1` 新增实时评测朗读进度，见 5.5 节。
 
 ## 1 基址与连接
 
@@ -142,8 +142,8 @@ voice 英文取 `female` 或 `male`，中文取 `xiaoyan` 女声或 `xiaofeng` �
 `wss://open.shengzhiai.com/api/v1/ws/evaluate`，握手 query 带鉴权参数。
 
 1. 服务端发 `{"event": "connected"}`。
-2. 客户端发开始帧 `{"cmd": "start", "coreType": "sentence", "referenceText": "今天天气很好", "language": "zh-CN", "idempotencyKey": "..."}`，开始帧接受原生整段评测 `config` 的全部字段。服务端回 `{"event": "started"}`。
-3. 客户端发音频：二进制帧，推荐 640 字节一帧即 16 kHz 16 位单声道 20 毫秒，或文本帧 `{"cmd": "audio", "data": "<base64>"}`。
+2. 客户端发开始帧 `{"cmd": "start", "coreType": "sentence", "referenceText": "今天天气很好", "language": "zh-CN", "idempotencyKey": "..."}`，开始帧接受原生整段评测 `config` 的全部字段，另可带 `"realtimeFeedback": true` 打开朗读进度。服务端回 `{"event": "started"}`。
+3. 客户端发音频：二进制帧，推荐 640 字节一帧即 16 kHz 16 位单声道 20 毫秒，或文本帧 `{"cmd": "audio", "data": "<base64>"}`。开始帧带 `realtimeFeedback` 时，服务端在收音过程中下发朗读进度帧，见 5.5 节。
 4. 客户端发 `{"cmd": "end"}`，服务端回 `{"event": "result", "recordId": ..., "eof": 1, "result": {...}, "report": {...}, "asrText": {...}, "warnings": [...]}`。同一幂等键的重放结果带 `"replayed": true`。
 
 一轮结束后要再发开始帧才能开始下一轮。错误帧为 `{"event": "error", "code": 40001, "message": "..."}`，`code` 在原因是服务端业务错误时出现。
@@ -154,7 +154,7 @@ voice 英文取 `female` 或 `male`，中文取 `xiaoyan` 女声或 `xiaofeng` �
 
 1. 服务端发 `{"event": "connected", "coreType": "sent.eval.cn"}`。
 2. 客户端发参数帧 `{"refText": "北京你好", "language": "zh-CN", "realtime_feedback": true, "idempotencyKey": "..."}`，也接受 `text` 代替 `refText`。服务端回 `{"event": "started", "coreType": "sent.eval.cn"}`。参数帧会清空这一轮已收的音频，一轮只发一次。
-3. 客户端发音频，规则同 5.1 节。`realtime_feedback` 为 true 时服务端每收约 0.5 秒音频回一个进度帧 `{"eof": 0, "result": {"bytes": n}}`，进度帧不含评分。
+3. 客户端发音频，规则同 5.1 节。`realtime_feedback` 为 true 时服务端在收音过程中下发朗读进度帧，见 5.5 节。
 4. 客户端发 `{"cmd": "end"}` 或 `{"end": true}`，服务端回 `{"recordId": ..., "eof": 1, "result": {...}}`，重放结果带 `"replayed": true`。
 
 ### 5.3 心跳
@@ -199,6 +199,50 @@ voice 英文取 `female` 或 `male`，中文取 `xiaoyan` 女声或 `xiaofeng` �
 | CLOSED | 连接已关闭，会话结束 |
 
 每个会话只触发终评回调与错误回调中的一个，最多一次。调用方主动取消时两者都不触发。连接关闭回调总在最后。任一时刻查询会话状态得到的值，与最近一次状态变化回调给出的新状态一致。
+
+### 5.5 朗读进度
+
+原生开始帧带 `"realtimeFeedback": true`，或兼容参数帧带 `"realtime_feedback": true` 时，服务端在收音过程中下发进度帧。
+
+兼容通道的进度帧沿用声通 `realtime_feedback` 中间结果的结构：
+
+```json
+{"eof": 0, "recordId": "", "result": {"kernel_version": "1.0.0", "resource_version": "1.0.0",
+ "words": [{"charType": 0, "scores": {"pronunciation": 100, "skipped": 0, "tone": 100, "overall": 100, "overall_pron": 100},
+            "word": "华", "word_parts": [{"beginIndex": 0, "charType": 0, "endIndex": 0, "part": "华"}]}],
+ "bytes": 96000, "readUnits": 19, "matchedUnits": 18, "totalUnits": 25,
+ "progress": [{"word": "我", "read": true, "matched": true}, {"word": "民", "read": false, "matched": false}]}}
+```
+
+原生通道的进度帧：
+
+```json
+{"eof": 0, "result": {"bytes": 96000, "readUnits": 19, "matchedUnits": 18, "totalUnits": 25,
+ "progress": [{"word": "我", "read": true, "matched": true}, {"word": "民", "read": false, "matched": false}]}}
+```
+
+| 字段 | 通道 | 说明 |
+|---|---|---|
+| `recordId` | 兼容 | 空串，评测记录编号在终评中给出 |
+| `result.kernel_version`，`result.resource_version` | 兼容 | 与终评相同 |
+| `result.words` | 兼容 | 本帧新读到的字或词，按参考文本顺序，覆盖第 `readUnits - words.length` 到第 `readUnits - 1` 个单位，没有新读到的字时为空数组。每项结构同终评的 `words`，分数只表示识别结果与参考文本是否一致，详见下文 |
+| `result.bytes` | 两条 | 这一轮服务端已收到的音频字节数 |
+| `result.progress` | 两条 | 参考文本按原文顺序逐字或逐词列出的朗读状态。中文按字，去掉标点与空白。英文按空白分词，去掉词首词尾的标点，词内的撇号与连字符保留 |
+| `result.progress[].word` | 两条 | 字或词，取自参考文本 |
+| `result.progress[].read` | 两条 | 朗读位置已越过这个单位 |
+| `result.progress[].matched` | 两条 | 识别结果与这个单位一致 |
+| `result.readUnits` | 两条 | `read` 为 true 的单位数，即当前朗读位置 |
+| `result.matchedUnits` | 两条 | `matched` 为 true 的单位数 |
+| `result.totalUnits` | 两条 | 单位总数，等于 `progress` 的长度 |
+
+- 一轮之内 `read` 与 `matched` 只会由 false 变为 true，不会退回。`matched` 为 true 时 `read` 也为 true。`read` 为 true 而 `matched` 为 false，表示朗读已越过这个位置但识别结果与参考文本不一致，可能是读错，漏读或识别误差，以终评为准。
+- 兼容通道的 `words` 是增量：每个单位只在朗读位置刚越过这个单位的那一帧出现一次，把各帧的 `words` 依次拼起来就是已读的单位。识别结果一致的单位各项分数为 100，`skipped` 为 0，不一致的各项分数为 0，`skipped` 为 1，英文的 `tone` 为 0。下发之后不再更新，发音与声调的实际得分以终评为准。界面跟随朗读位置时，可以累加 `words` 的个数，也可以直接取 `readUnits`。
+- 进度变化时立即下发一帧，此外每收约 0.5 秒音频下发一帧。进度一般比朗读晚 1 到 2 秒，随网络情况变化。结束帧发出后，服务端对最后一段音频再识别一次，结果以进度帧在终评之前送达，终评帧是这一轮的最后一帧，之后没有进度帧。
+- 进度帧不含发音评分。终评与不打开朗读进度时相同，不额外计费。
+- 按字还是按词由语言决定：原生开始帧的 `language` 以 zh 开头，或兼容 coreType 以 `.cn` 结尾或为 `pinyin` 时按字，其余按词。兼容参数帧带 `language` 时按 `language` 判断。
+- 进度只对 16 kHz 16 位单声道 PCM 生效，一轮开头带 WAV 头的同样生效。其他封装格式的音频照常出终评，进度帧只有 `bytes`。
+- 进度字段只在这一轮能跟踪进度时出现。参考文本为空，音频不是 PCM，或服务端当时无法跟踪时，进度帧为 `{"eof": 0, "result": {"bytes": n}}`，终评不受影响。一旦出现，这一轮之后的进度帧都会带上，内容为最新状态。
+- 断线重连后，服务端在新会话上重新计算进度，重放音频期间进度从零追上来，兼容通道的 `words` 也从第一个单位重新下发。SDK 只回调 `readUnits` 与 `matchedUnits` 都不小于上一次回调的进度帧，音频缓冲策略为 DROP 时每次重连成功后从零重新计算。声通平替层按位置去掉已经回调过的单位。
 
 ## 6 幂等
 

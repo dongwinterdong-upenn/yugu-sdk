@@ -65,7 +65,7 @@ final class StreamSessionTests: XCTestCase {
         XCTAssertEqual(c.url?.path, "/api/v1/ws/evaluate")
         XCTAssertEqual(c.url?.scheme, "wss")
         XCTAssertEqual(c.url?.host, "api.example.test")
-        XCTAssertEqual(c.headers["User-Agent"], "yugu-ios-sdk/2.0.0")
+        XCTAssertEqual(c.headers["User-Agent"], "yugu-ios-sdk/2.1.0")
         var q = c.query
         let sig = q.removeValue(forKey: "signature")
         XCTAssertEqual(q["appKey"], "ak_test_key")

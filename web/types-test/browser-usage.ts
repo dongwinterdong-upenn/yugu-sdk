@@ -72,10 +72,13 @@ import type {
   EvaluateConfig,
   LocalWarning,
   OpenScores,
+  ReadingWord,
   ReconnectInfo,
   RetryPolicy,
   SessionStats,
+  StreamConfig,
   StreamListener,
+  StreamPartial,
   TtsResult,
   WordScore,
   YuguClientOptions,
@@ -189,7 +192,10 @@ function streaming(): YuguStreamSession {
       console.info(oldState, s === SessionState.RECONNECTING);
     },
     onPartial(p) {
-      console.info(p.bytes);
+      const bytes: number | null = p.bytes;
+      const units: ReadingWord[] = p.progress;
+      const counts: number = p.readUnits + p.matchedUnits + p.totalUnits;
+      if (p.hasProgress) console.info(units.map((w) => (w.matched ? w.word : w.read ? `[${w.word}]` : '_')).join(''), counts, bytes, p.raw);
     },
     onReconnecting(attempt, delayMs, cause) {
       console.info(attempt, delayMs, cause.message);
@@ -221,6 +227,32 @@ function streaming(): YuguStreamSession {
   compat.cancel();
   compat.close();
   return session;
+}
+
+function readingProgress(box: HTMLElement): YuguStreamSession {
+  const config: StreamConfig = { coreType: 'sentence', referenceText: '我是中国人，我是中国人。', language: 'zh-CN', realtimeFeedback: true };
+  const render = (p: StreamPartial): void => {
+    if (!p.hasProgress) return;
+    box.replaceChildren(
+      ...p.progress.map((w: ReadingWord) => {
+        const span = document.createElement('span');
+        span.textContent = w.word;
+        span.style.color = w.matched ? 'green' : w.read ? 'red' : 'gray';
+        return span;
+      }),
+    );
+  };
+  const first: ReadingWord = { word: '我', read: true, matched: false };
+  // @ts-expect-error ReadingWord fields are read-only
+  first.matched = true;
+  // @ts-expect-error the list is progress; the compat Shengtong words stay in raw
+  const old: ReadingWord[] = ({} as StreamPartial).words;
+  void old;
+  // @ts-expect-error realtimeFeedback is a boolean
+  client.streamEvaluate({ coreType: 'sentence', referenceText: 'x', realtimeFeedback: 1 }, { onResult() {}, onError() {} });
+  // @ts-expect-error realtimeFeedback belongs to the streaming config, not to evaluate
+  void client.evaluate(new Uint8Array(0), { coreType: 'sentence', referenceText: 'x', realtimeFeedback: true });
+  return client.streamEvaluate(config, { onPartial: render, onResult: (r) => console.info(r.overall), onError: (e) => console.warn(e.code) });
 }
 
 async function recorder(session: YuguStreamSession): Promise<Blob> {
@@ -309,6 +341,7 @@ void wholeUtterance;
 void perModeFields;
 void compatAndOthers;
 void streaming;
+void readingProgress;
 void recorder;
 void errors;
 void tablesAndUtilities;

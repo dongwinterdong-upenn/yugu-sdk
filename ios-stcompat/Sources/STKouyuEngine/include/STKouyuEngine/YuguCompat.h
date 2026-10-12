@@ -26,10 +26,10 @@ typedef NS_ENUM(NSInteger, YuguCompatLogLevel) {
 /// 平替层的扩展配置与版本信息。所有方法线程安全，设置在下一次评测生效。
 @interface YuguCompat : NSObject
 
-/// "2.0.0"
+/// "2.1.0"
 @property (class, nonatomic, readonly, copy) NSString *sdkVersion;
 
-/// User-Agent，"yugu-ios-stcompat-sdk/2.0.0"
+/// User-Agent，"yugu-ios-stcompat-sdk/2.1.0"
 @property (class, nonatomic, readonly, copy) NSString *userAgent;
 
 /// 默认平台地址 https://open.shengzhiai.com

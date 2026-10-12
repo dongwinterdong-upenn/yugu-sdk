@@ -15,7 +15,7 @@ options:
 packages:
   YuguSDK:
     url: https://open.shengzhiai.com/git/yugu-ios-sdk.git
-    from: 2.0.0
+    from: 2.1.0
 targets:
   YuguDemo:
     type: application

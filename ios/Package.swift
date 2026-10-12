@@ -6,7 +6,7 @@
 //             audio precheck. Builds and tests on Linux.
 //   YuguSDK   Apple platforms. AVAudioEngine recorder, re-exports YuguCore.
 //
-// Published as https://open.shengzhiai.com/git/yugu-ios-sdk.git, tag 2.0.0.
+// Published as https://open.shengzhiai.com/git/yugu-ios-sdk.git, tag 2.1.0.
 import PackageDescription
 
 let package = Package(

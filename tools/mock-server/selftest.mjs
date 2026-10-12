@@ -145,6 +145,49 @@ await check('compat WS ping, progress and result', async () => {
   assert.equal(frames.filter((f) => f.event === 'started').length, 1);
 });
 
+await check('compat WS reading progress', async () => {
+  const frames = await wsRun(wsUrl('/sent.eval.cn'), { refText: '我是中国人，我是中国人。', realtime_feedback: 1 });
+  const prog = frames.filter((f) => f.eof === 0 && Array.isArray(f.result.progress));
+  assert.ok(prog.length > 0);
+  const last = prog.at(-1).result;
+  assert.equal(last.totalUnits, 10);
+  assert.deepEqual(last.progress.map((w) => w.word).join(''), '我是中国人我是中国人');
+  assert.equal(last.progress.filter((w) => w.read).length, last.readUnits);
+  assert.ok(prog.every((f, i) => i === 0 || f.result.readUnits >= prog[i - 1].result.readUnits));
+  // Shengtong-shaped incremental words: concatenated they are exactly the read units, each once
+  assert.ok(prog.every((f) => f.recordId === '' && f.result.kernel_version === '1.0.0' && Array.isArray(f.result.words)));
+  assert.ok(prog.every((f) => f.result.readUnits - f.result.words.length >= 0));
+  const seq = prog.flatMap((f) => f.result.words.map((w) => w.word));
+  assert.deepEqual(seq, last.progress.filter((w) => w.read).map((w) => w.word));
+  const w0 = prog.find((f) => f.result.words.length).result.words[0];
+  assert.deepEqual(Object.keys(w0), ['charType', 'scores', 'word', 'word_parts']);
+  assert.deepEqual(w0.scores, { pronunciation: 100, skipped: 0, tone: 100, overall: 100, overall_pron: 100 });
+  assert.equal(frames.at(-1).eof, 1);
+});
+
+await check('native WS reading progress, mismatch and off', async () => {
+  const start = { cmd: 'start', coreType: 'sentence', referenceText: 'Nice to see you again.', language: 'en-US', realtimeFeedback: true };
+  const a = await wsRun(wsUrl('/api/v1/ws/evaluate'), start);
+  const pa = a.filter((f) => f.eof === 0 && f.result && f.result.progress);
+  assert.ok(pa.length > 0);
+  assert.deepEqual(pa.at(-1).result.progress.map((w) => w.word), ['Nice', 'to', 'see', 'you', 'again']);
+  assert.ok(pa.every((f) => f.result.words === undefined && f.recordId === undefined), 'native frames carry no Shengtong fields');
+  assert.equal(a.at(-1).event, 'result');
+  const b = await wsRun(wsUrl('/api/v1/ws/evaluate', { mockFault: 'progress-mismatch:0' }), start);
+  const lb = b.filter((f) => f.eof === 0 && f.result && f.result.progress).at(-1).result;
+  assert.equal(lb.progress[0].read, true);
+  assert.equal(lb.progress[0].matched, false);
+  assert.equal(lb.matchedUnits, lb.readUnits - 1);
+  const cb = await wsRun(wsUrl('/sent.eval', { mockFault: 'progress-mismatch:0' }), { refText: 'Nice to see you again.', realtime_feedback: true });
+  const first = cb.filter((f) => f.eof === 0 && f.result.words && f.result.words.length)[0].result.words[0];
+  assert.deepEqual([first.word, first.charType, first.scores.skipped, first.scores.overall, first.scores.tone], ['Nice', 1, 1, 0, 0]);
+  const c = await wsRun(wsUrl('/api/v1/ws/evaluate', { mockFault: 'progress-off' }), start);
+  assert.ok(c.some((f) => f.eof === 0));
+  assert.ok(c.filter((f) => f.eof === 0).every((f) => !f.result.progress && !f.result.words));
+  const d = await wsRun(wsUrl('/api/v1/ws/evaluate'), { ...start, realtimeFeedback: false });
+  assert.ok(d.every((f) => f.eof !== 0));
+});
+
 await check('native WS replay with same key', async () => {
   await fetch(base + '/__mock/reset', { method: 'POST' });
   const key = 'ws-' + crypto.randomBytes(6).toString('hex');

@@ -5,16 +5,19 @@
 
 The cases run it_driver built with -DYGST_IT_TLS: the same C core path as the mock integration
 tests (coreType check, local audio checks, field mapping, signing, multipart, retry controller,
-envelope, result alignment), over HTTPS to YUGU_SANDBOX_BASE with certificate verification.
+envelope, result alignment), over HTTPS to YUGU_SANDBOX_BASE with certificate verification. The
+realtime case streams the customer sentence in real time over the compat WebSocket (wss) with
+realtime_feedback (2.1.0) and checks the reading progress and the final.
 
   run_sandbox.py --spec ../spec [--driver build/it_driver_tls] [--junit sandbox.xml] [--log sandbox.log]
+                 [--case NAME]...
 
 Runs only when YUGU_SANDBOX_APPKEY and YUGU_SANDBOX_SECRET are set (YUGU_SANDBOX_BASE defaults to
 https://open.shengzhiai.com). Otherwise it writes a JUnit report with skipped cases and exits 77,
 so push builds never call the platform. The cases run one after another (the sandbox account
-allows 2 concurrent evaluations): three evaluations, then two error paths the platform answers
-without evaluating, sent once. No autoRetry. A run makes at most 6 platform calls: an evaluation
-gets one retry only while every later case still has its call.
+allows 2 concurrent evaluations): four evaluations, then two error paths the platform answers
+without evaluating, sent once. No autoRetry. A run makes at most 7 platform calls: an evaluation
+gets one retry only while every later case still has its call. --case runs only the named cases.
 
 The keys reach the driver through its environment, never through argv. Nothing printed or
 written carries them: applicationId is compared with the appKey, never shown, every line is
@@ -31,13 +34,16 @@ import time
 import traceback
 import urllib.parse
 
-MAX_CALLS = 6
+MAX_CALLS = 7
 USER_ID = "sandbox-ios-stcompat"
 DEFAULT_BASE = "https://open.shengzhiai.com"
 SKIP_REASON = ("YUGU_SANDBOX_APPKEY and YUGU_SANDBOX_SECRET are not set: the sandbox cases call the real "
                "platform and are skipped")
 DT = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}:\d{3}$")
 ENVELOPE_KEYS = ["tokenId", "recordId", "applicationId", "userId", "refText", "eof", "dtLastResponse", "result"]
+PROGRESS_KEYS = ["tokenId", "recordId", "applicationId", "userId", "refText", "eof", "dtLastResponse", "result"]
+CUSTOMER_TEXT = "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。"
+CUSTOMER_UNITS = [ch for ch in CUSTOMER_TEXT if not re.match(r"[\s\W_]", ch)]
 
 ARGS = None
 APPKEY = None
@@ -251,7 +257,43 @@ def s_pinyin_without_ref_pinyin(c):
     return "errId=%s, error=%s, attempts=%d" % (j.get("errId"), j.get("error"), r["attempts"])
 
 
-CASES = [s_sentence, s_paragraph, s_attach_audio_url, s_unknown_app_key, s_pinyin_without_ref_pinyin]
+def s_realtime_progress(c):
+    """realtime_feedback (2.1.0): the customer sentence streamed in real time over the compat WebSocket,
+    signed handshake, eof 0 progress with Shengtong-shaped words, the final envelope as over REST."""
+    r = driver("--realtime", "--core-type", "sent.eval.cn", "--ref-text", CUSTOMER_TEXT, "--audio",
+               audio("zh_progress.wav"), "--chunk-bytes", "3200", "--pace-ms", "100")
+    summary = "mode=%s, connections=%s, attempts=%d" % (r.get("mode"), r.get("connections"), r["attempts"])
+    if not success_envelope(c, r, CUSTOMER_TEXT):
+        return summary + ", reason=%s" % r.get("restReason")
+    c(r.get("mode") == "ws", "evaluated over the WebSocket, not REST: %s" % r.get("restReason"))
+    pf = r.get("paramFrame") or {}
+    c(pf.get("realtime_feedback") is True and pf.get("idempotencyKey") == r["tokenId"], "parameter frame")
+    progress = r.get("progress") or []
+    c(len(progress) > 0, "progress callbacks while reading")
+    words = []
+    for p in progress:
+        c(list(p.keys()) == PROGRESS_KEYS, "eof 0 envelope keys %r" % list(p.keys()))
+        c(p.get("eof") == 0 and p.get("recordId") == "" and p.get("tokenId") == r["tokenId"], "eof 0, recordId empty")
+        c(p.get("applicationId") == APPKEY, "applicationId is not the appKey")
+        res = p.get("result") or {}
+        items = res.get("words") or []
+        c(len(items) > 0, "every callback carries words")
+        for w in items:
+            c(sorted(w.keys()) == ["charType", "scores", "word", "word_parts"], "Shengtong item keys %r" % sorted(w.keys()))
+            words.append(w.get("word"))
+        c(isinstance(res.get("progress"), list) and len(res["progress"]) == len(CUSTOMER_UNITS), "progress list")
+    c(words == CUSTOMER_UNITS[:len(words)], "words in order, each once: %s" % "".join(str(w) for w in words))
+    c(len(words) >= 20, "the reading position followed most of the sentence: %d of %d" % (len(words),
+                                                                                       len(CUSTOMER_UNITS)))
+    overall = r["json"]["result"].get("overall")
+    c(is_number(overall), "result.overall numeric")
+    return "%s, progress callbacks=%d, units %d/%d %s, overall=%s, recordId=%s" % (
+        summary, len(progress), len(words), len(CUSTOMER_UNITS), "".join(str(w) for w in words), overall,
+        r["json"].get("recordId"))
+
+
+CASES = [s_sentence, s_paragraph, s_attach_audio_url, s_realtime_progress, s_unknown_app_key,
+         s_pinyin_without_ref_pinyin]
 
 
 def write_junit(path, results, skipped=None):
@@ -289,7 +331,14 @@ def main():
     ap.add_argument("--spec", required=True)
     ap.add_argument("--junit")
     ap.add_argument("--log")
+    ap.add_argument("--case", action="append", default=[], help="run only this case (name without s_), repeatable")
     ARGS = ap.parse_args()
+    if ARGS.case:
+        unknown = [n for n in ARGS.case if "s_" + n not in [fn.__name__ for fn in CASES]]
+        if unknown:
+            print("unknown case(s): %s" % ", ".join(unknown))
+            return 2
+        CASES[:] = [fn for fn in CASES if fn.__name__[2:] in ARGS.case]
     APPKEY = env_value("YUGU_SANDBOX_APPKEY")
     SECRET = env_value("YUGU_SANDBOX_SECRET")
     BASE = env_value("YUGU_SANDBOX_BASE") or DEFAULT_BASE

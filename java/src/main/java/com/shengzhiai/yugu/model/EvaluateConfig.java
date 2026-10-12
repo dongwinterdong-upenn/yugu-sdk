@@ -1,6 +1,7 @@
 package com.shengzhiai.yugu.model;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -12,6 +13,8 @@ import java.util.Map;
 /**
  * Native evaluation parameters: the JSON of the {@code config} part of {@code POST /api/v1/evaluate}
  * and of the start frame of the native stream. Only non-null fields are sent.
+ * {@link #realtimeFeedback(boolean)} applies to native streams only and is never part of the
+ * {@code config} JSON.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({"coreType", "referenceText", "language", "slack", "scale", "precision", "agegroup",
@@ -63,6 +66,9 @@ public class EvaluateConfig {
     private String taskType;
     @JsonProperty("paragraphNeedWordScore")
     private Integer paragraphNeedWordScore;
+    /** Stream only: sent as {@code "realtimeFeedback": true} in the start frame, never in the config JSON. */
+    @JsonIgnore
+    private boolean realtimeFeedback;
 
     private final Map<String, Object> extra = new LinkedHashMap<>();
 
@@ -172,6 +178,21 @@ public class EvaluateConfig {
     }
 
     /**
+     * Native streams only: ask the platform for the reading progress while audio arrives. The start
+     * frame then carries {@code "realtimeFeedback": true} (left out when false, so the default start
+     * frame is the one of 2.0.0) and the progress arrives through {@code StreamListener.onPartial} as
+     * {@link StreamPartial}. Progress needs 16 kHz 16 bit mono PCM. {@code evaluate} ignores the flag.
+     *
+     * @param v flag, default false
+     * @return this
+     * @since 2.1.0
+     */
+    public EvaluateConfig realtimeFeedback(boolean v) {
+        this.realtimeFeedback = v;
+        return this;
+    }
+
+    /**
      * Adds a field the SDK does not model yet. It is written into the config JSON as is.
      *
      * @param name  field name
@@ -266,5 +287,14 @@ public class EvaluateConfig {
     /** @return paragraphNeedWordScore */
     public Integer getParagraphNeedWordScore() {
         return paragraphNeedWordScore;
+    }
+
+    /**
+     * @return whether a native stream requests the reading progress
+     * @since 2.1.0
+     */
+    @JsonIgnore
+    public boolean isRealtimeFeedback() {
+        return realtimeFeedback;
     }
 }

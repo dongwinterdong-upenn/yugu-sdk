@@ -5,10 +5,11 @@ import java.util.Random;
 
 /**
  * Process-wide configuration of the compat layer, set through {@code com.stkouyu.YuguCompat}
- * (base URL, log level, retry policy, timeouts) and by tests (transport, audio input, sleeper).
+ * (base URL, log level, retry policy, timeouts) and by tests (transport, WebSocket connector,
+ * audio input, sleeper).
  */
 public final class CompatConfig {
-    public static final String VERSION = "2.0.0";
+    public static final String VERSION = "2.1.0";
     public static final String API_VERSION = "1.0.62";
     public static final String SDK_VERSION = "yugu-stkouyu-compat/" + VERSION + " (api " + API_VERSION + ")";
     public static final String USER_AGENT = "yugu-stkouyu-compat/" + VERSION;
@@ -28,6 +29,7 @@ public final class CompatConfig {
     private static volatile int readTimeoutMs = -1;
     private static volatile long totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS;
     private static volatile HttpTransport transport = new UrlConnectionTransport();
+    private static volatile WsConnection.Connector wsConnector = WsClient.CONNECTOR;
     private static volatile AudioInput.Factory audioInputFactory = AudioRecordInput.FACTORY;
     private static volatile Random random = new Random();
     private static volatile CompatClient.Sleeper sleeper = CompatClient.REAL_SLEEPER;
@@ -83,6 +85,15 @@ public final class CompatConfig {
         transport = t == null ? new UrlConnectionTransport() : t;
     }
 
+    /** Opens the connections of the realtime channel (realtime_feedback). */
+    public static WsConnection.Connector wsConnector() {
+        return wsConnector;
+    }
+
+    public static void setWsConnector(WsConnection.Connector c) {
+        wsConnector = c == null ? WsClient.CONNECTOR : c;
+    }
+
     public static AudioInput.Factory audioInputFactory() {
         return audioInputFactory;
     }
@@ -115,6 +126,7 @@ public final class CompatConfig {
         readTimeoutMs = -1;
         totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS;
         transport = new UrlConnectionTransport();
+        wsConnector = WsClient.CONNECTOR;
         audioInputFactory = AudioRecordInput.FACTORY;
         random = new Random();
         sleeper = CompatClient.REAL_SLEEPER;

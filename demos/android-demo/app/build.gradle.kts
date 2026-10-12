@@ -16,7 +16,7 @@ android {
         minSdk = 21
         targetSdk = 34
         versionCode = 1
-        versionName = "2.0.0"
+        versionName = "2.1.0"
         // Integration keys only. Production apps should get a token from their own backend.
         buildConfigField("String", "YUGU_APP_KEY", quoted(prop("yuguAppKey", "")))
         buildConfigField("String", "YUGU_SECRET_KEY", quoted(prop("yuguSecretKey", "")))
@@ -45,5 +45,5 @@ android {
 }
 
 dependencies {
-    implementation("com.shengzhiai.yugu:yugu-android-sdk:2.0.0")
+    implementation("com.shengzhiai.yugu:yugu-android-sdk:2.1.0")
 }

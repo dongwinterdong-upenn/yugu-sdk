@@ -2,6 +2,21 @@
 
 服务端 Java SDK `com.shengzhiai.yugu:yugu-java-sdk` 的版本记录。格式遵循 Keep a Changelog，见 `https://keepachangelog.com/zh-CN/1.1.0/`，版本号遵循语义化版本，见 `https://semver.org/lang/zh-CN/`。破坏性变更只在主版本号升级时出现，每个版本按新增，变更，修复，破坏性变更分类记录。
 
+## `2.1.0` - 2026-10-12
+
+### 新增
+
+- 朗读进度：实时评测在收音过程中报告参考文本里哪些字或词已经读过。原生实时评测的 `EvaluateConfig` 新增 `realtimeFeedback(true)`，开始帧带 `"realtimeFeedback": true`，未开启时开始帧与 `2.0.0` 相同，整段评测不发送该字段。声通兼容实时评测沿用 `CompatConfig.realtimeFeedback(true)`。进度只对 16 kHz，16 位，单声道 PCM 生效，一般比朗读晚 1 到 2 秒，随网络情况变化。
+- `StreamPartial` 新增 `hasProgress()`，`getProgress()`，`getReadUnits()`，`getMatchedUnits()`，`getTotalUnits()`，取自进度帧的 `result.progress` 与三个单位数，两条通道相同。`getProgress()` 按原文顺序列出参考文本的每个字或词的朗读状态，元素为新增的 `ReadingWord`，含 `getWord()`，`isRead()`，`isMatched()`，按值比较。没有进度时三个单位数为 -1，`getProgress()` 为空列表，`getBytes()` 与 `getRaw()` 不变。
+- 兼容通道的进度帧沿用声通 `realtime_feedback` 中间结果的结构，另带空串 `recordId`，`kernel_version`，`resource_version` 与声通式增量 `words`。SDK 不解析这几个字段，可从 `getRaw()` 读取。
+- 断线重连后的进度：缓冲策略为 `REPLAY` 时会话记住上一次回调的已读单位数与一致单位数，只回调两者都不小于上一次的进度帧，重放音频期间服务端从零重算的进度不会让界面倒退，丢弃的进度帧写 DEBUG 日志。缓冲策略为 `DROP` 时新会话只评重连之后的音频，每次重连成功后记录清零，新会话的进度帧照常回调。没有进度的帧照常回调。
+- 测试：线上录制的四份进度帧样例的解析，兼容帧的声通式字段原样保留，重连后的进度过滤与 `DROP` 下的清零，基于平台模拟服务的原生与兼容进度，单位不一致，关闭进度，`REPLAY` 与 `DROP` 断线重连集成测试，沙箱上按实时速度送入客户例句的进度测试。
+
+### 变更
+
+- `onPartial` 在原生与兼容两条通道都回调，调用 `end()` 之后的 `ENDING` 状态也会回调，`onResult` 总在最后。
+- 请求带 `User-Agent: yugu-java-sdk/2.1.0`。
+
 ## `2.0.0` - 2026-10-08
 
 ### 破坏性变更

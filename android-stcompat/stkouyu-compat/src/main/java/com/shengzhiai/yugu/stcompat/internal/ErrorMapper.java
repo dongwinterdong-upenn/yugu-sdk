@@ -62,6 +62,57 @@ public final class ErrorMapper {
                 + (e.getMessage() == null ? "" : " " + e.getMessage()), e);
     }
 
+    /**
+     * Failure of a realtime connection: a refused handshake is classified by its HTTP status like a
+     * REST answer without body, a protocol violation is 90005, anything else as {@link #fromException}.
+     */
+    public static CompatError fromWsException(IOException e) {
+        if (e instanceof WsClient.HandshakeException) {
+            WsClient.HandshakeException h = (WsClient.HandshakeException) e;
+            return new CompatError(0, h.status, isRetryable(0, h.status), h.retryAfterMs, e.getMessage(), null, e);
+        }
+        if (e instanceof WsClient.ProtocolError) {
+            return CompatError.local(ErrorTable.PROTOCOL_ERROR, "realtime protocol error: " + e.getMessage(), e);
+        }
+        return fromException(e);
+    }
+
+    /**
+     * Error frame {@code {"event":"error","code":N,"message":"..."}} of the realtime channel. A
+     * code keeps the retryable flag of the table (40901, 42901, 50200 are retried, DESIGN 2.5); a
+     * frame without code (also none in the {@code [2003] ...} message form) is a terminal server
+     * error with code 50000.
+     */
+    public static CompatError fromWsError(int code, String message, String rawFrame) {
+        String text = message == null || message.isEmpty() ? null : message;
+        if (code == 0 && text != null) {
+            Matcher m = DETAIL_CODE.matcher(text);
+            if (m.matches()) {
+                code = Integer.parseInt(m.group(1));
+            }
+        }
+        if (code == 0) {
+            return new CompatError(ErrorTable.INTERNAL_ERROR, 0, false, -1,
+                    text != null ? text : "realtime evaluation failed on the platform", rawFrame, null);
+        }
+        return new CompatError(code, 0, isRetryable(code, 0), -1, text != null ? text : CompatErrIds.message(code),
+                rawFrame, null);
+    }
+
+    /**
+     * Close frame of the realtime channel before the result. 1000, 1002, 1003, 1007 to 1010 and
+     * 4000 to 4999 end the round at once with 90005, because a new connection would be closed the
+     * same way (DESIGN 2.5); other codes such as 1001, 1011 and 1012 are network failures and may
+     * be retried.
+     */
+    public static CompatError fromWsClose(int code, String reason) {
+        String text = "realtime connection closed by the platform with code " + code
+                + (reason == null || reason.isEmpty() ? "" : " " + reason);
+        boolean terminal = code == 1000 || code == 1002 || code == 1003 || (code >= 1007 && code <= 1010)
+                || (code >= 4000 && code <= 4999);
+        return CompatError.local(terminal ? ErrorTable.PROTOCOL_ERROR : ErrorTable.NETWORK_ERROR, text, null);
+    }
+
     private static boolean isTimeoutMessage(IOException e) {
         return e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("timed out");
     }

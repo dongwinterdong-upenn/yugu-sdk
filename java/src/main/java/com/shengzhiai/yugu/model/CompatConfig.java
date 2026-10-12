@@ -61,9 +61,11 @@ public class CompatConfig {
     }
 
     /**
-     * Streams only: ask the server for progress frames {@code {"eof":0,"result":{"bytes":n}}}.
+     * Streams only: sends {@code "realtime_feedback": true} in the parameter frame and asks the platform
+     * for the reading progress while audio arrives, delivered through {@code StreamListener.onPartial}
+     * as {@link StreamPartial}. Progress needs 16 kHz 16 bit mono PCM. REST calls ignore the flag.
      *
-     * @param v flag
+     * @param v flag, default false
      * @return this
      */
     public CompatConfig realtimeFeedback(boolean v) {
@@ -109,7 +111,7 @@ public class CompatConfig {
         return refPinyin;
     }
 
-    /** @return whether progress frames are requested */
+    /** @return whether a stream requests the reading progress */
     public boolean isRealtimeFeedback() {
         return realtimeFeedback;
     }

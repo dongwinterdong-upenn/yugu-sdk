@@ -131,7 +131,7 @@ class RestClientTest {
         assertEquals(key, r.getIdempotencyKey());
         assertEquals(1, r.getAttempts());
         assertFalse(r.isReplayed());
-        assertEquals("yugu-java-sdk/2.0.0", req.header("User-Agent"));
+        assertEquals("yugu-java-sdk/2.1.0", req.header("User-Agent"));
         assertEquals(APP_KEY, req.header("X-App-Key"));
         assertTrue(Math.abs(Long.parseLong(req.header("X-Timestamp")) - System.currentTimeMillis() / 1000) < 60);
         assertTrue(req.header("X-Nonce").matches("[0-9a-f]{16}"));

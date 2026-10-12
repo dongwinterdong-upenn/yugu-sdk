@@ -2,7 +2,7 @@
 // Installs @shengzhiai/yugu-web-sdk from a local tarball (npm pack output) without any network
 // access. Used by CI before the package is published, and for offline trials.
 //
-//   node scripts/install-tarball.mjs ../../web/shengzhiai-yugu-web-sdk-2.0.0.tgz
+//   node scripts/install-tarball.mjs ../../web/shengzhiai-yugu-web-sdk-2.1.0.tgz
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tgz = process.argv[2] || process.env.YUGU_WEB_SDK_TARBALL;
 if (!tgz || !fs.existsSync(tgz)) {
-  console.error('用法：node scripts/install-tarball.mjs <shengzhiai-yugu-web-sdk-2.0.0.tgz>');
+  console.error('用法：node scripts/install-tarball.mjs <shengzhiai-yugu-web-sdk-2.1.0.tgz>');
   process.exit(2);
 }
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'yugu-sdk-'));

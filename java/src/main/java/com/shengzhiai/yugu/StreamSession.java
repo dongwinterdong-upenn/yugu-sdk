@@ -119,6 +119,15 @@ public final class StreamSession implements AutoCloseable {
      */
     private boolean endAccepted;
     private List<Warning> localWarnings = Collections.emptyList();
+    /**
+     * Reading progress last delivered to onPartial, -1 before the first. A reconnect opens a new server
+     * session whose progress restarts from zero; with REPLAY it catches up while the audio is replayed,
+     * so frames behind these values are dropped and the progress shown never goes back. With DROP the
+     * new server session never gets the earlier audio and may never catch up, so both values are reset
+     * at every successful reconnect. One session object is one logical session.
+     */
+    private int deliveredReadUnits = -1;
+    private int deliveredMatchedUnits = -1;
 
     StreamSession(StreamContext ctx, Kind kind, String path, Map<String, Object> startFields, StreamListener listener,
                   StreamOptions options) {
@@ -449,6 +458,11 @@ public final class StreamSession implements AutoCloseable {
         if (wasReconnect) {
             int attempt = reconnectAttempt;
             reconnectAttempt = 0;
+            if (bufferPolicy == AudioBufferPolicy.DROP) {
+                // the new server session scores only later audio: its progress starts again from zero
+                deliveredReadUnits = -1;
+                deliveredMatchedUnits = -1;
+            }
             long dropped = bufferPolicy == AudioBufferPolicy.DROP ? totalBytes - bytesInServerSession : 0;
             log.info(TAG, sessionId + " reconnected after attempt " + attempt
                     + (bufferPolicy == AudioBufferPolicy.REPLAY ? ", replayed " + bytesInServerSession + " bytes" : ", dropped " + dropped + " bytes"));
@@ -480,8 +494,18 @@ public final class StreamSession implements AutoCloseable {
     }
 
     private void onPartialFrame(JsonNode n) {
-        long bytes = n.path("result").path("bytes").asLong(-1);
-        safe("onPartial", () -> listener.onPartial(new StreamPartial(bytes, n)));
+        StreamPartial p = new StreamPartial(n.path("result").path("bytes").asLong(-1), n);
+        if (p.hasProgress()) {
+            if (p.getReadUnits() < deliveredReadUnits || p.getMatchedUnits() < deliveredMatchedUnits) {
+                log.debug(TAG, sessionId + " progress partial dropped: readUnits " + p.getReadUnits() + ", matchedUnits "
+                        + p.getMatchedUnits() + " behind the delivered " + deliveredReadUnits + ", " + deliveredMatchedUnits
+                        + " (server progress restarts on a new server session)");
+                return;
+            }
+            deliveredReadUnits = p.getReadUnits();
+            deliveredMatchedUnits = p.getMatchedUnits();
+        }
+        safe("onPartial", () -> listener.onPartial(p));
     }
 
     private void onResultFrame(JsonNode n) {

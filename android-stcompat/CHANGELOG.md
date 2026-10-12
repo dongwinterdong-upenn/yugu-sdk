@@ -2,6 +2,32 @@
 
 `com.shengzhiai.yugu:stkouyu-compat` 的版本记录。格式参照 Keep a Changelog，版本号遵循语义化版本，破坏性变更只在主版本号升级时出现。
 
+## 版本 `2.1.0` 2026-10-12
+
+朗读进度：开启 `realtime_feedback` 后，学生朗读过程中 `onScore` 收到声通结构的中间结果。
+
+### 新增
+
+- `RecordSetting.setRealtime_feedback(1)` 时，录音与 `setIsStream(true)` 的外部音频经平台兼容实时评测通道边录边传，`OnRecorderListener.onScore` 先收到 `eof` 为 0 的中间结果，停止录音后收到一次 `eof` 为 1 的最终结果，最终结果与整段上传时相同。
+- 中间结果的 `result.words` 为新读到的字或词，结构同声通 `realtime_feedback` 的中间结果，各项分数只表示识别结果与参考文本是否一致，回调之后不再更新。`result.progress` 给出参考文本每个字或词的 `read` 与 `matched`，另有 `readUnits`，`matchedUnits` 与 `totalUnits`。只在有新读到的字或词时回调，进度一般比朗读晚 1 到 2 秒。
+- 实时评测通道在结束帧发出之前连不上或断开时，停止录音后照常整段上传，`tokenId` 不变，不重复计费。结束帧发出之后断开时，用同一个 `tokenId` 重新连接，重发参数帧，全部音频与结束帧，最多 2 次，已经回调过的字不再回调，平台只计费一次，仍失败时给 errId 20009。
+- `SkEgn` 的 `request` 带 `realtime_feedback`，音频为 16000 Hz 单声道 16 位 PCM 时，中间结果同样经 `skegn_callback` 回调。
+- AAR 内置 WebSocket 客户端，支持 TLS 与 SNI，仍然没有运行时依赖。
+
+### 变更
+
+- `getSDKVersion()` 返回 `yugu-stkouyu-compat/2.1.0 (api 1.0.62)`，请求头 `User-Agent` 为 `yugu-stkouyu-compat/2.1.0`。
+- `realtime_feedback` 设为 1 的应用此前只收到最终结果，现在先收到 `eof` 为 0 的中间结果，与声通 SDK 的行为一致。其他取值的行为不变。
+
+### 与声通 SDK 的差异
+
+- 中间结果需要设备能访问平台的 wss 地址，连不上时只有最终结果。
+- `OnRecordListener` 没有中间结果的回调，`existsAudioTrans` 没有中间结果。
+
+### 破坏性变更
+
+- 无。
+
 ## 版本 `2.0.0` 2026-10-08
 
 声通安卓平替层的首个发布版本。

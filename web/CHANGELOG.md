@@ -2,6 +2,21 @@
 
 `@shengzhiai/yugu-web-sdk` 的版本记录，格式参照 Keep a Changelog，版本号遵循语义化版本。每个版本按新增，变更，修复，破坏性变更分类。
 
+## `2.1.0` 2026-10-12
+
+### 新增
+
+- 朗读进度：`streamEvaluate` 的配置新增 `realtimeFeedback`，默认 `false`，取 `true` 时开始帧带 `"realtimeFeedback": true`，不打开时开始帧与 `2.0.0` 一致。`streamEvaluateCompat` 的参数 `realtime_feedback: true` 同样返回朗读进度。格式见 `CONTRACT.md` 5.5 节。
+- `onPartial` 收到的对象在 `bytes` 与 `raw` 之外新增 `readUnits`，`matchedUnits`，`totalUnits`，`progress` 与 `hasProgress`，两条通道都取自进度帧的 `result.progress`。`progress` 按原文顺序列出参考文本的每个字或词，每项为 `{word, read, matched}`，帧里没有进度时 `readUnits`，`matchedUnits`，`totalUnits` 为 `-1`，`progress` 为空数组。结束帧发出后的 ENDING 状态同样回调进度。
+- 声通兼容通道的进度帧沿用声通 `realtime_feedback` 中间结果的结构，`recordId` 为空串，`result` 另带 `kernel_version`，`resource_version` 与本帧新读到的字或词 `words`，这部分原样保留在 `raw`，SDK 不做转换。
+- 断线重连后服务端从零重新计算进度。`REPLAY` 策略下会话只回调 `readUnits` 与 `matchedUnits` 都不小于上一次回调的进度，界面上的进度不倒退，跳过的帧写 DEBUG 日志。`DROP` 策略下每次重连成功后会话清空记录，新的服务端会话只评测重连之后的音频，进度从这一位置重新回调。不带进度的帧照常回调。
+- TypeScript 声明新增 `ReadingWord`，`StreamPartial` 补齐进度字段，`StreamConfig` 新增 `realtimeFeedback`。
+
+### 变更
+
+- 默认 `userAgent` 改为 `yugu-web-sdk/2.1.0`。
+- `realtimeFeedback` 取值不是布尔值时 `streamEvaluate` 在建立连接前抛出 `InvalidParameterException`，错误码 90010。
+
 ## `2.0.0` 2026-10-08
 
 ### 新增

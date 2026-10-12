@@ -11,7 +11,7 @@ let localPath = ProcessInfo.processInfo.environment["YUGU_SDK_PATH"] ?? ""
 let sdkDependency: Package.Dependency
 let sdkPackage: String
 if localPath.isEmpty {
-    sdkDependency = .package(url: "https://open.shengzhiai.com/git/yugu-ios-sdk.git", from: "2.0.0")
+    sdkDependency = .package(url: "https://open.shengzhiai.com/git/yugu-ios-sdk.git", from: "2.1.0")
     sdkPackage = "yugu-ios-sdk"
 } else {
     sdkDependency = .package(path: localPath)

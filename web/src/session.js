@@ -6,7 +6,7 @@ import { applyPrecheck, AudioPrecheck, PcmStats, precheckPcmStats } from './audi
 import { describeError, InvalidParameterException, isRetryable, localError, YuguError, YuguErrors } from './errors.js';
 import { callHook, redactUrl } from './logger.js';
 import { computeBackoffDelay } from './retry.js';
-import { normalizeEvalResult } from './result.js';
+import { normalizeEvalResult, normalizePartial } from './result.js';
 import { bytesToBase64, randomBytes, toBytes, toHex, truncate, utf8Decode } from './util.js';
 
 /** Session states. */
@@ -136,6 +136,10 @@ export class YuguStreamSession {
     this._stats = new PcmStats();
     this._localWarnings = [];
     this._warnedLate = false;
+    // Reading progress last delivered to onPartial, {readUnits, matchedUnits}. Kept across REPLAY
+    // reconnects; DROP clears it at every successful reconnect (the new server session hears only
+    // the audio after the reconnect, so its progress starts from zero and need not catch up).
+    this._lastProgress = null;
 
     this._timers = { connect: null, heartbeat: null, result: null, reconnect: null, close: null };
     this._result = null;
@@ -439,11 +443,34 @@ export class YuguStreamSession {
       return;
     }
     if (f.eof != null && Number(f.eof) === 0) {
-      const bytes = f.result && f.result.bytes != null && Number.isFinite(Number(f.result.bytes)) ? Number(f.result.bytes) : null;
-      this._emit('partial', { bytes, raw: f });
+      this._onPartialFrame(f);
       return;
     }
     this._ctx.logger.debug('ws', `${this._id} frame ignored: ${truncate(text, 120)}`);
+  }
+
+  /**
+   * Progress frame of either channel, also while ENDING (CONTRACT 5.5). A new server session after
+   * a reconnect computes the progress again from zero while the audio is replayed, so a partial with
+   * progress is delivered only when readUnits and matchedUnits are both at least the last delivered
+   * ones (with DROP the memory starts again at every successful reconnect, see _onStartedFrame).
+   * Partials without progress are delivered as in 2.0.0.
+   */
+  _onPartialFrame(f) {
+    const partial = normalizePartial(f);
+    if (partial.hasProgress) {
+      const last = this._lastProgress;
+      if (last && (partial.readUnits < last.readUnits || partial.matchedUnits < last.matchedUnits)) {
+        this._ctx.logger.debug(
+          'ws',
+          `${this._id} progress partial dropped: read ${partial.readUnits} matched ${partial.matchedUnits}` +
+            ` behind delivered read ${last.readUnits} matched ${last.matchedUnits}`,
+        );
+        return;
+      }
+      this._lastProgress = { readUnits: partial.readUnits, matchedUnits: partial.matchedUnits };
+    }
+    this._emit('partial', partial);
   }
 
   _onConnectedFrame() {
@@ -482,6 +509,7 @@ export class YuguStreamSession {
       for (const item of pend) this._sendAudioFrame(item);
     }
     if (wasReconnect) {
+      if (this._opt.audioBufferPolicy === AudioBufferPolicy.DROP) this._lastProgress = null;
       const info = { droppedBytes: this._droppedSinceLast, replayedBytes: replayed };
       this._droppedSinceLast = 0;
       this._ctx.logger.info('ws', `${this._id} reconnected after attempt ${this._attempt}, replayed ${replayed} bytes`);

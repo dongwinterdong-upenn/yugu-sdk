@@ -2,6 +2,20 @@
 
 Android 核心 SDK `com.shengzhiai.yugu:yugu-android-sdk` 的版本记录，格式参照 Keep a Changelog，版本号遵循语义化版本。主版本号变化表示含破坏性变更。
 
+## `2.1.0`，2026-10-12
+
+### 新增
+
+- 朗读进度：实时评测打开实时反馈后，`onPartial` 在收音过程中告知参考文本读到了哪里，原生与声通兼容两条通道都有，调用 `end()` 后最后一段音频的进度仍在终评之前回调。`PartialResult` 新增 `readUnits`，`matchedUnits`，`totalUnits`，帧里没有时为 -1，`progress` 为逐字或逐词的 `ReadingWord` 列表，取自 `result.progress`，帧里没有时为空列表，`hasProgress` 表示帧里是否带进度。声通兼容通道的进度帧另带声通格式的增量 `result.words`，SDK 不解析，保留在 `raw` 里。`ReadingWord` 为值类型，含 `word`，`read`，`matched`。进度只对 16 kHz，16 位，单声道 PCM 生效。
+- 原生实时评测的 `EvaluateConfig` 新增 `realtimeFeedback`，默认 false，构建器有同名方法。为 true 时开始帧带 `"realtimeFeedback": true`，为 false 时开始帧与 `2.0.0` 逐字相同，整段评测的 `config` 段始终不带该字段。声通兼容实时评测仍用 `CompatConfig.realtimeFeedback`，现在同样给出朗读进度。
+- 断线重连后服务端从零重新计算进度。`REPLAY` 策略下会话记住上一次回调的进度，只回调 `readUnits` 与 `matchedUnits` 都不小于上一次的进度帧，其余的丢弃，写一条 DEBUG 日志，界面上的进度不会倒退。`DROP` 策略下新会话只评测重连之后的音频，每次重连成功后新会话的进度照常回调。不带进度的中间帧照常回调。
+
+### 变更
+
+- 请求头 `User-Agent` 为 `yugu-android-sdk/2.1.0`。
+- 不带朗读进度的中间帧与 `2.0.0` 相同，只有 `bytes`，原有调用代码不需要修改。
+- 与 `2.0.0` 源码兼容，二进制兼容，按 `2.0.0` 编译的 Java 与 Kotlin 代码换用 `2.1.0` 后不需要重新编译。
+
 ## `2.0.0`，2026-10-08
 
 ### 新增

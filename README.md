@@ -4,7 +4,7 @@
 
 | 项 | 地址 |
 |---|---|
-| 当前版本 | `2.0.0`，2026-10-08 |
+| 当前版本 | `2.1.0`，2026-10-12 |
 | 服务基址 | `https://open.shengzhiai.com`，`wss://open.shengzhiai.com` |
 | 源码仓库 | `https://open.shengzhiai.com/git/yugu-sdk.git`，只读，匿名可克隆 |
 | Maven 仓库 | `https://open.shengzhiai.com/maven/` |
@@ -31,7 +31,7 @@
   <dependency>
     <groupId>com.shengzhiai.yugu</groupId>
     <artifactId>yugu-java-sdk</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0</version>
   </dependency>
 </dependencies>
 ```
@@ -40,28 +40,28 @@
 
 ```groovy
 repositories { maven { url "https://open.shengzhiai.com/maven/" } }
-dependencies { implementation "com.shengzhiai.yugu:yugu-android-sdk:2.0.0" }
+dependencies { implementation "com.shengzhiai.yugu:yugu-android-sdk:2.1.0" }
 ```
 
 ### 安卓声通平替
 
 ```groovy
 repositories { maven { url "https://open.shengzhiai.com/maven/" } }
-dependencies { api "com.shengzhiai.yugu:stkouyu-compat:2.0.0" }
+dependencies { api "com.shengzhiai.yugu:stkouyu-compat:2.1.0" }
 ```
 
 ### 网页
 
 ```bash
 echo "@shengzhiai:registry=https://open.shengzhiai.com/npm/" >> .npmrc
-npm install @shengzhiai/yugu-web-sdk@2.0.0
+npm install @shengzhiai/yugu-web-sdk@2.1.0
 ```
 
 ### 微信小程序
 
 ```bash
 echo "@shengzhiai:registry=https://open.shengzhiai.com/npm/" >> .npmrc
-npm install @shengzhiai/yugu-miniprogram-sdk@2.0.0
+npm install @shengzhiai/yugu-miniprogram-sdk@2.1.0
 ```
 
 安装后在微信开发者工具里执行构建 npm。
@@ -69,13 +69,13 @@ npm install @shengzhiai/yugu-miniprogram-sdk@2.0.0
 ### iOS
 
 ```swift
-.package(url: "https://open.shengzhiai.com/git/yugu-ios-sdk.git", from: "2.0.0")
+.package(url: "https://open.shengzhiai.com/git/yugu-ios-sdk.git", from: "2.1.0")
 ```
 
 ### iOS 声通平替
 
 ```swift
-.package(url: "https://open.shengzhiai.com/git/stkouyu-ios-compat.git", from: "2.0.0")
+.package(url: "https://open.shengzhiai.com/git/stkouyu-ios-compat.git", from: "2.1.0")
 ```
 
 各端的初始化，五分钟上手，接口说明，错误处理，生命周期示例见各端目录的 README.md。
@@ -89,8 +89,9 @@ npm install @shengzhiai/yugu-miniprogram-sdk@2.0.0
 | 语音合成 | 支持 | 支持 | 支持 | 支持 | 支持 | 不涉及 | 不涉及 |
 | 报告查询 | 支持 | 支持 | 支持 | 支持 | 支持 | 不涉及 | 不涉及 |
 | 原生实时评测 | 支持 | 支持 | 支持，需 iOS 13 | 支持 | 支持 | 不涉及 | 不涉及 |
-| 声通兼容实时评测 | 支持 | 支持 | 支持，需 iOS 13 | 支持 | 支持 | 不涉及，录完整段上传 | 不涉及，录完整段上传 |
-| 实时评测断线重连 | 支持 | 支持 | 支持 | 支持 | 支持 | 不涉及 | 不涉及 |
+| 声通兼容实时评测 | 支持 | 支持 | 支持，需 iOS 13 | 支持 | 支持 | 打开 `realtime_feedback` 时边录边传，其余录完整段上传 | 打开 `realtime_feedback` 时边录边传，需 iOS 13，其余录完整段上传 |
+| 实时评测断线重连 | 支持 | 支持 | 支持 | 支持 | 支持 | 打开 `realtime_feedback` 时支持 | 打开 `realtime_feedback` 时支持 |
+| 实时朗读进度 | 支持 | 支持 | 支持，需 iOS 13 | 支持 | 支持 | 支持，`onScore` 多次回调 | 支持，需 iOS 13 |
 | 实时中间评分 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 |
 | 内置录音 | 不涉及 | 支持 | 支持 | 支持 | 支持 | 支持 | 支持 |
 | 外部音频注入 | 支持 | 支持 | 支持 | 支持 | 支持 | 支持，feed 与音频文件 | 支持，feedAudioData 与 audioPath |
@@ -104,7 +105,7 @@ npm install @shengzhiai/yugu-miniprogram-sdk@2.0.0
 | 离线评测 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持 | 不支持，统一在线 | 不支持，统一在线 |
 | 私有音色管理 | 不支持，控制台功能 | 不支持 | 不支持 | 不支持 | 不支持 | 不涉及 | 不涉及 |
 
-实时中间评分指录音过程中逐字返回分数。平台的声通兼容实时评测在 `realtime_feedback` 打开时只回进度帧，不含评分，终评在结束后返回。
+实时朗读进度指录音过程中逐字返回是否已读与是否对上，原生实时评测打开 `realtimeFeedback`，声通兼容实时评测打开 `realtime_feedback` 后提供，格式见 `CONTRACT.md` 5.5 节。实时中间评分指录音过程中逐字返回分数，平台不提供，分数在终评中返回。
 
 ## 文档
 

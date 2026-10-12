@@ -82,7 +82,7 @@ final class MultipartTests: XCTestCase {
         let req = try XCTUnwrap(t.http.requests.first)
         XCTAssertEqual(req.method, "POST")
         XCTAssertEqual(req.url.absoluteString, "https://api.example.test/api/v1/evaluate")
-        XCTAssertEqual(req.header("User-Agent"), "yugu-ios-sdk/2.0.0")
+        XCTAssertEqual(req.header("User-Agent"), "yugu-ios-sdk/2.1.0")
         let key = try XCTUnwrap(req.header("Idempotency-Key"))
         XCTAssertEqual(key.count, 32)
         XCTAssertEqual(result.idempotencyKey, key)

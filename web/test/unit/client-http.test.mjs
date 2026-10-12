@@ -76,7 +76,7 @@ describe('evaluate: request construction (DESIGN 5.2)', () => {
     assert.equal(h['X-App-Key'], 'ak_test_key');
     assert.ok(Math.abs(Number(h['X-Timestamp']) - Date.now() / 1000) < 5, 'timestamp in seconds');
     assert.match(h['X-Nonce'], /^[0-9a-f]{16}$/);
-    assert.equal(h['User-Agent'], 'yugu-web-sdk/2.0.0');
+    assert.equal(h['User-Agent'], 'yugu-web-sdk/2.1.0');
     assert.equal(h.Accept, 'application/json');
     assert.ok(init.body instanceof ArrayBuffer);
     const parts = parseMultipart(init.body, h['Content-Type']);
@@ -528,8 +528,8 @@ describe('options', () => {
     globalThis.document = {};
     try {
       const f = fakeFetch([{ json: NATIVE }]);
-      await client(f, { userAgent: 'my-app/1.0 yugu-web-sdk/2.0.0' }).evaluate(WAV, CONFIG);
-      assert.equal(f.calls[0].init.headers['X-Yugu-SDK'], 'my-app/1.0 yugu-web-sdk/2.0.0');
+      await client(f, { userAgent: 'my-app/1.0 yugu-web-sdk/2.1.0' }).evaluate(WAV, CONFIG);
+      assert.equal(f.calls[0].init.headers['X-Yugu-SDK'], 'my-app/1.0 yugu-web-sdk/2.1.0');
       assert.equal(f.calls[0].init.headers['User-Agent'], undefined);
     } finally {
       delete globalThis.window;

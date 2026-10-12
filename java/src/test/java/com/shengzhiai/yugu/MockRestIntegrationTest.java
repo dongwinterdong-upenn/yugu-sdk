@@ -333,7 +333,7 @@ class MockRestIntegrationTest {
             assertNotNull(c.evaluate(WAV, sentence()).getRecordId());
         }
         JsonNode entry = logEntries("/api/v1/evaluate").get(0);
-        assertEquals("yugu-java-sdk/2.0.0", entry.get("userAgent").asText());
+        assertEquals("yugu-java-sdk/2.1.0", entry.get("userAgent").asText());
         assertTrue(entry.get("contentType").asText().startsWith("multipart/form-data; boundary="));
         assertNull(entry.get("fault").textValue());
     }

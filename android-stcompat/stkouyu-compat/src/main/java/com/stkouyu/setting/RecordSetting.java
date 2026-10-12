@@ -20,9 +20,11 @@ import java.util.List;
  * itn, detect_nonscorable, vad_detction, keywords, keypoints, keypoints_weight,
  * negative_keypoints, negativeReftext, mode, qType: same names; readtypeDiagnosis:
  * {@code readtype_diagnosis}; newParams: key=value; request: {@code request}</li>
- * <li>realtime_feedback, seek, ref_length, duration, durationInterval, VAD and audio options stay
- * local; customized_sig, customized_sig_url, refAudio, compress, protocol, chunkSize,
- * max_ogg_delay and blendPhonemeEnable are kept but not sent</li>
+ * <li>realtime_feedback 1: the recording streams over the compat realtime channel with the same
+ * fields plus {@code "realtime_feedback":true}, and onScore also receives eof 0 intermediate results</li>
+ * <li>seek, ref_length, duration, durationInterval, VAD and audio options stay local;
+ * customized_sig, customized_sig_url, refAudio, compress, protocol, chunkSize, max_ogg_delay and
+ * blendPhonemeEnable are kept but not sent</li>
  * </ul>
  * Constructors accept coreType and refText in either order: a value that is a kernel name (for
  * example {@code sent.eval.cn}) is taken as coreType.
@@ -460,7 +462,11 @@ public class RecordSetting {
         return realtimeFeedback;
     }
 
-    /** Kept for compatibility; partial results are not available on the platform compat path. */
+    /**
+     * 1: the recording (or stream session) is sent while it runs over the compat realtime channel
+     * and onScore receives eof 0 intermediate results with the newly read words before the final
+     * result. Other values: the audio is uploaded at stop, one onScore.
+     */
     public void setRealtime_feedback(Integer realtimeFeedback) {
         this.realtimeFeedback = realtimeFeedback;
     }

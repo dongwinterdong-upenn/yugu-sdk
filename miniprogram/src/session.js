@@ -18,12 +18,20 @@
 // - a server that answers the probe with {"event":"error","message":"unknown cmd"}, or answers the
 //   start frame first, has no heartbeat support: heartbeat stays off for the rest of the session and
 //   the session relies on the connect timeout, close detection and resultTimeoutMs.
+//
+// Reading progress (CONTRACT 5.5): partial frames reach onPartial while STARTED and ENDING. A new
+// server session after a reconnect computes the progress again from zero while the audio is replayed,
+// so a progress partial is delivered only when readUnits and matchedUnits are both at least those of
+// the last delivered one; the others are dropped with a DEBUG log. Partials without progress always
+// pass. Every session starts without a delivered progress. DROP forgets the delivered progress at
+// every successful reconnect: the new server session scores only the audio sent after it, so its
+// counts start below the delivered ones and would otherwise stay hidden.
 import { PcmStats, analyzePcmStats, applyPrecheckMode } from './precheck.js';
 import {
   asYuguError, fromWsErrorFrame, fromWxFail, isRetryable, localError, ProtocolViolationException,
 } from './errors.js';
 import { computeBackoffDelay } from './retry.js';
-import { parseEvalResult } from './result.js';
+import { parseEvalResult, parsePartialResult } from './result.js';
 import { wsAuthQuery } from './signer.js';
 import { redactUrl } from './logger.js';
 import { describeError } from './http.js';
@@ -122,6 +130,8 @@ export class StreamSession {
     this._endSent = false;
     this._localWarnings = [];
     this._ignoredAudioLogged = false;
+    // readUnits and matchedUnits of the last progress partial given to onPartial in this session.
+    this._lastProgress = null;
     microtask(() => this._connect());
   }
 
@@ -543,6 +553,11 @@ export class StreamSession {
       this._droppedBytes = 0;
       this._totalReconnects += 1;
       this._ctx.logger.info(TAG, this.id + ': reconnected on attempt ' + reconnected.attempt);
+      if (this._cfg.bufferPolicy === 'DROP' && this._lastProgress) {
+        // The new server session covers only new audio, its progress starts again from zero.
+        this._lastProgress = null;
+        this._ctx.logger.debug(TAG, this.id + ': delivered progress forgotten, DROP scores only the audio after the reconnect');
+      }
     }
     this._batch(() => {
       this._setState('STARTED');
@@ -659,8 +674,17 @@ export class StreamSession {
 
   _onPartialFrame(f) {
     if (this._state !== 'STARTED' && this._state !== 'ENDING') return;
-    const bytes = f.result && typeof f.result === 'object' ? toInt(f.result.bytes) : 0;
-    this._emit('onPartial', [{ bytes, raw: f }]);
+    const partial = parsePartialResult(f);
+    if (partial.hasProgress) {
+      const last = this._lastProgress;
+      if (last && (partial.readUnits < last.readUnits || partial.matchedUnits < last.matchedUnits)) {
+        this._ctx.logger.debug(TAG, this.id + ': progress partial dropped: readUnits ' + partial.readUnits + ', matchedUnits ' +
+          partial.matchedUnits + ' are behind the delivered ' + last.readUnits + ', ' + last.matchedUnits);
+        return;
+      }
+      this._lastProgress = { readUnits: partial.readUnits, matchedUnits: partial.matchedUnits };
+    }
+    this._emit('onPartial', [partial]);
   }
 
   _onSocketClose(code, reason) {

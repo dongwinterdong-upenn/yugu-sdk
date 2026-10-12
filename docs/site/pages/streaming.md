@@ -17,7 +17,25 @@ items:
   - { label: Node.js, file: docs/site/snippets/ws-evaluate.mjs, lang: js, title: 直连协议 }
 ```
 
-Java，安卓，网页与小程序的 `streamEvaluate` 立即返回会话对象，在后台建立连接，iOS 在调用 `session.start()` 后建立连接。开始前送入的音频先排队，开始后按顺序发出。声通兼容实时评测用 `streamEvaluateCompat`，Java，安卓，iOS 与小程序设置 `realtimeFeedback`，网页在参数里传 `realtime_feedback: true`，平台每收约 0.5 秒音频回一个进度帧，进度帧只有已收字节数，不含评分。
+Java，安卓，网页与小程序的 `streamEvaluate` 立即返回会话对象，在后台建立连接，iOS 在调用 `session.start()` 后建立连接。开始前送入的音频先排队，开始后按顺序发出。声通兼容实时评测用 `streamEvaluateCompat`。两种实时评测都可以打开朗读进度，见下一节。
+
+## 朗读进度
+
+打开朗读进度后，平台在收音过程中逐字或逐词告诉客户端参考文本读到了哪里，中间结果回调 `onPartial` 收到的对象带 `progress`，每项有 `word`，`read` 与 `matched`，另有 `readUnits`，`matchedUnits` 与 `totalUnits`，`readUnits` 即当前朗读位置。
+
+| 会话 | 打开方式 |
+|---|---|
+| 原生实时评测 | 评测配置设置 `realtimeFeedback` 为 true |
+| 声通兼容实时评测 | Java，安卓，iOS 与小程序设置 `realtimeFeedback`，网页在参数里传 `realtime_feedback: true` |
+| 安卓与 iOS 声通平替 | `RecordSetting` 或 `KYTestConfig` 的 `realtime_feedback` 打开后，录音过程中多次回调，`eof` 为 0 的结果沿用声通中间结果的结构，`result.words` 为新读到的字 |
+
+- `read` 与 `matched` 在一轮之内只会由 false 变为 true，界面可以直接按这两个字段着色。`read` 为 true 而 `matched` 为 false 的字，表示朗读已越过但识别结果与参考文本不一致，以终评为准。
+- 进度一般比朗读晚 1 到 2 秒。读完发出结束帧后，平台对最后一段音频再识别一次，结果在终评之前送达。
+- 进度帧不含评分，终评与不打开时相同，不额外计费。
+- 断线重连后平台重新计算进度。音频缓冲策略为 `REPLAY` 时 SDK 只回调不倒退的进度，为 `DROP` 时每次重连成功后从零重新计算。
+- 只对 16 kHz 16 位单声道 PCM 生效。
+
+帧格式与字段见[朗读进度](page:api-ws-progress)。
 
 ## 音频帧
 

@@ -81,7 +81,7 @@ test('evaluate sends the 415-safe multipart body, signs {config}, identifies the
   assert.ok(body.includes('Content-Disposition: form-data; name="config"\r\nContent-Type: application/json; charset=utf-8\r\n\r\n' + Buffer.from(configText).toString('latin1')));
   assert.ok(body.includes('name="audio"; filename="audio.wav"\r\nContent-Type: audio/wav'));
   assert.equal(header(req, 'X-Signature'), signParams({ config: configText }, AUTH.secretKey));
-  assert.equal(header(req, 'X-Yugu-SDK'), 'yugu-miniprogram-sdk/2.0.0');
+  assert.equal(header(req, 'X-Yugu-SDK'), 'yugu-miniprogram-sdk/2.1.0');
   assert.equal(header(req, 'User-Agent'), undefined);
   assert.match(header(req, 'Idempotency-Key'), /^[0-9a-f]{32}$/);
   assert.equal(r.idempotencyKey, header(req, 'Idempotency-Key'));

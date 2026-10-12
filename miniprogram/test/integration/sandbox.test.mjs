@@ -1,10 +1,10 @@
 // Sandbox end-to-end tests (SANDBOX.md). They run only when YUGU_SANDBOX_APPKEY and
 // YUGU_SANDBOX_SECRET are set, for example in the nightly CI build, and are skipped otherwise.
-// The sandbox allows 200 calls per key and day; this file makes 7.
+// The sandbox allows 200 calls per key and day; this file makes 9.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWxMock } from '../helpers/wx-mock.mjs';
-import { fixtureBytes, toArrayBuffer, recordingListener, wavPcm } from '../helpers/common.mjs';
+import { fixtureBytes, toArrayBuffer, recordingListener, wavPcm, sleep } from '../helpers/common.mjs';
 import { YuguClient, generateIdempotencyKey } from '../../src/index.js';
 
 const APPKEY = process.env.YUGU_SANDBOX_APPKEY;
@@ -55,6 +55,55 @@ test('sandbox: native and compat streaming evaluation', { skip }, async () => {
       await rl.done;
       assert.equal(rl.count('onError'), 0, JSON.stringify(rl.first('onError') && rl.first('onError').args[0]));
       assert.equal(typeof rl.first('onResult').args[0].overall, 'number');
+    }
+  } finally {
+    c.close();
+    wx.__mock.cleanup();
+  }
+});
+
+test('sandbox: reading progress of the customer sentence on both realtime channels', { skip }, async (t) => {
+  const wx = createWxMock();
+  const c = client(wx);
+  try {
+    const pcm = wavPcm('audio/zh_progress.wav');
+    const refText = '我是中国人，我是中国人。我们都是中国人。中华民族是一家人。';
+    const units = Array.from('我是中国人我是中国人我们都是中国人中华民族是一家人');
+    const opens = [
+      (l) => c.streamEvaluateCompat('sent.eval.cn', { refText, realtimeFeedback: true }, l),
+      (l) => c.streamEvaluate({ coreType: 'sentence', referenceText: refText, language: 'zh-CN', realtimeFeedback: true }, l),
+    ];
+    for (const open of opens) {
+      let s;
+      const seenIn = [];
+      const rl = recordingListener({ onPartial: (p) => p.hasProgress && seenIn.push(s.getState()) });
+      s = open(rl.listener);
+      // real time, 20 ms per frame: the platform recognizes the audio while it arrives
+      for (let i = 0; i < pcm.length; i += 640) {
+        s.sendAudio(pcm.subarray(i, i + 640));
+        await sleep(20);
+      }
+      s.end();
+      await rl.done;
+      assert.equal(rl.count('onError'), 0, JSON.stringify(rl.first('onError') && rl.first('onError').args[0]));
+      const all = rl.events.filter((e) => e.name === 'onPartial').map((e) => e.args[0]);
+      const progress = all.filter((p) => p.hasProgress);
+      assert.ok(progress.length > 0, 'progress partials on ' + s.mode);
+      for (const p of progress) {
+        assert.equal(p.totalUnits, 25);
+        assert.deepEqual(p.progress.map((w) => w.word), units);
+        assert.equal(p.readUnits, p.progress.filter((w) => w.read).length);
+        assert.equal(p.matchedUnits, p.progress.filter((w) => w.matched).length);
+      }
+      assert.ok(progress.every((p, i) => i === 0 || (p.readUnits >= progress[i - 1].readUnits && p.matchedUnits >= progress[i - 1].matchedUnits)));
+      const last = progress[progress.length - 1];
+      const overall = rl.first('onResult').args[0].overall;
+      t.diagnostic(`${s.mode}: ${progress.length} progress partials, ${all.length - progress.length} without progress, last read ${last.readUnits} ` +
+        `matched ${last.matchedUnits} of ${last.totalUnits}, ${seenIn.filter((x) => x === 'ENDING').length} while ENDING, overall ${overall}`);
+      // How far the progress gets before the final result depends on the engine load of the platform
+      // (2026-10-12, same audio: at least 20 of 25 in one run, 19 in the next), so only movement is asserted.
+      assert.ok(last.readUnits > 0, s.mode + ': read ' + last.readUnits + ' of 25');
+      assert.equal(typeof overall, 'number');
     }
   } finally {
     c.close();

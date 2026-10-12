@@ -54,20 +54,25 @@ export function seededRandom(seed) {
   };
 }
 
-/** Collects every callback of a stream listener in order. */
+/** Collects every callback of a stream listener in order; partials keeps the onPartial objects. */
 export function recordingListener() {
   const events = [];
+  const partials = [];
   let resolveDone;
   const done = new Promise((r) => {
     resolveDone = r;
   });
   const listener = {
     events,
+    partials,
     done,
     onStateChanged: (a, b) => events.push(['state', a, b]),
     onConnected: () => events.push(['connected']),
     onStarted: () => events.push(['started']),
-    onPartial: (p) => events.push(['partial', p.bytes]),
+    onPartial: (p) => {
+      partials.push(p);
+      events.push(['partial', p.bytes]);
+    },
     onReconnecting: (n, d, cause) => {
       if (!listener.firstReconnectAt) listener.firstReconnectAt = Date.now();
       events.push(['reconnecting', n, d, cause]);

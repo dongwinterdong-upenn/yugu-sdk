@@ -1,0 +1,601 @@
+{
+ "title": "朗读进度帧序列",
+ "recorded": "2026-10-12",
+ "closeCode": 1000,
+ "frames": [
+  {
+   "at": 0,
+   "dir": "out",
+   "handshake": true,
+   "frame": {
+    "path": "/sent.eval.cn",
+    "query": [
+     "appKey",
+     "nonce",
+     "timestamp",
+     "signature"
+    ]
+   }
+  },
+  {
+   "at": 9,
+   "dir": "in",
+   "frame": {
+    "coreType": "sent.eval.cn",
+    "event": "connected"
+   }
+  },
+  {
+   "at": 9,
+   "dir": "out",
+   "frame": {
+    "refText": "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。",
+    "realtime_feedback": true,
+    "idempotencyKey": "d8d32271…"
+   }
+  },
+  {
+   "at": 458,
+   "dir": "in",
+   "frame": {
+    "coreType": "sent.eval.cn",
+    "event": "started"
+   }
+  },
+  {
+   "at": 458,
+   "dir": "out",
+   "binary": "二进制帧 228 个，每个 640 字节，共 145920 字节，按录音速度每 20 毫秒一个",
+   "until": 5059
+  },
+  {
+   "at": 1571,
+   "dir": "in",
+   "frame": {
+    "eof": 0,
+    "recordId": "",
+    "result": {
+     "kernel_version": "1.0.0",
+     "resource_version": "1.0.0",
+     "words": [],
+     "bytes": 16000,
+     "readUnits": 0,
+     "matchedUnits": 0,
+     "totalUnits": 25,
+     "progress": [
+      {
+       "word": "我",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "是",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "中",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "国",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "人",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "我",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "是",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "中",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "国",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "人",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "我",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "们",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "都",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "是",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "中",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "国",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "人",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "中",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "华",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "民",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "族",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "是",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "一",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "家",
+       "read": false,
+       "matched": false
+      },
+      {
+       "word": "人",
+       "read": false,
+       "matched": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "at": 1902,
+   "dir": "in",
+   "binary": "进度帧 16 个，readUnits 依次为 0，0，6，7，7，10，10，11，11，11，16，17，17，19，19，21",
+   "until": 5752
+  },
+  {
+   "at": 5059,
+   "dir": "out",
+   "frame": {
+    "cmd": "end"
+   }
+  },
+  {
+   "at": 6368,
+   "dir": "in",
+   "frame": {
+    "eof": 0,
+    "recordId": "",
+    "result": {
+     "kernel_version": "1.0.0",
+     "resource_version": "1.0.0",
+     "words": [
+      {
+       "charType": 0,
+       "scores": {
+        "pronunciation": 100,
+        "skipped": 0,
+        "tone": 100,
+        "overall": 100,
+        "overall_pron": 100
+       },
+       "word": "是",
+       "word_parts": [
+        {
+         "beginIndex": 0,
+         "charType": 0,
+         "endIndex": 0,
+         "part": "是"
+        }
+       ]
+      },
+      {
+       "charType": 0,
+       "scores": {
+        "pronunciation": 100,
+        "skipped": 0,
+        "tone": 100,
+        "overall": 100,
+        "overall_pron": 100
+       },
+       "word": "一",
+       "word_parts": [
+        {
+         "beginIndex": 0,
+         "charType": 0,
+         "endIndex": 0,
+         "part": "一"
+        }
+       ]
+      },
+      {
+       "charType": 0,
+       "scores": {
+        "pronunciation": 100,
+        "skipped": 0,
+        "tone": 100,
+        "overall": 100,
+        "overall_pron": 100
+       },
+       "word": "家",
+       "word_parts": [
+        {
+         "beginIndex": 0,
+         "charType": 0,
+         "endIndex": 0,
+         "part": "家"
+        }
+       ]
+      },
+      {
+       "charType": 0,
+       "scores": {
+        "pronunciation": 100,
+        "skipped": 0,
+        "tone": 100,
+        "overall": 100,
+        "overall_pron": 100
+       },
+       "word": "人",
+       "word_parts": [
+        {
+         "beginIndex": 0,
+         "charType": 0,
+         "endIndex": 0,
+         "part": "人"
+        }
+       ]
+      }
+     ],
+     "bytes": 145920,
+     "readUnits": 25,
+     "matchedUnits": 25,
+     "totalUnits": 25,
+     "progress": [
+      {
+       "word": "我",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "是",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "中",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "国",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "人",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "我",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "是",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "中",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "国",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "人",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "我",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "们",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "都",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "是",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "中",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "国",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "人",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "中",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "华",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "民",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "族",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "是",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "一",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "家",
+       "read": true,
+       "matched": true
+      },
+      {
+       "word": "人",
+       "read": true,
+       "matched": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "at": 9411,
+   "dir": "in",
+   "frame": {
+    "recordId": "eval_56edfae11729",
+    "result": {
+     "overall": 78,
+     "pronunciation": 82.33,
+     "fluency": 60.96,
+     "integrity": 93.77,
+     "tone": 83,
+     "rhythm": 81,
+     "speed": 329,
+     "duration": "4.560",
+     "warning": [],
+     "words": [
+      {
+       "word": "我",
+       "scores": {
+        "overall": 40
+       }
+      },
+      {
+       "word": "是",
+       "scores": {
+        "overall": 100
+       }
+      },
+      {
+       "word": "中",
+       "scores": {
+        "overall": 78
+       }
+      },
+      {
+       "word": "国",
+       "scores": {
+        "overall": 70
+       }
+      },
+      {
+       "word": "人",
+       "scores": {
+        "overall": 65
+       }
+      },
+      {
+       "word": "我",
+       "scores": {
+        "overall": 90
+       }
+      },
+      {
+       "word": "是",
+       "scores": {
+        "overall": 100
+       }
+      },
+      {
+       "word": "中",
+       "scores": {
+        "overall": 85
+       }
+      },
+      {
+       "word": "国",
+       "scores": {
+        "overall": 82
+       }
+      },
+      {
+       "word": "人",
+       "scores": {
+        "overall": 75
+       }
+      },
+      {
+       "word": "我",
+       "scores": {
+        "overall": 100
+       }
+      },
+      {
+       "word": "们",
+       "scores": {
+        "overall": 70
+       }
+      },
+      {
+       "word": "都",
+       "scores": {
+        "overall": 80
+       }
+      },
+      {
+       "word": "是",
+       "scores": {
+        "overall": 94
+       }
+      },
+      {
+       "word": "中",
+       "scores": {
+        "overall": 100
+       }
+      },
+      {
+       "word": "国",
+       "scores": {
+        "overall": 76
+       }
+      },
+      {
+       "word": "人",
+       "scores": {
+        "overall": 85
+       }
+      },
+      {
+       "word": "中",
+       "scores": {
+        "overall": 85
+       }
+      },
+      {
+       "word": "华",
+       "scores": {
+        "overall": 85
+       }
+      },
+      {
+       "word": "民",
+       "scores": {
+        "overall": 92
+       }
+      },
+      {
+       "word": "族",
+       "scores": {
+        "overall": 100
+       }
+      },
+      {
+       "word": "是",
+       "scores": {
+        "overall": 88
+       }
+      },
+      {
+       "word": "一",
+       "scores": {
+        "overall": 100
+       }
+      },
+      {
+       "word": "家",
+       "scores": {
+        "overall": 76
+       }
+      },
+      {
+       "word": "人",
+       "scores": {
+        "overall": 82
+       }
+      }
+     ]
+    },
+    "eof": 1
+   }
+  }
+ ]
+}

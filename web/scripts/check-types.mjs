@@ -157,8 +157,16 @@ const connected = runtime.normalizeEvalResult(load('native_connected_en.json')).
 diff('ConnectedScores fields', interfaceProps('ConnectedScores'), Object.keys(connected));
 const open = runtime.normalizeEvalResult(load('native_open_zh.json')).open;
 diff('OpenScores fields', interfaceProps('OpenScores'), Object.keys(open));
-const { normalizeTtsResult } = await import(pathToFileURL(path.join(ROOT, 'src/result.js')).href);
+const { normalizePartial, normalizeTtsResult } = await import(pathToFileURL(path.join(ROOT, 'src/result.js')).href);
 diff('TtsResult fields', interfaceProps('TtsResult'), Object.keys(normalizeTtsResult(load('tts_generate.json'), {})));
+// onPartial objects from a real progress frame and from a frame with bytes only.
+const progressFrame = load('ws_compat_sent_eval_cn_progress_frames.json')
+  .map((e) => e.frame)
+  .find((f) => f.eof === 0 && f.result && Array.isArray(f.result.progress) && f.result.progress.length > 0);
+const partial = normalizePartial(progressFrame);
+diff('StreamPartial fields', interfaceProps('StreamPartial'), Object.keys(partial));
+diff('StreamPartial fields without progress', interfaceProps('StreamPartial'), Object.keys(normalizePartial({ eof: 0, result: { bytes: 16000 } })));
+diff('ReadingWord fields', interfaceProps('ReadingWord'), Object.keys(partial.progress[0]));
 const wav = fs.readFileSync(path.join(REPO, 'spec/fixtures/audio/zh_short.wav'));
 const report = runtime.precheckAudio(new Uint8Array(wav));
 diff('PrecheckReport fields', interfaceProps('PrecheckReport'), Object.keys(report));

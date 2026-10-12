@@ -70,7 +70,7 @@ final class IntegrationTests: XCTestCase {
         let log = evaluateRequests()
         XCTAssertEqual(log.count, 1)
         XCTAssertEqual(log[0]["idempotencyKey"]?.stringValue, r.idempotencyKey)
-        XCTAssertEqual(log[0]["userAgent"]?.stringValue, "yugu-ios-sdk/2.0.0")
+        XCTAssertEqual(log[0]["userAgent"]?.stringValue, "yugu-ios-sdk/2.1.0")
         XCTAssertEqual(log[0]["config"]?["referenceText"]?.stringValue, "今天天气很好")
     }
 

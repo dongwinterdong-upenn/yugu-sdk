@@ -4,7 +4,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 坐标 | `com.shengzhiai.yugu:yugu-android-sdk:2.0.0` |
+| 坐标 | `com.shengzhiai.yugu:yugu-android-sdk:2.1.0` |
 | 仓库 | `https://open.shengzhiai.com/maven/`，公开读取，不需要账号 |
 | 包名 | `com.shengzhiai.yugu` |
 | 最低系统 | Android 5.0，`minSdk 21` |
@@ -12,7 +12,7 @@
 | 运行时依赖 | OkHttp 4.12，Kotlin 标准库 |
 | 许可 | Apache License 2.0 |
 
-能力：整段评测，声通兼容整段评测，语音合成，报告查询，原生实时评测，声通兼容实时评测，录音器。
+能力：整段评测，声通兼容整段评测，语音合成，报告查询，原生实时评测，声通兼容实时评测，实时评测的朗读进度，录音器。
 
 ## 安装
 
@@ -32,7 +32,7 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    implementation "com.shengzhiai.yugu:yugu-android-sdk:2.0.0"
+    implementation "com.shengzhiai.yugu:yugu-android-sdk:2.1.0"
 }
 ```
 
@@ -50,7 +50,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.shengzhiai.yugu:yugu-android-sdk:2.0.0")
+    implementation("com.shengzhiai.yugu:yugu-android-sdk:2.1.0")
 }
 ```
 
@@ -145,7 +145,7 @@ client.close()
 | `eventListener` | 无 | 指标回调 |
 | `audioPrecheck` | `WARN` | 本地音频预检方式 |
 | `strictAudio` | false | 整段评测结果带 1001 警告时抛异常 |
-| `userAgent` | `yugu-android-sdk/2.0.0` | 请求头 `User-Agent` |
+| `userAgent` | `yugu-android-sdk/2.1.0` | 请求头 `User-Agent` |
 | `reconnectPolicy` | 见重连一节 | 实时评测重连策略 |
 | `audioBufferPolicy` | `REPLAY` | 实时评测断线期间的音频处理方式 |
 | `resultTimeoutMs` | 300000 | 实时评测调用 `end()` 后等待终评的时限 |
@@ -164,14 +164,14 @@ client.close()
 | `evaluateCompat(config, audio, options)` | `POST /{coreType}` | 声通兼容整段评测，`coreType` 取声通命名 |
 | `tts(request, options)` | `POST /api/v1/tts/generate` | 语音合成，返回可直接播放的 `resolvedUrl` |
 | `getReport(recordId, options)` | `GET /api/v1/report/{recordId}` | 报告查询 |
-| `streamEvaluate(config, listener, options)` | `WS /api/v1/ws/evaluate` | 原生实时评测，返回 `StreamSession` |
-| `streamEvaluateCompat(config, listener, options)` | `WS /{coreType}` | 声通兼容实时评测，可开启进度中间帧 |
+| `streamEvaluate(config, listener, options)` | `WS /api/v1/ws/evaluate` | 原生实时评测，返回 `StreamSession`，可开启朗读进度 |
+| `streamEvaluateCompat(config, listener, options)` | `WS /{coreType}` | 声通兼容实时评测，可开启朗读进度 |
 | `evaluateAsync`，`evaluateCompatAsync`，`ttsAsync`，`getReportAsync` | 同上 | 异步版本，返回可取消的 `YuguCall` |
 | `close()` | 无 | 关闭客户端，可重复调用 |
 
 原生 `coreType`：`word`，`sentence`，`passage`，`connected`，`open`，`alpha`，`pinyin`。声通兼容 `coreType`：`word.eval`，`word.eval.pro`，`sent.eval`，`sent.eval.pro`，`para.eval`，`alpha.eval`，`word.eval.cn`，`sent.eval.cn`，`para.eval.cn`，`pinyin`。
 
-`EvaluateConfig` 字段与平台 `config` 段一一对应：`coreType`，`referenceText`，`language`，`includeReport`，`includeStandardAudio`，`includeAsrText`，`slack`，`scale`，`precision`，`agegroup`，`toneWeight`，`refPinyin`，`phonemeOutput`，`taskType`，`paragraphNeedWordScore`。平台新增而 SDK 尚未列出的字段放进 `extra`。值为 null 的字段不发送，由平台取默认值。
+`EvaluateConfig` 字段与平台 `config` 段一一对应：`coreType`，`referenceText`，`language`，`includeReport`，`includeStandardAudio`，`includeAsrText`，`slack`，`scale`，`precision`，`agegroup`，`toneWeight`，`refPinyin`，`phonemeOutput`，`taskType`，`paragraphNeedWordScore`。平台新增而 SDK 尚未列出的字段放进 `extra`。值为 null 的字段不发送，由平台取默认值。另有 `realtimeFeedback`，默认 false，只对原生实时评测有效，为 true 时开始帧带 `"realtimeFeedback": true`，打开朗读进度，整段评测的 `config` 段不带该字段。
 
 看图说话需要上传图片：
 
@@ -368,7 +368,66 @@ recorder.stop()
 session.end()
 ```
 
-声通兼容实时评测用 `streamEvaluateCompat(CompatConfig(...), listener)`，`realtimeFeedback = true` 时服务端在收音过程中下发进度中间帧，回调 `onPartial`，`PartialResult.bytes` 为已收到的字节数。原生实时评测没有中间帧。
+声通兼容实时评测用 `streamEvaluateCompat(CompatConfig(...), listener)`。两种实时评测都可以打开朗读进度，原生实时评测在 `EvaluateConfig` 里设 `realtimeFeedback = true`，声通兼容实时评测在 `CompatConfig` 里设 `realtimeFeedback = true`，服务端在收音过程中逐字或逐词告知参考文本读到了哪里，通过 `onPartial` 回调，详见朗读进度一节。
+
+### 朗读进度
+
+打开朗读进度后，`onPartial(partial)` 在收音过程中多次回调，`PartialResult` 的字段：
+
+| 字段 | 含义 |
+|---|---|
+| `hasProgress` | 中间帧带朗读进度时为 true，为 false 时只有 `bytes` |
+| `progress` | `ReadingWord` 列表，参考文本按原文顺序逐字或逐词列出，中文按字，英文按词，去掉标点，没有进度时为空列表 |
+| `progress[i].word` | 字或词，取自参考文本 |
+| `progress[i].read` | 朗读位置已越过这个字或词 |
+| `progress[i].matched` | 识别结果与这个字或词一致，为 true 时 `read` 也为 true |
+| `readUnits` | `read` 为 true 的单位数，没有进度时为 -1 |
+| `matchedUnits` | `matched` 为 true 的单位数，没有进度时为 -1 |
+| `totalUnits` | 单位总数，等于 `progress` 的长度，没有进度时为 -1 |
+| `bytes` | 服务端这一轮已收到的音频字节数 |
+| `raw` | 整个中间帧。声通兼容通道的进度帧另带声通格式的增量 `result.words`，只列出上一帧之后新读过的字或词，断线重连后从第一个字或词重新下发，SDK 不解析，需要时从这里读取 |
+
+按朗读进度给参考文本着色：
+
+```kotlin
+val refText = "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。"
+val session = client.streamEvaluate(
+    EvaluateConfig(CoreType.SENTENCE, refText, Language.ZH_CN, realtimeFeedback = true),
+    object : StreamListener {
+        override fun onPartial(partial: PartialResult) {
+            if (!partial.hasProgress) return
+            val text = SpannableString(refText)
+            var from = 0
+            for (w in partial.progress) {
+                val start = refText.indexOf(w.word, from) // progress 去掉了标点，按顺序在原文里找
+                if (start < 0) break
+                from = start + w.word.length
+                val color = when {
+                    w.matched -> Color.rgb(46, 125, 50) // 已读，识别一致
+                    w.read -> Color.rgb(198, 40, 40) // 已读，识别不一致
+                    else -> Color.GRAY // 未读
+                }
+                text.setSpan(ForegroundColorSpan(color), start, from, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            refTextView.text = text
+        }
+
+        override fun onResult(result: EvalResult) {
+            scoreView.text = "总分 ${result.overall}"
+        }
+
+        override fun onError(error: YuguException) {
+            scoreView.text = "评测失败 ${error.code}"
+        }
+    },
+)
+```
+
+- 一轮之内 `read` 与 `matched` 只会由 false 变为 true。`read` 为 true 而 `matched` 为 false，表示朗读已越过这个位置，但识别结果与参考文本不一致，可能是读错，漏读或识别误差，以终评为准。
+- 进度一般比朗读晚 1 到 2 秒。调用 `end()` 后，最后一段音频的进度仍会在 `ENDING` 状态下回调，终评是最后一个结果，`onResult` 之后不再回调 `onPartial`。
+- 进度只对 16 kHz，16 位，单声道 PCM 生效，录音器默认采集这种格式的音频。参考文本为空，音频是其他格式，或服务端暂时无法跟踪进度时，`hasProgress` 为 false，中间帧只有 `bytes`，终评不受影响。
+- 断线重连后，服务端在新会话上从零重新计算进度。`REPLAY` 策略下重放音频期间进度会低于重连前，会话记住上一次回调的 `readUnits` 与 `matchedUnits`，只回调两者都不小于上一次的进度帧，其余的丢弃，写一条 DEBUG 日志，界面上的进度不会倒退。`DROP` 策略下新会话只评测重连之后的音频，每次重连成功后，新会话的进度从第一帧起照常回调，可能低于重连前。不带进度的中间帧照常回调。新的会话从零开始。
+- 进度帧不含发音评分。终评与不打开朗读进度时相同，不额外计费。
 
 ### 重连策略
 
@@ -547,7 +606,7 @@ cd android
 ./gradlew :yugu-android-sdk:jacocoTestReport
 ```
 
-测试包括签名向量，参数序列化与校验，multipart 组装，各模式结果解析，全部错误码与警告码的映射，幂等键生成与复用，重试判定与退避计算，实时会话状态机，三种缓冲策略，生命周期，录音器与音频预检。集成测试自动启动平台模拟服务 `tools/mock-server`，需要 Node.js 20，覆盖幂等计费，重试，服务端断开，异常关闭，服务端无响应，客户端断网 10 秒与网络切换。覆盖率报告在 `yugu-android-sdk/build/reports/jacoco/jacocoTestReport/html/index.html`，行覆盖率门槛为 70%。持续集成脚本为 `ci/android.sh`。
+测试包括签名向量，参数序列化与校验，multipart 组装，各模式结果解析，朗读进度帧解析，全部错误码与警告码的映射，幂等键生成与复用，重试判定与退避计算，实时会话状态机，重连后的进度过滤，三种缓冲策略，生命周期，录音器与音频预检。集成测试自动启动平台模拟服务 `tools/mock-server`，需要 Node.js 20，覆盖幂等计费，重试，服务端断开，异常关闭，服务端无响应，客户端断网 10 秒，网络切换与两条通道的朗读进度。覆盖率报告在 `yugu-android-sdk/build/reports/jacoco/jacocoTestReport/html/index.html`，行覆盖率门槛为 70%。持续集成脚本为 `ci/android.sh`。
 
 ## 源码构建与本地发布
 
@@ -593,7 +652,7 @@ SDK 的重试与重连都复用同一个幂等键，平台对同一个键只计�
 
 ### Java 调用
 
-客户端与配置类都提供构建器，例如 `EvaluateConfig.builder(CoreType.SENTENCE, "今天天气很好").language(Language.ZH_CN).build()`。监听器接口的可选方法是 Java 默认方法，只需实现 `onResult` 与 `onError`。异常类型都继承 `RuntimeException`，按需捕获 `YuguException`。
+客户端与配置类都提供构建器，例如 `EvaluateConfig.builder(CoreType.SENTENCE, "今天天气很好").language(Language.ZH_CN).build()`，打开朗读进度再加 `.realtimeFeedback(true)`。监听器接口的可选方法是 Java 默认方法，只需实现 `onResult` 与 `onError`。朗读进度在 Java 里写作 `partial.hasProgress()`，`partial.getProgress()`，`word.getRead()`，`word.getMatched()`。异常类型都继承 `RuntimeException`，按需捕获 `YuguException`。
 
 ### 沙箱与测试密钥
 
@@ -609,6 +668,7 @@ SDK 的重试与重连都复用同一个幂等键，平台对同一个键只计�
 
 | SDK 版本 | 接口版本 | Android | 编译环境 |
 |---|---|---|---|
+| `2.1.0` | API v1，契约 v2.1 | 5.0 及以上，`minSdk 21` | Java 8 字节码，Kotlin 1.9，OkHttp 4.12 |
 | `2.0.0` | API v1，契约 v2 | 5.0 及以上，`minSdk 21` | Java 8 字节码，Kotlin 1.9，OkHttp 4.12 |
 | `1.0.0` | API v1 | 7.0 及以上，`minSdk 24` | 源码包，已停止维护 |
 

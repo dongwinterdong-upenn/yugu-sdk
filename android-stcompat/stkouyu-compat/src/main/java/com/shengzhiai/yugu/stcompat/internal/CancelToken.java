@@ -3,15 +3,19 @@ package com.shengzhiai.yugu.stcompat.internal;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Cancellation for one logical call: aborts the HTTP attempt in flight (by closing its
- * connection) and wakes up retry back-off sleeps.
+ * connection), closes registered resources such as the realtime round, and wakes up retry
+ * back-off sleeps.
  */
 public final class CancelToken {
     private final Object lock = new Object();
     private boolean cancelled;
     private Closeable active;
+    private List<Closeable> onCancel;
 
     public boolean isCancelled() {
         synchronized (lock) {
@@ -21,6 +25,7 @@ public final class CancelToken {
 
     public void cancel() {
         Closeable c;
+        List<Closeable> others;
         synchronized (lock) {
             if (cancelled) {
                 return;
@@ -28,9 +33,34 @@ public final class CancelToken {
             cancelled = true;
             c = active;
             active = null;
+            others = onCancel;
+            onCancel = null;
             lock.notifyAll();
         }
         closeQuietly(c);
+        if (others != null) {
+            for (Closeable o : others) {
+                closeQuietly(o);
+            }
+        }
+    }
+
+    /**
+     * Registers a resource closed by {@link #cancel()}, independent of the attempt slot of
+     * {@link #attach}. Closes it at once and returns false when already cancelled.
+     */
+    public boolean onCancel(Closeable c) {
+        synchronized (lock) {
+            if (!cancelled) {
+                if (onCancel == null) {
+                    onCancel = new ArrayList<Closeable>(2);
+                }
+                onCancel.add(c);
+                return true;
+            }
+        }
+        closeQuietly(c);
+        return false;
     }
 
     /** Registers the resource of the attempt in flight. Closes it at once when already cancelled. */

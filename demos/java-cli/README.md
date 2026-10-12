@@ -1,6 +1,6 @@
 # Java 命令行演示
 
-独立的 Maven 工程，从 `https://open.shengzhiai.com/maven/` 拉取 `com.shengzhiai.yugu:yugu-java-sdk:2.0.0`，评测命令行给出的 WAV 文件，打印总分，维度分，逐句与逐字分数，警告与幂等键。工程不引用 SDK 源码，复制本目录即可单独运行。
+独立的 Maven 工程，从 `https://open.shengzhiai.com/maven/` 拉取 `com.shengzhiai.yugu:yugu-java-sdk:2.1.0`，评测命令行给出的 WAV 文件，打印总分，维度分，逐句与逐字分数，警告与幂等键。工程不引用 SDK 源码，复制本目录即可单独运行。
 
 ## 运行条件
 

@@ -40,6 +40,12 @@
 |---|---|---|
 | `ws_native_sentence_frames.json` | `/api/v1/ws/evaluate` | 录制时平台还不支持心跳指令，客户端发出的 `{"cmd":"ping"}` 得到一条不带 `code` 的 unknown cmd 错误帧，会话照常出分。平台 2026-10-08 起对该指令回 `{"event":"pong"}`，网页与小程序 SDK 收到这种错误帧时关闭应用层心跳，不结束会话 |
 | `ws_compat_sent_eval_cn_frames.json` | `/sent.eval.cn` | 录制脚本发了两个参数帧，平台对每个参数帧回一次 started，同时清空之前收到的音频，SDK 每轮只发一个参数帧 |
+| `ws_compat_sent_eval_cn_progress_frames.json` | `/sent.eval.cn` | 2026-10-12 录制，参数帧带 `realtime_feedback`，参考文本 25 个字整句读完，中间帧带朗读进度与声通式增量 `words`，最后一个进度帧里 25 个字都已读，都已对上 |
+| `ws_compat_sent_eval_cn_progress_misread_frames.json` | `/sent.eval.cn` | 同一参考文本，第二句的“中”读成“外”，该字 `read` 为 true，`matched` 为 false |
+| `ws_compat_sent_eval_progress_frames.json` | `/sent.eval` | 英文句子 16 个词，按词计 |
+| `ws_native_sentence_progress_frames.json` | `/api/v1/ws/evaluate` | start 帧带 `realtimeFeedback`，中间帧只有 `bytes`，`readUnits`，`matchedUnits`，`totalUnits` 与 `progress`，最后是 `event` 为 result 的终评 |
+
+带朗读进度的四个文件里，`at` 是相对开始送音频的毫秒数，开头 0.5 秒与结尾 0.5 秒为静音，音频按实时速度发送。整句读完与英文两份的音频是 `spec/fixtures/audio/zh_progress.wav` 与 `en_progress.wav`，均为合成语音，16 kHz 单声道 16 位，参考文本分别为“我是中国人，我是中国人。我们都是中国人。中华民族是一家人。”与“Nice to see you again. I am a student, and I like reading books every day.”
 
 ## 错误与语音合成
 

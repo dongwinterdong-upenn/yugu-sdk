@@ -277,6 +277,9 @@ final class FakeWSServer {
     /// Fault decided when a connection opens, for time based scenarios; wins over `faults`.
     var faultProvider: ((Int) -> Fault?)?
     var resultFixture = "platform/native_evaluate_sentence_zh.json"
+    /// Text frames sent after `end` and before the result, like the platform's last progress
+    /// frames during the final evaluation (CONTRACT 5.5).
+    var framesBeforeResult: [String] = []
     /// Billed evaluations per idempotency key.
     private(set) var billing: [String: Int] = [:]
     private var stored: [String: (fingerprint: String, recordId: String)] = [:]
@@ -350,6 +353,7 @@ final class FakeWSServer {
         }
         if isNative(c.url!) { result["event"] = "result" }
         if replayed { result["replayed"] = true }
+        for f in framesBeforeResult { c.emitJSON(f) }
         c.emitJSON(JSONValue.object(result).jsonText)
     }
 }
@@ -362,6 +366,9 @@ final class RecordingListener: YuguStreamListener {
     private(set) var result: EvalResult?
     private(set) var error: YuguError?
     private(set) var warnings: [YuguWarning] = []
+    /// Every partial delivered, in order, with `session.state` read inside `onPartial`.
+    private(set) var partials: [StreamPartial] = []
+    private(set) var partialStates: [SessionState] = []
     /// `session.state` read inside each `onStateChanged`, paired with `to`.
     private(set) var stateChecks: [(seen: SessionState, announced: SessionState)] = []
     private var inCallback = false
@@ -391,7 +398,28 @@ final class RecordingListener: YuguStreamListener {
 
     func onConnected(_ session: YuguStreamSession) { enter(); record("connected"); leave() }
     func onStarted(_ session: YuguStreamSession) { enter(); record("started"); leave() }
-    func onPartial(_ session: YuguStreamSession, partial: StreamPartial) { enter(); record("partial:\(partial.bytes ?? -1)"); leave() }
+    func onPartial(_ session: YuguStreamSession, partial: StreamPartial) {
+        enter()
+        let state = session.state
+        lock.sync {
+            partials.append(partial)
+            partialStates.append(state)
+        }
+        record("partial:\(partial.bytes ?? -1)")
+        leave()
+    }
+
+    /// Delivered partials that carry reading progress.
+    var progressPartials: [StreamPartial] { lock.sync { partials.filter { $0.hasProgress } } }
+
+    /// Delivered partials before and after the first `onReconnected`.
+    var partialsAroundReconnect: (before: [StreamPartial], after: [StreamPartial]) {
+        lock.sync {
+            guard let r = events.firstIndex(where: { $0.hasPrefix("reconnected:") }) else { return (partials, []) }
+            let n = events[..<r].filter { $0.hasPrefix("partial:") }.count
+            return (Array(partials.prefix(n)), Array(partials.dropFirst(n)))
+        }
+    }
     func onReconnecting(_ session: YuguStreamSession, attempt: Int, delayMs: Int, cause: YuguError) {
         enter(); record("reconnecting:\(attempt):\(cause.code)"); leave()
     }

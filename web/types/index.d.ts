@@ -1,4 +1,4 @@
-// Type definitions for @shengzhiai/yugu-web-sdk 2.0.0
+// Type definitions for @shengzhiai/yugu-web-sdk 2.1.0
 // Copyright 2026 优谷雅言 open.shengzhiai.com. Licensed under the Apache License, Version 2.0.
 // Field names follow CONTRACT.md. CI checks that every runtime export has a declaration here.
 
@@ -360,7 +360,7 @@ export interface YuguClientOptions {
   audioPrecheck?: AudioPrecheckMode;
   /** Throw AudioQualityException when the result carries warning 1001. Default false. */
   strictAudio?: boolean;
-  /** Sent as X-Yugu-SDK in browsers and as User-Agent elsewhere. Default yugu-web-sdk/2.0.0 */
+  /** Sent as X-Yugu-SDK in browsers and as User-Agent elsewhere. Default yugu-web-sdk/2.1.0 */
   userAgent?: string;
   /** Default: global fetch. */
   fetch?: FetchLike;
@@ -495,8 +495,14 @@ export interface EvaluateConfig {
   paragraphNeedWordScore?: 0 | 1;
 }
 
-/** Start frame of the native stream: the same fields as EvaluateConfig. */
-export type StreamConfig = EvaluateConfig;
+/** Start frame of the native stream: the fields of EvaluateConfig plus realtimeFeedback. */
+export interface StreamConfig extends EvaluateConfig {
+  /**
+   * Reading progress while the audio arrives, delivered to onPartial (CONTRACT 5.5). Default false.
+   * The start frame carries "realtimeFeedback": true only when this is true.
+   */
+  realtimeFeedback?: boolean;
+}
 
 /** Value of a Shengtong compatible form field. */
 export type CompatParamValue = string | number | boolean | null | undefined;
@@ -519,7 +525,7 @@ export interface CompatParams {
 
 /** Parameter frame of the compat stream. */
 export interface CompatStreamParams extends CompatParams {
-  /** Progress frames {"eof":0,"result":{"bytes":n}} delivered to onPartial. */
+  /** Reading progress while the audio arrives, delivered to onPartial (CONTRACT 5.5). */
   realtime_feedback?: boolean | 0 | 1;
 }
 
@@ -1068,9 +1074,41 @@ export interface ReportData {
 
 // ---------------------------------------------------------------- streaming
 
-/** Progress frame of the compat stream. */
+/**
+ * One unit of the reference text in result.progress: a character for Chinese (punctuation and
+ * whitespace removed) or a word for English. read and matched never go back to false in a round.
+ */
+export interface ReadingWord {
+  /** Character or word, taken from the reference text. */
+  readonly word: string;
+  /** The reading position has passed this unit. */
+  readonly read: boolean;
+  /** The partial recognition matched this unit; implies read. read without matched: misread, skipped or misrecognized. */
+  readonly matched: boolean;
+}
+
+/**
+ * Progress frame of either streaming channel, delivered to onPartial (CONTRACT 5.5). Reading
+ * progress needs 16 kHz 16-bit mono PCM and realtimeFeedback (native) or realtime_feedback (compat).
+ */
 export interface StreamPartial {
+  /** Audio bytes the current server session received; null when the frame has none. */
   bytes: number | null;
+  /** Units read, the reading position; -1 when the frame does not carry it. */
+  readUnits: number;
+  /** Units matched; -1 when the frame does not carry it. */
+  matchedUnits: number;
+  /** Units of the reference text, equal to progress.length; -1 when the frame does not carry it. */
+  totalUnits: number;
+  /** result.progress: every unit of the reference text in order; empty when the frame has no progress. */
+  progress: ReadingWord[];
+  /** True when the frame carries result.progress. */
+  hasProgress: boolean;
+  /**
+   * The frame as sent by the platform. Compat frames follow the Shengtong intermediate result and
+   * also carry recordId "", result.kernel_version, result.resource_version and the incremental,
+   * Shengtong-shaped result.words (units read since the previous frame); the SDK does not map them.
+   */
   raw: Record<string, unknown>;
 }
 
@@ -1094,6 +1132,12 @@ export interface StreamListener {
   onConnected?(): void;
   /** First server session started. */
   onStarted?(): void;
+  /**
+   * Progress frames of both channels, also while ENDING. A partial with progress comes only when
+   * readUnits and matchedUnits are both at least the last delivered ones, so the replay after a
+   * reconnect never moves it back; with audioBufferPolicy DROP that memory starts again at every
+   * successful reconnect.
+   */
   onPartial?(partial: StreamPartial): void;
   onReconnecting?(attempt: number, delayMs: number, cause: YuguError): void;
   onReconnected?(attempt: number, info: ReconnectInfo): void;

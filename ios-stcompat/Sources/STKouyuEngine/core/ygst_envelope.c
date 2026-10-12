@@ -2,8 +2,8 @@
  * Copyright 2026 优谷雅言 open.shengzhiai.com
  * SPDX-License-Identifier: Apache-2.0
  *
- * Shengtong style result and error JSON (DESIGN 6.2), the dtLastResponse clock text, the
- * request params echo, base URL resolution and small identifiers.
+ * Shengtong style result, error and reading progress JSON (DESIGN 6.2, 14.3), the dtLastResponse
+ * clock text, the request params echo, base URL resolution and small identifiers.
  */
 #include "ygst_core.h"
 
@@ -141,6 +141,56 @@ int ygst_envelope_error(ygst_buf *out, const char *token_id, int err_id, const c
     ygst_buf_append_char(out, '1');
     key(out, "applicationId", 0);
     ygst_json_escape(out, app_key);
+    ygst_buf_append_char(out, '}');
+    ygst_buf_cstr(out);
+    return out->oom ? -1 : 0;
+}
+
+/* The progress result as the platform sent it, without the first skip items of "words". */
+static int append_progress_result(ygst_buf *out, ygst_span result, int skip) {
+    ygst_span words, item;
+    size_t pos = 0;
+    int i = 0;
+    int first = 1;
+    if (skip <= 0 || ygst_json_type(result) != 'o' || ygst_json_member(result, "words", &words) != 1 ||
+        ygst_json_type(words) != 'a') {
+        return ygst_buf_append(out, result.p, result.n);
+    }
+    ygst_buf_append(out, result.p, (size_t)(words.p - result.p));
+    ygst_buf_append_char(out, '[');
+    while (ygst_json_array_next(words, &pos, &item) == 1) {
+        if (i++ < skip) continue;
+        if (!first) ygst_buf_append_char(out, ',');
+        first = 0;
+        ygst_buf_append(out, item.p, item.n);
+    }
+    ygst_buf_append_char(out, ']');
+    ygst_buf_append(out, words.p + words.n, (size_t)(result.p + result.n - (words.p + words.n)));
+    return out->oom ? -1 : 0;
+}
+
+int ygst_envelope_progress(ygst_buf *out, const char *token_id, const char *app_key, const char *user_id,
+                           const char *ref_text, const char *dt_last_response, ygst_span result_raw,
+                           int skip_words) {
+    if (!result_raw.p || result_raw.n == 0) return -1;
+    ygst_buf_append_char(out, '{');
+    key(out, "tokenId", 1);
+    ygst_json_escape(out, token_id);
+    /* Shengtong's intermediate results carry recordId; the platform names the record only in the final */
+    key(out, "recordId", 0);
+    ygst_buf_append_str(out, "\"\"");
+    key(out, "applicationId", 0);
+    ygst_json_escape(out, app_key);
+    key(out, "userId", 0);
+    ygst_json_escape(out, user_id);
+    key(out, "refText", 0);
+    ygst_json_escape(out, ref_text);
+    key(out, "eof", 0);
+    ygst_buf_append_char(out, '0');
+    key(out, "dtLastResponse", 0);
+    ygst_json_escape(out, dt_last_response);
+    key(out, "result", 0);
+    if (append_progress_result(out, result_raw, skip_words) != 0) return -1;
     ygst_buf_append_char(out, '}');
     ygst_buf_cstr(out);
     return out->oom ? -1 : 0;

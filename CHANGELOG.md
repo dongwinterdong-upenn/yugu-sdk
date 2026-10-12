@@ -2,6 +2,20 @@
 
 格式参照 Keep a Changelog，版本号规则见 `COMPATIBILITY.md`。各端的详细变更见各端目录下的 CHANGELOG.md。
 
+## 版本 `2.1.0`，2026-10-12
+
+### 新增
+- 实时评测朗读进度：原生实时评测的开始帧带 `realtimeFeedback`，声通兼容实时评测的参数帧带 `realtime_feedback` 时，平台边收音边下发进度帧，参考文本逐字或逐词给出 `read` 与 `matched`，另有 `readUnits`，`matchedUnits` 与 `totalUnits`，格式见 `CONTRACT.md` 5.5 节。
+- 五端 SDK 的 `onPartial` 带朗读进度，原生实时评测新增 `realtimeFeedback` 选项，断线重连后回调的进度不倒退。
+- 安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 平替层支持 `realtime_feedback`：打开后边录边传，录音过程中多次回调，`eof` 为 0 的结果是朗读进度，结束后回调 `eof` 为 1 的终评。iOS 平替层的这项能力需要 iOS 13。
+- 平台侧：两条实时评测通道下发朗读进度帧，终评与计费不变。
+
+### 变更
+- 声通兼容实时评测的进度帧在 `bytes` 之外增加朗读进度字段，只读 `bytes` 的 `2.0.0` 客户端不受影响。
+
+### 兼容性
+- 与 `2.0.0` 源码兼容，二进制兼容，替换版本号即可升级。
+
 ## 版本 `2.0.0`，2026-10-08
 
 ### 新增

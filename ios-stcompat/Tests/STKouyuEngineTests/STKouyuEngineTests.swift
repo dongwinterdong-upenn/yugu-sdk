@@ -56,7 +56,7 @@ final class SwiftSurfaceTests: XCTestCase {
         XCTAssertEqual(KY_MultiEngine.rawValue, 2)
         XCTAssertEqual(KYTestType_Wordspell.rawValue, 22)
         XCTAssertEqual(KYCompress_Speex.rawValue, 1)
-        XCTAssertEqual(STKouyuEngineVersionNumber, 2.0)
+        XCTAssertEqual(STKouyuEngineVersionNumber, 2.1)
     }
 
     func testEngineSelectorsCompile() {
@@ -120,7 +120,7 @@ final class SwiftSurfaceTests: XCTestCase {
     }
 
     func testYuguCompatSettings() {
-        XCTAssertEqual(YuguCompat.sdkVersion, "2.0.0")
+        XCTAssertEqual(YuguCompat.sdkVersion, "2.1.0")
         XCTAssertEqual(YuguCompat.defaultBaseURL, "https://open.shengzhiai.com")
         YuguCompat.baseURL = "ftp://nope"
         XCTAssertNil(YuguCompat.baseURL)
@@ -155,6 +155,55 @@ final class ObjectiveCLayerTests: XCTestCase {
             throw XCTSkip("YUGU_MOCK_BASE_URL and YUGU_SPEC_DIR are not set")
         }
         XCTAssertNil(YGSTCheckSkegnAgainstMock(base, spec, 30))
+    }
+}
+
+/// realtime_feedback (2.1.0) over the compat WebSocket of the mock platform, through the Objective-C
+/// API with NSURLSessionWebSocketTask: progress, fallback to REST before end, reconnect after end,
+/// progress-mismatch, progress-off and cancel. The faults go to the mock's fault queue, so the
+/// first handshake of the round takes them.
+final class RealtimeFeedbackTests: XCTestCase {
+    private func mock() throws -> (String, String) {
+        let env = ProcessInfo.processInfo.environment
+        guard let base = env["YUGU_MOCK_BASE_URL"], let spec = env["YUGU_SPEC_DIR"] else {
+            throw XCTSkip("YUGU_MOCK_BASE_URL and YUGU_SPEC_DIR are not set")
+        }
+        return (base, spec)
+    }
+
+    func testProgressThroughTheResultCallback() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckRealtimeProgress(base, spec, 30))
+    }
+
+    func testRefusedHandshakeFallsBackToOneRequest() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckRealtimeRefusedFallsBack(base, spec, 30))
+    }
+
+    func testConnectionKilledBeforeEndFallsBackToOneRequest() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckRealtimeKilledFallsBack(base, spec, 30))
+    }
+
+    func testErrorAfterEndReconnectsAndReplays() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckRealtimeReconnectAfterEnd(base, spec, 30))
+    }
+
+    func testProgressMismatch() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckRealtimeProgressMismatch(base, spec, 30))
+    }
+
+    func testProgressOff() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckRealtimeProgressOff(base, spec, 30))
+    }
+
+    func testCancelDeliversNothing() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckRealtimeCancel(base, spec, 30))
     }
 }
 

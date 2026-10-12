@@ -45,7 +45,20 @@ typedef double NSTimeInterval;
 #define NS_DESIGNATED_INITIALIZER __attribute__((objc_designated_initializer))
 #define NS_ENUM(_type, _name) enum _name : _type _name; enum _name : _type
 #define NS_OPTIONS(_type, _name) enum _name : _type _name; enum _name : _type
-#define API_AVAILABLE(...)
+/* API_AVAILABLE(macos(10.15), ios(13.0), ...) as availability attributes, like the SDK, so that a
+ * use of an iOS 13 API outside @available or an API_AVAILABLE context warns on the iOS 12 target
+ * (-Wunguarded-availability-new). One to four platforms. */
+#define YGST_STUB_AV_ios(v) __attribute__((availability(ios, introduced = v)))
+#define YGST_STUB_AV_macos(v) __attribute__((availability(macos, introduced = v)))
+#define YGST_STUB_AV_tvos(v) __attribute__((availability(tvos, introduced = v)))
+#define YGST_STUB_AV_watchos(v) __attribute__((availability(watchos, introduced = v)))
+#define YGST_STUB_AV1(a) YGST_STUB_AV_##a
+#define YGST_STUB_AV2(a, b) YGST_STUB_AV1(a) YGST_STUB_AV1(b)
+#define YGST_STUB_AV3(a, b, c) YGST_STUB_AV1(a) YGST_STUB_AV2(b, c)
+#define YGST_STUB_AV4(a, b, c, d) YGST_STUB_AV1(a) YGST_STUB_AV3(b, c, d)
+#define YGST_STUB_AV_PICK(_1, _2, _3, _4, name, ...) name
+#define API_AVAILABLE(...) \
+    YGST_STUB_AV_PICK(__VA_ARGS__, YGST_STUB_AV4, YGST_STUB_AV3, YGST_STUB_AV2, YGST_STUB_AV1, unused)(__VA_ARGS__)
 
 typedef struct _NSRange {
     NSUInteger location;
@@ -128,9 +141,15 @@ enum {
     NSUTF8StringEncoding = 4,
 };
 
+typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
+    NSCaseInsensitiveSearch = 1,
+    NSLiteralSearch = 2,
+};
+
 @interface NSString : NSObject <NSCopying, NSMutableCopying>
 @property (readonly) NSUInteger length;
 @property (readonly) const char *UTF8String NS_RETURNS_INNER_POINTER;
++ (instancetype)string;
 + (instancetype)stringWithUTF8String:(const char *)nullTerminatedCString;
 + (instancetype)stringWithFormat:(NSString *)format, ... NS_FORMAT_FUNCTION(1, 2);
 - (instancetype)initWithFormat:(NSString *)format arguments:(va_list)argList NS_FORMAT_FUNCTION(1, 0);
@@ -151,6 +170,7 @@ enum {
 - (BOOL)hasSuffix:(NSString *)str;
 - (BOOL)containsString:(NSString *)str;
 - (NSString *)substringToIndex:(NSUInteger)to;
+- (NSRange)rangeOfString:(NSString *)searchString options:(NSStringCompareOptions)mask range:(NSRange)rangeOfReceiverToSearch;
 @property (readonly) double doubleValue;
 @property (readonly) NSInteger integerValue;
 @property (readonly) long long longLongValue;
@@ -158,6 +178,7 @@ enum {
 @end
 
 @interface NSMutableString : NSString
+- (void)appendString:(NSString *)aString;
 @end
 
 @interface NSCharacterSet : NSObject <NSCopying>
@@ -202,6 +223,7 @@ enum {
 @interface NSArray<__covariant ObjectType> : NSObject <NSCopying, NSMutableCopying, NSFastEnumeration>
 @property (readonly) NSUInteger count;
 @property (readonly) ObjectType firstObject;
+@property (readonly) ObjectType lastObject;
 + (instancetype)array;
 + (instancetype)arrayWithObjects:(const ObjectType __unsafe_unretained[])objects count:(NSUInteger)cnt;
 - (ObjectType)objectAtIndexedSubscript:(NSUInteger)idx;
@@ -223,6 +245,19 @@ enum {
 
 @interface NSMutableDictionary<KeyType, ObjectType> : NSDictionary <KeyType, ObjectType>
 - (void)setObject:(ObjectType)obj forKeyedSubscript:(KeyType<NSCopying>)key;
+@end
+
+// ------------------------------------------------------------------ attributed strings
+
+typedef NSString *NSAttributedStringKey;
+
+@interface NSAttributedString : NSObject <NSCopying, NSMutableCopying>
+@property (readonly, copy) NSString *string;
+- (instancetype)initWithString:(NSString *)str attributes:(NSDictionary<NSAttributedStringKey, id> *)attrs;
+@end
+
+@interface NSMutableAttributedString : NSAttributedString
+- (void)addAttribute:(NSAttributedStringKey)name value:(id)value range:(NSRange)range;
 @end
 
 // ------------------------------------------------------------------ data
@@ -433,6 +468,7 @@ typedef NS_ENUM(NSUInteger, NSHTTPCookieAcceptPolicy) {
                    cachePolicy:(NSURLRequestCachePolicy)cachePolicy
                timeoutInterval:(NSTimeInterval)timeoutInterval;
 @property (copy) NSString *HTTPMethod;
+@property (copy) NSData *HTTPBody;
 @property NSTimeInterval timeoutInterval;
 - (void)setValue:(NSString *)value forHTTPHeaderField:(NSString *)field;
 @end
@@ -446,6 +482,7 @@ typedef NS_ENUM(NSUInteger, NSHTTPCookieAcceptPolicy) {
 @end
 
 @interface NSURLSessionTask : NSObject <NSCopying>
+@property (readonly, copy) NSURLResponse *response;
 - (void)resume;
 - (void)cancel;
 @end
@@ -467,12 +504,64 @@ typedef NS_ENUM(NSUInteger, NSHTTPCookieAcceptPolicy) {
 @property (retain) NSURLCache *URLCache;
 @end
 
+/* WebSocket, iOS 13 and macOS 10.15 (Foundation/NSURLSession.h) */
+
+typedef NS_ENUM(NSInteger, NSURLSessionWebSocketMessageType) {
+    NSURLSessionWebSocketMessageTypeData = 0,
+    NSURLSessionWebSocketMessageTypeString = 1,
+} API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0));
+
+API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0))
+@interface NSURLSessionWebSocketMessage : NSObject
+- (instancetype)initWithData:(NSData *)data NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithString:(NSString *)string NS_DESIGNATED_INITIALIZER;
+@property (readonly) NSURLSessionWebSocketMessageType type;
+@property (readonly, copy) NSData *data;
+@property (readonly, copy) NSString *string;
+@end
+
+typedef NS_ENUM(NSInteger, NSURLSessionWebSocketCloseCode) {
+    NSURLSessionWebSocketCloseCodeInvalid = 0,
+    NSURLSessionWebSocketCloseCodeNormalClosure = 1000,
+    NSURLSessionWebSocketCloseCodeGoingAway = 1001,
+    NSURLSessionWebSocketCloseCodeProtocolError = 1002,
+    NSURLSessionWebSocketCloseCodeUnsupportedData = 1003,
+    NSURLSessionWebSocketCloseCodeNoStatusReceived = 1005,
+    NSURLSessionWebSocketCloseCodeAbnormalClosure = 1006,
+    NSURLSessionWebSocketCloseCodeInvalidFramePayloadData = 1007,
+    NSURLSessionWebSocketCloseCodePolicyViolation = 1008,
+    NSURLSessionWebSocketCloseCodeMessageTooBig = 1009,
+    NSURLSessionWebSocketCloseCodeMandatoryExtensionMissing = 1010,
+    NSURLSessionWebSocketCloseCodeInternalServerError = 1011,
+    NSURLSessionWebSocketCloseCodeTLSHandshakeFailure = 1015,
+} API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0));
+
+API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0))
+@interface NSURLSessionWebSocketTask : NSURLSessionTask
+- (void)sendMessage:(NSURLSessionWebSocketMessage *)message completionHandler:(void (^)(NSError *error))completionHandler;
+- (void)receiveMessageWithCompletionHandler:(void (^)(NSURLSessionWebSocketMessage *message,
+                                                      NSError *error))completionHandler;
+- (void)sendPingWithPongReceiveHandler:(void (^)(NSError *error))pongReceiveHandler;
+- (void)cancelWithCloseCode:(NSURLSessionWebSocketCloseCode)closeCode reason:(NSData *)reason;
+@property NSInteger maximumMessageSize;
+@property (readonly) NSURLSessionWebSocketCloseCode closeCode;
+@property (readonly, copy) NSData *closeReason;
+@end
+
 @interface NSURLSession : NSObject
+@property (class, readonly, strong) NSURLSession *sharedSession;
 + (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration;
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
+                            completionHandler:(void (^)(NSData *data, NSURLResponse *response,
+                                                        NSError *error))completionHandler;
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request
                                          fromData:(NSData *)bodyData
                                 completionHandler:(void (^)(NSData *data, NSURLResponse *response,
                                                             NSError *error))completionHandler;
+- (NSURLSessionWebSocketTask *)webSocketTaskWithURL:(NSURL *)url
+    API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0));
+- (NSURLSessionWebSocketTask *)webSocketTaskWithRequest:(NSURLRequest *)request
+    API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0));
 @end
 
 static inline CFTypeRef CFBridgingRetain(id X) {

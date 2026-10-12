@@ -243,7 +243,7 @@ extern NSString *const KYEngineNative;   // @"native"，平替层按云端评测
 // 可选，触发 autoRetry 的 errId，默认 20009
 @property (nonatomic, strong) NSArray *errIds;
 
-// 不生效，平台整段评测不返回中间结果
+// 可选，开启后边录边传，录音过程中回调 eof 为 0 的中间结果，需要 iOS 13 及以上
 @property (nonatomic, assign) BOOL realtime_feedback;
 
 // 可选，以 negativeReftext 发送

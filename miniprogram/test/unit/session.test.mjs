@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scriptedWx, scriptedServer } from '../helpers/scripted-wx.mjs';
-import { recordingListener, captureLogs, wavPcm, sleep, waitFor, seeded } from '../helpers/common.mjs';
+import { recordingListener, captureLogs, wavPcm, sleep, waitFor, seeded, fixtureJson } from '../helpers/common.mjs';
 import {
   YuguClient, SessionState, AudioBufferPolicy, StreamSession, signParams, computeBackoffDelay, DEFAULT_RECONNECT_POLICY,
   InvalidParameterException, ServerException, ProtocolViolationException, AudioQualityException, NetworkException,
@@ -31,6 +31,25 @@ function feed(session, bytes = PCM, frame = 640) {
 }
 
 const binaryTotal = (task) => task.sent.filter((s) => s.binary).reduce((n, s) => n + s.binary.length, 0);
+
+// Reading progress (2.1.0, CONTRACT 5.5) with the customer's reference text.
+const CUSTOMER = '我是中国人，我是中国人。我们都是中国人。中华民族是一家人。';
+const UNITS = Array.from('我是中国人我是中国人我们都是中国人中华民族是一家人');
+/**
+ * Progress frame for CUSTOMER: the first `read` units read, the first `matched` of them matched, the
+ * per-unit list in result.progress. With `since` it is a compat frame: recordId "" and the Shengtong
+ * style result.words for the units read since `since`, which the SDK must not use.
+ */
+function progress(read, matched, bytes, since) {
+  const result = { bytes, readUnits: read, matchedUnits: matched, totalUnits: UNITS.length, progress: UNITS.map((word, i) => ({ word, read: i < read, matched: i < matched })) };
+  if (since === undefined) return { eof: 0, result };
+  const words = UNITS.slice(since, read).map((word, k) => {
+    const s = since + k < matched ? 100 : 0;
+    return { charType: 0, scores: { pronunciation: s, skipped: s ? 0 : 1, tone: s, overall: s, overall_pron: s }, word, word_parts: [{ beginIndex: 0, charType: 0, endIndex: 0, part: word }] };
+  });
+  return { eof: 0, recordId: '', result: { kernel_version: '1.0.0', resource_version: '1.0.0', ...result, words } };
+}
+const partials = (rl) => rl.events.filter((e) => e.name === 'onPartial').map((e) => e.args[0]);
 
 test('happy path: states, callback order, frames and getState consistency', async () => {
   const { c, sockets, logs } = setup();
@@ -75,7 +94,7 @@ test('happy path: states, callback order, frames and getState consistency', asyn
   assert.equal(q.idempotencyKey, session.idempotencyKey);
   const { signature, ...rest } = q;
   assert.equal(signature, signParams(rest, AUTH.secretKey));
-  assert.equal(task.options.header['X-Yugu-SDK'], 'yugu-miniprogram-sdk/2.0.0');
+  assert.equal(task.options.header['X-Yugu-SDK'], 'yugu-miniprogram-sdk/2.1.0');
   assert.deepEqual(task.closeArgs, { code: 1000, reason: 'completed' });
   assert.ok(!logs.lines.some((l) => l.level === 'ERROR'), logs.text());
 });
@@ -91,12 +110,156 @@ test('compat session: parameter frame, partial frames, extra query, token auth',
   s.end();
   await rl.done;
   assert.deepEqual(rl.events.filter((e) => e.name === 'onPartial').map((e) => e.args[0].bytes), [16000, 32000]);
+  assert.deepEqual(partials(rl)[1], { bytes: 32000, readUnits: -1, matchedUnits: -1, totalUnits: -1, progress: [], hasProgress: false, raw: { eof: '0', result: { bytes: 32000 } } });
   assert.equal(rl.first('onResult').args[0].idempotencyKey, 'compat-key-1');
   const task = sockets[0];
   assert.equal(new URL(task.url).pathname, '/sent.eval.cn');
   assert.deepEqual(task.query(), { trace: 't1', idempotencyKey: 'compat-key-1', token: 'jwt-1' });
   assert.deepEqual(task.texts()[1], { refText: '北京你好', language: 'zh-CN', realtime_feedback: true, scale: 100, idempotencyKey: 'compat-key-1' });
   assert.equal(s.mode, 'compat');
+});
+
+test('reading progress: the four recorded rounds reach onPartial in order, the last ones while ENDING', async () => {
+  const rounds = [
+    { file: 'ws_compat_sent_eval_cn_progress_frames.json', coreType: 'sent.eval.cn', refText: CUSTOMER, overall: 87.3 },
+    { file: 'ws_compat_sent_eval_cn_progress_misread_frames.json', coreType: 'sent.eval.cn', refText: CUSTOMER, overall: 82 },
+    { file: 'ws_compat_sent_eval_progress_frames.json', coreType: 'sent.eval', refText: 'Nice to see you again. I am a student, and I like reading books every day.', overall: 94.4 },
+    { file: 'ws_native_sentence_progress_frames.json', native: true, overall: 88 },
+  ];
+  for (const round of rounds) {
+    const { c, sockets } = setup({ mode: round.native ? 'native' : 'compat', onEnd: 'none' });
+    let s;
+    const seenIn = [];
+    const rl = recordingListener({ onPartial: () => seenIn.push(s.getState()) });
+    s = round.native
+      ? c.streamEvaluate({ coreType: 'sentence', referenceText: CUSTOMER, language: 'zh-CN', realtimeFeedback: true }, rl.listener)
+      : c.streamEvaluateCompat(round.coreType, { refText: round.refText, realtimeFeedback: true }, rl.listener);
+    await waitFor(() => s.getState() === 'STARTED');
+    const frames = fixtureJson('platform/' + round.file).map((e) => e.frame);
+    const sent = frames.filter((f) => f.eof === 0);
+    const total = sent.at(-1).result.bytes;
+    // progress reported while audio still arrived goes before end(), the recognition of the last audio after it
+    const beforeEnd = sent.filter((f) => f.result.bytes < total);
+    feed(s);
+    for (const f of beforeEnd) sockets[0].frame(f);
+    s.end();
+    for (const f of sent.slice(beforeEnd.length)) sockets[0].frame(f);
+    sockets[0].frame(frames.at(-1));
+    await rl.done;
+    const got = partials(rl);
+    assert.equal(got.length, sent.length, round.file + ': platform progress never goes back, nothing is dropped');
+    got.forEach((p, i) => {
+      const r = sent[i].result;
+      assert.deepEqual(p.raw, sent[i]);
+      assert.deepEqual(p.progress, r.progress);
+      assert.deepEqual([p.bytes, p.readUnits, p.matchedUnits, p.totalUnits, p.hasProgress], [r.bytes, r.readUnits, r.matchedUnits, r.totalUnits, true]);
+    });
+    assert.ok(beforeEnd.length > 0 && sent.length > beforeEnd.length, round.file);
+    assert.deepEqual(seenIn, sent.map((f, i) => (i < beforeEnd.length ? 'STARTED' : 'ENDING')), round.file);
+    assert.equal(rl.first('onResult').args[0].overall, round.overall);
+    assert.ok(rl.names().lastIndexOf('onPartial') < rl.names().indexOf('onResult'));
+    const first = sockets[0].texts()[1];
+    assert.equal(round.native ? first.realtimeFeedback : first.realtime_feedback, true, round.file);
+  }
+});
+
+test('reading progress after a reconnect: partials behind the delivered progress are dropped and logged at DEBUG', async () => {
+  const { c, sockets, logs } = setup({ mode: 'compat' });
+  const rl = recordingListener();
+  const s = c.streamEvaluateCompat('sent.eval.cn', { refText: CUSTOMER, realtimeFeedback: true }, rl.listener);
+  await waitFor(() => s.getState() === 'STARTED');
+  feed(s, PCM.subarray(0, 32000));
+  for (const f of [progress(2, 2, 16000, 0), progress(5, 5, 24000, 2), progress(7, 6, 32000, 5)]) sockets[0].frame(f);
+  sockets[0].serverClose(1006, 'killed');
+  await waitFor(() => sockets.length === 2 && s.getState() === 'STARTED');
+  assert.equal(binaryTotal(sockets[1]), 32000, 'REPLAY sends the audio again');
+  // the new server session computes the progress again from zero while the replayed audio arrives
+  const second = [progress(0, 0, 16000, 0), progress(2, 2, 24000, 0), { eof: 0, result: { bytes: 28000 } }, progress(5, 5, 32000, 2),
+    progress(7, 5, 40000, 5), progress(9, 5, 48000, 7), progress(9, 7, 56000, 9), progress(11, 10, 64000, 9)];
+  for (const f of second) sockets[1].frame(f);
+  s.end();
+  await rl.done;
+  const got = partials(rl).map((p) => (p.hasProgress ? [p.readUnits, p.matchedUnits] : p.bytes));
+  assert.deepEqual(got, [[2, 2], [5, 5], [7, 6], 28000, [9, 7], [11, 10]], 'both counts must reach the delivered ones, bytes-only partials pass');
+  const dropped = logs.lines.filter((l) => /progress partial dropped/.test(l.message));
+  assert.deepEqual(dropped.map((l) => l.level), ['DEBUG', 'DEBUG', 'DEBUG', 'DEBUG', 'DEBUG']);
+  assert.match(dropped[0].message, /readUnits 0, matchedUnits 0 are behind the delivered 7, 6$/);
+  assert.match(dropped[4].message, /readUnits 9, matchedUnits 5 are behind the delivered 7, 6$/);
+  assert.ok(!logs.text().includes('delivered progress forgotten'), 'REPLAY keeps the delivered progress');
+  const order = rl.names().filter((n) => ['onPartial', 'onReconnecting', 'onReconnected', 'onResult'].includes(n));
+  assert.deepEqual(order, ['onPartial', 'onPartial', 'onPartial', 'onReconnecting', 'onReconnected', 'onPartial', 'onPartial', 'onPartial', 'onResult']);
+  assert.equal(rl.count('onError'), 0);
+});
+
+test('reading progress with DROP: the delivered progress is forgotten at every successful reconnect', async () => {
+  const { c, sockets, logs } = setup({ mode: 'compat' }, { audioBufferPolicy: 'DROP' });
+  const rl = recordingListener();
+  const s = c.streamEvaluateCompat('sent.eval.cn', { refText: CUSTOMER, realtimeFeedback: true }, rl.listener);
+  await waitFor(() => s.getState() === 'STARTED');
+  feed(s, PCM.subarray(0, 32000));
+  for (const f of [progress(2, 2, 16000, 0), progress(5, 5, 24000, 2), progress(7, 6, 32000, 5)]) sockets[0].frame(f);
+  sockets[0].serverClose(1006, 'killed');
+  await waitFor(() => sockets.length === 2 && s.getState() === 'STARTED');
+  assert.equal(binaryTotal(sockets[1]), 0, 'DROP sends no old audio');
+  // the new server session scores only the audio sent after the reconnect: its progress starts at zero
+  feed(s, PCM.subarray(32000, 48000));
+  for (const f of [progress(1, 1, 8000, 0), progress(3, 2, 16000, 1), progress(2, 2, 16000, 3)]) sockets[1].frame(f);
+  sockets[1].serverClose(1006, 'killed again');
+  await waitFor(() => sockets.length === 3 && s.getState() === 'STARTED');
+  for (const f of [progress(1, 0, 8000, 0), { eof: 0, result: { bytes: 12000 } }, progress(4, 4, 16000, 1)]) sockets[2].frame(f);
+  s.end();
+  await rl.done;
+  const got = partials(rl).map((p) => (p.hasProgress ? [p.readUnits, p.matchedUnits] : p.bytes));
+  assert.deepEqual(got, [[2, 2], [5, 5], [7, 6], [1, 1], [3, 2], [1, 0], 12000, [4, 4]], 'within one server session the rule still applies');
+  assert.equal(logs.lines.filter((l) => /progress partial dropped/.test(l.message)).length, 1, 'only 2, 2 after 3, 2 in the second server session');
+  assert.equal(logs.lines.filter((l) => l.level === 'DEBUG' && /delivered progress forgotten/.test(l.message)).length, 2);
+  assert.equal(rl.count('onReconnected'), 2);
+  assert.equal(rl.count('onResult'), 1);
+});
+
+test('reading progress: every session starts without a delivered progress, partials without progress always pass', async () => {
+  const { c, sockets } = setup({ mode: 'compat' });
+  const rl1 = recordingListener();
+  const s1 = c.streamEvaluateCompat('sent.eval.cn', { refText: CUSTOMER, realtimeFeedback: true }, rl1.listener);
+  await waitFor(() => s1.getState() === 'STARTED');
+  sockets[0].frame(progress(25, 25, 144000, 0));
+  sockets[0].frame({ eof: 0, result: { bytes: 160000 } });
+  feed(s1);
+  s1.end();
+  await rl1.done;
+  const rl2 = recordingListener();
+  const s2 = c.streamEvaluateCompat('sent.eval.cn', { refText: CUSTOMER, realtimeFeedback: true }, rl2.listener);
+  await waitFor(() => s2.getState() === 'STARTED');
+  sockets[1].frame({ eof: 0, result: { bytes: 16000 } });
+  sockets[1].frame(progress(1, 0, 32000, 0));
+  sockets[1].frame(progress(1, 1, 48000, 1));
+  feed(s2);
+  s2.end();
+  await rl2.done;
+  const view = (rl) => partials(rl).map((p) => [p.bytes, p.readUnits, p.matchedUnits, p.totalUnits, p.progress.length, p.hasProgress]);
+  assert.deepEqual(view(rl1), [[144000, 25, 25, 25, 25, true], [160000, -1, -1, -1, 0, false]]);
+  assert.deepEqual(view(rl2), [[16000, -1, -1, -1, 0, false], [32000, 1, 0, 25, 25, true], [48000, 1, 1, 25, 25, true]]);
+  assert.deepEqual(partials(rl2)[1].progress.slice(0, 2), [{ word: '我', read: true, matched: false }, { word: '是', read: false, matched: false }]);
+});
+
+test('native start frame: "realtimeFeedback": true only when enabled, otherwise the 2.0.0 frame byte for byte', async () => {
+  const { c, sockets, wx } = setup();
+  const variants = [[NATIVE, ''], [{ ...NATIVE, realtimeFeedback: false }, ''], [{ ...NATIVE, realtimeFeedback: true }, ',"realtimeFeedback":true']];
+  for (let i = 0; i < variants.length; i++) {
+    const key = 'rtfb-key-' + i;
+    const rl = recordingListener();
+    const s = c.streamEvaluate(variants[i][0], rl.listener, { idempotencyKey: key });
+    feed(s, PCM.subarray(0, 32000));
+    s.end();
+    await rl.done;
+    const start = sockets[i].sent.find((x) => x.json && x.json.cmd === 'start').text;
+    assert.equal(start, '{"cmd":"start","coreType":"sentence","referenceText":"今天天气很好","language":"zh-CN"' + variants[i][1] + ',"idempotencyKey":"' + key + '"}');
+  }
+  // whole-file evaluation has no progress: the option never reaches the config part
+  await c.evaluate({ ...NATIVE, realtimeFeedback: true, audio: PCM, audioFormat: 'pcm', sampleRate: 16000 });
+  const body = Buffer.from(wx.__scripted.requests[0].data).toString('utf8');
+  assert.ok(body.includes('Content-Type: application/json; charset=utf-8\r\n\r\n' + JSON.stringify(NATIVE) + '\r\n'));
+  assert.ok(!body.includes('realtimeFeedback'));
 });
 
 test('audio and end() given before the server session starts are delivered in order', async () => {

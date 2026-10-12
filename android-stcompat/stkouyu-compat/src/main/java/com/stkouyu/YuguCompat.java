@@ -11,7 +11,7 @@ import com.shengzhiai.yugu.stcompat.internal.YLog;
  */
 public final class YuguCompat {
     /** Version of the compat layer. */
-    public static final String VERSION = "2.0.0";
+    public static final String VERSION = "2.1.0";
 
     public static final int LOG_OFF = 0;
     public static final int LOG_ERROR = 1;
@@ -66,7 +66,7 @@ public final class YuguCompat {
         CompatConfig.setTimeouts(connectTimeoutMs, readTimeoutMs, totalTimeoutMs);
     }
 
-    /** Version string, {@code yugu-stkouyu-compat/2.0.0 (api 1.0.62)}. */
+    /** Version string, {@code yugu-stkouyu-compat/2.1.0 (api 1.0.62)}. */
     public static String getVersion() {
         return CompatConfig.SDK_VERSION;
     }

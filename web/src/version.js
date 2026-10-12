@@ -1,7 +1,7 @@
 // Copyright 2026 优谷雅言 open.shengzhiai.com. Licensed under the Apache License, Version 2.0.
 
 /** SDK version. A unit test keeps it equal to package.json. */
-export const SDK_VERSION = '2.0.0';
+export const SDK_VERSION = '2.1.0';
 
 /** SDK name used in the User-Agent or X-Yugu-SDK header. */
 export const SDK_NAME = 'yugu-web-sdk';

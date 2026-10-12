@@ -294,7 +294,7 @@ class MockRestIT {
         assertTrue(log.any { it.str("path") == "/sent.eval.cn" && it.str("idempotencyKey") != null })
         assertTrue(log.any { it.str("path") == "/api/v1/tts/generate" && it.str("idempotencyKey") != null })
         assertNull(log.first { it.str("path")!!.startsWith("/api/v1/report/") }.str("idempotencyKey"))
-        assertTrue(log.all { it.str("userAgent") == "yugu-android-sdk/2.0.0" })
+        assertTrue(log.all { it.str("userAgent") == "yugu-android-sdk/2.1.0" })
         assertEquals(3, m.billing().int("billed"))
     }
 

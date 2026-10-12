@@ -7,9 +7,9 @@ STKouyuEngine 是优谷雅言语音评测 SDK 2.0 的 iOS 声通平替包。已�
 | 项 | 值 |
 |---|---|
 | 包地址 | `https://open.shengzhiai.com/git/stkouyu-ios-compat.git` |
-| 版本 | `2.0.0` |
+| 版本 | `2.1.0` |
 | 产品与模块 | `STKouyuEngine`，Objective-C 实现 |
-| 最低系统 | iOS 12，另支持 macOS 10.15 供测试使用 |
+| 最低系统 | iOS 12，朗读进度需要 iOS 13，另支持 macOS 10.15 供测试使用 |
 | 工具链 | Xcode 15 及更新版本，`swift-tools-version:5.9` |
 | 依赖 | 只用系统框架 Foundation，AVFoundation，CoreGraphics 与 UIKit |
 | 许可 | Apache-2.0 |
@@ -24,13 +24,13 @@ STKouyuEngine 是优谷雅言语音评测 SDK 2.0 的 iOS 声通平替包。已�
 
 ### SwiftPM 依赖
 
-在 Xcode 菜单 `File > Add Package Dependencies` 填入包地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`，规则选 `Up to Next Major Version`，起始版本 `2.0.0`，把产品 `STKouyuEngine` 加到应用 target。
+在 Xcode 菜单 `File > Add Package Dependencies` 填入包地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`，规则选 `Up to Next Major Version`，起始版本 `2.1.0`，把产品 `STKouyuEngine` 加到应用 target。
 
 用 `Package.swift` 管理依赖的工程这样写：
 
 ```swift
 dependencies: [
-    .package(url: "https://open.shengzhiai.com/git/stkouyu-ios-compat.git", from: "2.0.0"),
+    .package(url: "https://open.shengzhiai.com/git/stkouyu-ios-compat.git", from: "2.1.0"),
 ],
 targets: [
     .target(name: "App", dependencies: [
@@ -201,6 +201,7 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 | `qType` | `qType` | 非 0 时发送数值 |
 | `customParams` | 键名即字段名 | 每个键值一个字段，与映射字段同名时覆盖映射值，空值不发送 |
 | `request` | `request` | 字典序列化为 JSON 文本，排在最后，平台合并其中的标量字段 |
+| `realtime_feedback` | 不是表单字段 | YES 时录音与 feed 模式改走实时评测接口，上表的字段放进参数帧，评测过程中回调朗读进度，见朗读进度一节 |
 
 `customParams` 的值转成文本的规则：字符串原样，布尔值为 `true` 或 `false`，整数不带小数点，小数取最短形式，数组与字典为 JSON 文本。
 
@@ -228,7 +229,6 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 |---|---|
 | `coreProvideType` | 一律云端评测，值为 `native` 时打印警告日志 |
 | `compress`，`quality`，`complexity`，`vbr`，`max_ogg_delay` | 上传无损 WAV，不做 Speex 压缩 |
-| `realtime_feedback` | 平台整段评测不返回中间评分 |
 | `customized_sig`，`customized_sig_url` | 按 appKey 与 secretKey 签名 |
 | `refAudio` | `align.eval` 平台不支持 |
 | `phoneme_diagnosis`，`blend_phoneme_enable` | 不在映射表里，需要时经 `customParams` 发送 |
@@ -251,7 +251,7 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 
 ## 回调规则
 
-全部回调在主线程，按发生顺序回调。一次评测在结果回调里收到一份结果 JSON 或错误 JSON，调用 `cancelEngine` 或 `deleteEngine` 之后这次评测不再有任何回调。结果回调指 `testResultBlock` 或 `onScoreBlock`，同时回调代理的 `kyTestEngineDidScore:`。
+全部回调在主线程，按发生顺序回调。一次评测在结果回调里收到一份结果 JSON 或错误 JSON，`realtime_feedback` 为 YES 时在此之前还会收到若干份 `eof` 为 0 的朗读进度 JSON，见朗读进度一节。调用 `cancelEngine` 或 `deleteEngine` 之后这次评测不再有任何回调。结果回调指 `testResultBlock` 或 `onScoreBlock`，同时回调代理的 `kyTestEngineDidScore:`。
 
 开始成功时 `finishBlock` 收到 YES 与 tokenId，录音与 feed 模式随后回调 `onStartBlock` 与 `kyTestEngineDidRecordStart`。开始失败时 `finishBlock` 收到 NO 与错误 JSON，其余回调与安卓平替层一致：
 
@@ -305,6 +305,90 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 4. `para.eval` 与 `para.eval.cn` 一律请求逐字得分，结果总带 `result.sentences[].details[]`。
 5. `dtLastResponse` 为本机时区收到结果的时刻，格式 `yyyy-MM-dd HH:mm:ss:SSS`。
 
+## 朗读进度
+
+`KYTestConfig.realtime_feedback` 设为 YES 时，录音与 feed 模式的评测改走声通兼容实时评测接口 `wss://{平台地址}/{coreType}`，边读边上传音频。平台在收音过程中回报参考文本里读到了哪里，平替包把进度以 `eof` 为 0 的 JSON 交给结果回调，与终评使用同一个回调，结构同声通 `realtime_feedback` 的中间结果。界面可以据此让参考文本跟随朗读位置。终评 JSON 与不打开时相同，同一个 tokenId 只评测一次，只计费一次。
+
+```json
+{"tokenId":"3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c","recordId":"","applicationId":"优谷雅言 appKey","userId":"u1",
+ "refText":"北京你好","eof":0,"dtLastResponse":"2026-10-12 14:03:21:456",
+ "result":{"kernel_version":"1.0.0","resource_version":"1.0.0",
+  "words":[{"charType":0,"scores":{"pronunciation":100,"skipped":0,"tone":100,"overall":100,"overall_pron":100},
+            "word":"京","word_parts":[{"beginIndex":0,"charType":0,"endIndex":0,"part":"京"}]}],
+  "bytes":48000,"readUnits":2,"matchedUnits":2,"totalUnits":4,
+  "progress":[{"word":"北","read":true,"matched":true},{"word":"京","read":true,"matched":true},
+              {"word":"你","read":false,"matched":false},{"word":"好","read":false,"matched":false}]}}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `eof` | 0 为朗读进度，终评与错误 JSON 为 1 |
+| `recordId` | 空串，评测记录编号在终评中给出 |
+| `result.words` | 上一次进度回调之后新读到的字或词，按参考文本顺序。各次回调的 `words` 依次拼起来就是已读的部分，每个字或词只回调一次 |
+| `result.words[].scores` | 只表示识别结果与参考文本是否一致：一致时各项为 100，`skipped` 为 0，不一致时各项为 0，`skipped` 为 1，英文的 `tone` 为 0。回调之后不再更新，发音与声调的得分以终评为准 |
+| `result.words[].charType` | 0 为汉字，1 为英文 |
+| `result.progress` | 参考文本全部的字或词，`read` 为朗读已越过，`matched` 为识别结果一致，每次回调都是最新状态。一次评测之内两者只会由 false 变为 true，`matched` 为 true 时 `read` 也为 true |
+| `result.readUnits`，`result.matchedUnits`，`result.totalUnits` | 已读的个数，识别一致的个数，总数。`readUnits` 即当前朗读位置 |
+| `result.bytes` | 平台这一轮已收到的音频字节数 |
+| `result.kernel_version`，`result.resource_version` | 与终评相同 |
+
+1. 中文按字，去掉标点与空白。英文按空白分词，去掉词首词尾的标点，词内的撇号与连字符保留。`coreType` 以 `.cn` 结尾或为 `pinyin` 时按字，其余按词，`customParams` 带 `language` 时按 `language` 判断。
+2. 读到新的字或词时平台立即下发进度，此外大约每 0.5 秒音频下发一次。没有新读到内容的进度不回调，只有字节数的进度也不回调。进度一般比朗读晚 1 到 2 秒，随网络情况变化。
+3. `stopEngine` 发出结束帧之后，平台对最后一段音频再识别一次，句末的几个字以进度回调送达，然后才是终评。终评之后不再有进度回调。
+4. 朗读进度只对 16 kHz 16 位单声道 PCM 生效。录音模式总是满足，feed 模式要求 `audioType` 为 `wav` 或 `pcm`，`sampleRate` 为 16000，`channel` 为 1，`sampleBytes` 为 2。`audioPath` 模式与其他音频照旧整段评测，不回调进度。
+5. 需要 iOS 13 或更新版本。iOS 12 上照旧整段评测，不回调进度，日志级别为 info 时打印一行说明。
+6. 参考文本为空或平台当时无法跟踪进度时，这一轮没有进度回调，终评不受影响。
+7. 结束帧发出之前连接失败，例如握手被拒，断网或心跳超时，平替包关闭连接，不再回调进度，录音照常进行，`stopEngine` 之后用同一个 tokenId 整段评测，与不打开 `realtime_feedback` 时相同。平台没有收到结束帧时不评测，不计费。
+8. 结束帧发出之后连接失败或终评超时，平替包用同一个 tokenId 重新连接，重发参数帧，全部音频与结束帧。重连次数与整段评测的重试次数相同，默认 2 次，用尽后回调与整段评测相同的错误 JSON，errId 为 20009。平台按 tokenId 只评测一次，重放期间平台从第一个字重新计算进度，已经回调过的字或词按位置去掉，不会重复回调。
+9. 握手的 query 带 `appKey`，`timestamp`，`nonce`，`idempotencyKey` 与 `signature`，签名算法与整段评测相同，参数帧为参数映射一节的表单字段加 `realtime_feedback` 与 `idempotencyKey`。结束帧发出之前每 15 秒发一次协议层 ping，30 秒收不到 pong 视为断线。
+
+### 按朗读进度给参考文本着色
+
+```objc
+#import <STKouyuEngine/KYTestEngine.h>
+#import <UIKit/UIKit.h>
+
+/// 按 result.progress 给参考文本着色：已读且对上为绿色，已读未对上为橙色，未读为灰色
+static NSAttributedString *ColoredRefText(NSString *refText, NSArray<NSDictionary *> *progress) {
+    NSMutableAttributedString *text = [[NSMutableAttributedString alloc]
+        initWithString:refText attributes:@{NSForegroundColorAttributeName : UIColor.grayColor}];
+    NSUInteger from = 0;
+    for (NSDictionary *unit in progress) {
+        NSRange r = [refText rangeOfString:unit[@"word"] options:0 range:NSMakeRange(from, refText.length - from)];
+        if (r.location == NSNotFound) break;
+        from = NSMaxRange(r);
+        if (![unit[@"read"] boolValue]) continue;
+        [text addAttribute:NSForegroundColorAttributeName
+                     value:[unit[@"matched"] boolValue] ? UIColor.greenColor : UIColor.orangeColor
+                     range:r];
+    }
+    return text;
+}
+
+static void StartReadingWithProgress(UILabel *label) {
+    KYTestConfig *test = [[KYTestConfig alloc] init];
+    test.coreType = KYTestType_Sentence_Cn;
+    test.refText = @"我是中国人，我是中国人。我们都是中国人。中华民族是一家人。";
+    test.realtime_feedback = YES;
+    label.attributedText = ColoredRefText(test.refText, @[]);
+    [[KYTestEngine sharedInstance] startEngineWithTestConfig:test
+        result:^(NSString *testResult) {
+            NSData *data = [testResult dataUsingEncoding:NSUTF8StringEncoding];
+            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+            if ([json[@"eof"] integerValue] == 0) {
+                label.attributedText = ColoredRefText(test.refText, json[@"result"][@"progress"]);
+            } else if (json[@"errId"]) {
+                NSLog(@"errId %@ %@", json[@"errId"], json[@"error"]);
+            } else {
+                NSLog(@"overall %@", json[@"result"][@"overall"]);
+            }
+        }
+        finishBlock:nil];
+}
+```
+
+`result.progress` 每次都是全部字或词的最新状态，整段重新着色即可。只需要跟随朗读位置时，取 `result.readUnits`，或者累加各次回调 `result.words` 的个数。示例与测试一起编译，副本在 `Tests/STKouyuEngineObjCSupport` 里。
+
 ## 错误 JSON 与 errId
 
 ```json
@@ -345,8 +429,8 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 |---|---|---|
 | 引擎 | 在线，离线，双引擎 | 只有云端评测 |
 | 内核 | 多语种多题型 | 中文与英文的字词，句子，段落，字母与拼音题 |
-| 中间结果 | `realtime_feedback` 返回中间评分 | 不返回中间评分，VAD 与音强回调照常 |
-| 上传音频 | 可用 Speex 压缩 | 录音以 16 kHz 单声道 16 位 WAV 上传 |
+| 中间结果 | `realtime_feedback` 返回中间结果 | `realtime_feedback` 为 YES 时同样以 `eof` 为 0 的 JSON 回调新读到的字或词，结构同声通，分数只表示是否读对，需要 iOS 13，见朗读进度一节 |
+| 上传音频 | 可用 Speex 压缩 | 录音以 16 kHz 单声道 16 位 WAV 上传，打开 `realtime_feedback` 时边录边传 PCM |
 | 录音文件 | WAV 或 MP3 | 一律 WAV 编码，`recordName` 写 `.mp3` 时保留原文件名 |
 | 证书 | 离线证书 | 不需要证书，证书相关方法返回 YES |
 | 音频地址 | `attachAudioUrl` 返回录音的下载地址 | 同样返回，字段为结果 JSON 末尾的 `audioUrl`，平台保留 7 天，到期删除 |
@@ -373,6 +457,8 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 | `skegn_get_last_error` | 最近一次错误码，数值与声通 `skegn_errno.h` 相同 |
 
 `request` 成员转成文本的规则：字符串原样，JSON 布尔值为 1 或 0，数字取最短形式，数组与对象为 JSON 文本。`request.getParam` 为真时结果带上 `params`，`request.autoRetry` 为真时按 errId 20009 自动重评。回调里可以调用 `skegn_cancel` 与 `skegn_start`。
+
+朗读进度只在 `KYTestEngine` 上提供。C 接口照旧在 `skegn_stop` 之后整段评测，`request` 里的 `realtime_feedback` 与其他成员一样作为表单字段发送，不回调进度。
 
 ## 扩展配置
 
@@ -416,18 +502,18 @@ python3 tools/headers-diff.py --original /path/to/STKouyuEngine.framework/Header
 
 ## 验证状态
 
-截至 2026-10-08：
+Linux 上的结果与实时评测的沙箱用例截至 2026-10-12，macOS 构建机上的结果为 2026-10-08 对 `2.0.0` 的构建。`2.1.0` 新增的 Objective-C 部分尚未在 macOS 构建机上编译与运行：
 
 | 部分 | 状态 |
 |---|---|
-| C 核心 | 签名，参数映射，multipart，WAV，VAD，重试判断，错误映射与结果 JSON 组装都在 `Sources/STKouyuEngine/core`。Linux 上用 gcc 13 按 C99 编译零警告，62 组单元测试 2955 项检查全部通过，AddressSanitizer 与 UndefinedBehaviorSanitizer 下同样通过，行覆盖率 98.39%。macOS 上用 Xcode 15.4 的 clang 跑同样的步骤，结果一致。按 2026-10-08 录下的平台返回核对，平台返回的 `audioUrl` 原样进入结果 JSON 末尾，单句段落与多句段落的 `details` 补充方式相同 |
-| 集成测试 | C 核心按 KYTestEngine 的请求方式连接平台模拟服务 `tools/mock-server/server.mjs`，21 个场景 119 项检查在 Linux 与 macOS 上都通过，覆盖 500 与 429 重试，读超时与平台处理中两种情形下同一 tokenId 的多次提交只计费一次，409 40901 等待后重试，每次请求换新的 nonce，段落内核的逐字得分与 details 补充，`attachAudioUrl` 作为表单字段发送，400 不重试，autoRetry，签名错误，以及本机错误不发请求 |
-| 沙箱测试 | 设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`ci/ios-stcompat.sh` 的 sandbox 步骤让同一套 C 核心经 HTTPS 连接真实平台，校验证书与主机名，依次跑五个用例。`sent.eval.cn` 句子评测得到数值型 `result.overall`，结果 JSON 不带 `audioUrl`，`para.eval.cn` 段落评测的 `details` 每项带 `overall` 与 `pronunciation`，带 `attachAudioUrl` 的句子评测在结果 JSON 末尾得到平台返回的 https 下载地址 `audioUrl`，平台不认识的 appKey 得到鉴权类 errId，`pinyin` 题缺 `refPinyin` 得到 40001，两个错误用例都只发一次请求，不触发评测。每次运行最多 6 次平台调用，密钥只经环境变量传给测试程序，不出现在命令行与日志里。没有密钥时这一步记为跳过。2026-10-08 平台更新后实测五个用例 59 项检查全部通过，共 5 次平台调用。`Tests/STKouyuEngineTests/SandboxTests.swift` 经 Objective-C 接口跑其中四个用例，不含 `attachAudioUrl` 用例，已在 macOS 与 iOS 模拟器上编译，GitHub 的推送构建不注入沙箱密钥，这四个用例在 macOS 上尚未运行 |
+| C 核心 | 签名，参数映射，multipart，WAV，VAD，重试判断，错误映射与结果 JSON 组装都在 `Sources/STKouyuEngine/core`。`2.1.0` 的握手地址与签名，参数帧，进度帧解析，`eof` 为 0 的 JSON 组装，按位置去重，以及实时评测的连接，心跳，回退整段评测与结束后重连的判断也在这里。Linux 上用 gcc 13 按 C99 编译零警告，84 组单元测试 13481 项检查全部通过，AddressSanitizer 与 UndefinedBehaviorSanitizer 下同样通过，行覆盖率 98.76%，实时评测部分 100%。2026-10-08 在 macOS 上用 Xcode 15.4 的 clang 跑过 `2.0.0` 的同样步骤，结果一致。按 2026-10-08 录下的平台返回核对，平台返回的 `audioUrl` 原样进入结果 JSON 末尾，单句段落与多句段落的 `details` 补充方式相同。按 2026-10-12 录下的四份进度帧与共享签名向量核对朗读进度 |
+| 集成测试 | C 核心按 KYTestEngine 的请求方式连接平台模拟服务 `tools/mock-server/server.mjs`，33 个场景 748 项检查在 Linux 上通过，其中 `2.0.0` 的 21 个场景 2026-10-08 在 macOS 上也通过。`2.1.0` 的 12 个场景经测试用的 WebSocket 客户端跑实时评测：模拟服务按同一算法校验握手签名，进度回调的 `words` 依次拼起来不重不漏，握手被拒，结束前断线与心跳超时时用同一个 tokenId 整段评测，结束时断线，结束后出错与终评超时时重连重放，只计费一次，重试用尽得到 20009，进度不一致与没有进度两种故障，以及短于 1 秒的录音不发结束帧。`2.0.0` 的场景覆盖 500 与 429 重试，读超时与平台处理中两种情形下同一 tokenId 的多次提交只计费一次，409 40901 等待后重试，每次请求换新的 nonce，段落内核的逐字得分与 details 补充，`attachAudioUrl` 作为表单字段发送，400 不重试，autoRetry，签名错误，以及本机错误不发请求 |
+| 沙箱测试 | 设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`ci/ios-stcompat.sh` 的 sandbox 步骤让同一套 C 核心经 HTTPS 连接真实平台，校验证书与主机名，依次跑六个用例。`sent.eval.cn` 句子评测得到数值型 `result.overall`，结果 JSON 不带 `audioUrl`，`para.eval.cn` 段落评测的 `details` 每项带 `overall` 与 `pronunciation`，带 `attachAudioUrl` 的句子评测在结果 JSON 末尾得到平台返回的 https 下载地址 `audioUrl`，平台不认识的 appKey 得到鉴权类 errId，`pinyin` 题缺 `refPinyin` 得到 40001，两个错误用例都只发一次请求，不触发评测。实时评测用例按实时速度经 wss 上传客户例句，核对进度回调与终评。每次运行最多 7 次平台调用，密钥只经环境变量传给测试程序，不出现在命令行与日志里。没有密钥时这一步记为跳过。2026-10-08 平台更新后实测五个用例 59 项检查全部通过，共 5 次平台调用。2026-10-12 实测实时评测用例 77 项检查通过，平台接受握手签名与参数帧，7 次进度回调依次覆盖 25 个字，每个字一次，终评 78 分，1 次平台调用。`Tests/STKouyuEngineTests/SandboxTests.swift` 经 Objective-C 接口跑其中四个用例，不含 `attachAudioUrl` 用例，已在 macOS 与 iOS 模拟器上编译，GitHub 的推送构建不注入沙箱密钥，这四个用例在 macOS 上尚未运行 |
 | 头文件 | 与声通公开头文件比对 5 个文件 227 项声明，差异为 0，参数名也一致 |
 | 包清单 | Linux 上用 Swift `6.0.3` 加载 `Package.swift`，`swift package describe` 识别出全部目标与源文件，没有警告。macOS 上 Swift `5.10` 按同一份清单构建全部目标 |
-| Objective-C 层 | 2026-10-08 在 GitHub Actions 的 macos-14 构建机上用 Xcode 15.4 编译，链接，运行。swift build 构建 macOS 版，xcodebuild 构建 iOS 真机版与模拟器版，真机版部署目标为 iOS 12，全部零警告。Linux 上另用 libclang 18 按 Objective-C ARC 解析全部 `.m` 文件，对照手写的 Apple 接口桩声明做类型检查，20 个编译单元零错误零警告 |
-| XCTest | `Tests/STKouyuEngineTests` 的 Swift 测试与其调用的 Objective-C 检查 `Tests/STKouyuEngineObjCSupport`。macOS 上 swift test 执行 14 项，13 项通过，沙箱用例 1 项跳过，iOS 17.5 模拟器上 xcodebuild test 结果相同，连接平台模拟服务的文件评测，流式评测，取消与 skegn 接口用例在两处都通过。`Sources/STKouyuEngine` 的行覆盖率在 macOS 上为 58.50%，在模拟器上为 57.76%，录音器 `YGSTRecorder.m` 需要麦克风，测试没有覆盖 |
-| macOS 构建 | `ci/ios-stcompat-macos.sh` 2026-10-08 在 GitHub Actions 的 macos-14 构建机上全部步骤通过：在 macOS 上重跑 C 核心的各步骤，swift build，iOS 真机与模拟器的 xcodebuild，连接平台模拟服务的 swift test，以及 iOS 模拟器上的 xcodebuild test。设置沙箱密钥时 swift test 另跑沙箱用例 |
+| Objective-C 层 | 2026-10-08 在 GitHub Actions 的 macos-14 构建机上用 Xcode 15.4 编译，链接，运行。swift build 构建 macOS 版，xcodebuild 构建 iOS 真机版与模拟器版，真机版部署目标为 iOS 12，全部零警告。Linux 上另用 libclang 18 按 Objective-C ARC 解析全部 `.m` 文件，对照手写的 Apple 接口桩声明做类型检查，22 个编译单元零错误零警告。`2.1.0` 新增的 `YGSTRealtime.m` 与 `KYTestEngine.m` 的改动只经过这项检查，接口桩为 WebSocket 接口带上 iOS 13 的可用性标注，iOS 12 目标下可用性判断之外的调用会报警告，现为零警告。这部分尚未在 macOS 构建机上编译 |
+| XCTest | `Tests/STKouyuEngineTests` 的 Swift 测试与其调用的 Objective-C 检查 `Tests/STKouyuEngineObjCSupport`。macOS 上 swift test 执行 14 项，13 项通过，沙箱用例 1 项跳过，iOS 17.5 模拟器上 xcodebuild test 结果相同，连接平台模拟服务的文件评测，流式评测，取消与 skegn 接口用例在两处都通过。`Sources/STKouyuEngine` 的行覆盖率在 macOS 上为 58.50%，在模拟器上为 57.76%，录音器 `YGSTRecorder.m` 需要麦克风，测试没有覆盖。`2.1.0` 新增 `RealtimeFeedbackTests` 七个用例，经 Objective-C 接口与 NSURLSessionWebSocketTask 连接平台模拟服务，覆盖进度回调，握手被拒与结束前断线时整段评测，结束后出错时重连重放，进度不一致，没有进度与取消，尚未运行 |
+| macOS 构建 | `ci/ios-stcompat-macos.sh` 2026-10-08 在 GitHub Actions 的 macos-14 构建机上全部步骤通过：在 macOS 上重跑 C 核心的各步骤，swift build，iOS 真机与模拟器的 xcodebuild，连接平台模拟服务的 swift test，以及 iOS 模拟器上的 xcodebuild test。设置沙箱密钥时 swift test 另跑沙箱用例。`2.1.0` 尚未在 macOS 构建机上运行 |
 | 真机 | 录音，回放，系统打断与音频路由切换尚未在真机验证，构建机上的测试不录音 |
 
 ## 常见问题
@@ -459,6 +545,10 @@ python3 tools/headers-diff.py --original /path/to/STKouyuEngine.framework/Header
 ### 重复提交与计费
 
 同一次评测的重试与自动重评共用一个 tokenId，只计费一次。每次 `startEngine` 都生成新的 tokenId，算作新的评测。
+
+### 收不到朗读进度
+
+依次核对：`realtime_feedback` 为 YES，系统为 iOS 13 或更新版本，评测为录音模式或 16 kHz 16 位单声道 PCM 的 feed 模式，参考文本不为空。条件不满足时平替包照旧整段评测，日志级别为 info 时打印原因。实时连接在结束帧之前失败时进度停止，日志级别为 warn 时打印原因，`stopEngine` 之后照常拿到终评。
 
 ## 许可
 

@@ -9,7 +9,7 @@
 - { method: WSS, path: '/{coreType}', title: 声通兼容实时评测, href: 'page:api-ws-compat' }
 ```
 
-契约版本 `2.0`，适用接口版本 v1 与 SDK `2.0.0`，五端 SDK 与平台按同一份契约对齐，`1.x` 契约的全部接口与字段继续有效。没有 SDK 的语言直接按契约调用，或用 [OpenAPI 描述](page:api-openapi)生成客户端。
+契约版本 `2.1`，适用接口版本 v1 与 SDK `2.1.0`，五端 SDK 与平台按同一份契约对齐，`1.x` 契约的全部接口与字段继续有效。没有 SDK 的语言直接按契约调用，或用 [OpenAPI 描述](page:api-openapi)生成客户端。
 
 ## 基址与限额
 

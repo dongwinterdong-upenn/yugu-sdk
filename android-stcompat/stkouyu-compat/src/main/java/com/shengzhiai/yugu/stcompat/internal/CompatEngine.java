@@ -47,6 +47,8 @@ public final class CompatEngine {
     static final long MAX_PCM_BYTES = (long) CompatConfig.MAX_AUDIO_SECONDS * Wav.BYTES_PER_SECOND;
     /** onRecording is reported at most every 100 ms of audio unless the VAD status changes. */
     static final int REPORT_BYTES = Wav.BYTES_PER_SECOND / 10;
+    /** Recordings and stream sessions are WAV files written by the engine. */
+    static final AudioFiles.Kind RECORDING_KIND = new AudioFiles.Kind("audio/wav", "wav", false);
 
     private static final Object INSTANCE_LOCK = new Object();
     private static volatile CompatEngine instance;
@@ -91,11 +93,20 @@ public final class CompatEngine {
         final Integer serverTimeoutSec;
         final Integer duration;
         final Integer durationInterval;
+        /**
+         * RecordSetting.realtime_feedback is 1 on a recording or stream session: the round streams over
+         * the compat WebSocket and onScore also gets the eof 0 intermediate results (DESIGN 14.3).
+         */
+        final boolean realtime;
         final CancelToken token = new CancelToken();
         final WavStreamStripper stripper = new WavStreamStripper();
+        /** Realtime round, set before the session is published; null without realtime_feedback. */
+        RealtimeRound round;
         volatile OnRecorderListener recorderListener;
         volatile OnRecordListener recordListener;
         volatile boolean cancelled;
+        /** Set on the main thread right before the final callback; later intermediate results are dropped. */
+        volatile boolean finalDelivered;
         /** Guarded by the engine lock. */
         boolean evaluating;
         File file;
@@ -138,6 +149,7 @@ public final class CompatEngine {
             this.serverTimeoutSec = setting.getServerTimeout();
             this.duration = setting.getDuration();
             this.durationInterval = setting.getDurationInterval();
+            this.realtime = !fileMode && Integer.valueOf(1).equals(setting.getRealtime_feedback());
             this.recorderListener = rl;
             this.recordListener = l;
         }
@@ -345,6 +357,10 @@ public final class CompatEngine {
             session.vad = new EnergyVad(s.getSeek(), s.getRef_length());
             session.reportRecording = vadOn || s.isNeedSoundIntensity();
             session.vadAutoStop = vadOn && !s.isForceRecord();
+            if (session.realtime) {
+                // before the session is published, so every PCM byte also reaches the round
+                session.round = new RealtimeRound(roundConfig(session), progressListener(session), session.token);
+            }
             current = session;
             status = SkEgnManager.engine_status.RECORDING;
         }
@@ -378,7 +394,10 @@ public final class CompatEngine {
             lastRecordPath = session.file.getAbsolutePath();
         }
         YLog.i("recording started tokenId=" + session.tokenId + " coreType=" + session.coreType
-                + (session.stream ? " (stream)" : ""));
+                + (session.stream ? " (stream)" : "") + (session.realtime ? " (realtime_feedback)" : ""));
+        if (session.round != null) {
+            session.round.start();
+        }
         MainThread.post(new Runnable() {
             @Override
             public void run() {
@@ -410,6 +429,9 @@ public final class CompatEngine {
             }
         }
         session.cancelled = true;
+        if (session.round != null) {
+            session.round.cancel();
+        }
         closeWriter(session);
         if (session.file != null && session.file.length() <= Wav.HEADER_SIZE) {
             //noinspection ResultOfMethodCallIgnored
@@ -476,6 +498,10 @@ public final class CompatEngine {
                     return;
                 }
                 s.pcmBytes += n;
+                if (s.round != null) {
+                    // same bytes in the same order as the file, which the REST fallback uploads
+                    s.round.audio(data, off, n);
+                }
             }
             limit = s.pcmBytes >= MAX_PCM_BYTES;
         }
@@ -567,6 +593,9 @@ public final class CompatEngine {
         stopTicks(s);
         if (s.capture != null) {
             s.capture.stop();
+        }
+        if (s.round != null) {
+            s.round.cancel();
         }
         YLog.e("recording failed (errId " + errId + "): " + reason);
         executor().execute(new Runnable() {
@@ -667,7 +696,11 @@ public final class CompatEngine {
                 }
             }
         });
-        evaluate(s, s.file, new AudioFiles.Kind("audio/wav", "wav", false));
+        if (s.round != null) {
+            evaluateRealtime(s);
+        } else {
+            evaluate(s, s.file, RECORDING_KIND);
+        }
     }
 
     private void closeWriter(Session s) {
@@ -814,21 +847,7 @@ public final class CompatEngine {
         while (true) {
             try {
                 CompatClient.Result r = client.execute(req, s.token);
-                String params = null;
-                if (s.needParams) {
-                    params = Envelope.params(s.config.appKey, s.config.userId, System.currentTimeMillis(),
-                            s.audioType, Wav.SAMPLE_RATE, Wav.CHANNELS, s.coreType, s.tokenId, s.fields);
-                }
-                String json;
-                try {
-                    json = Envelope.success(s.tokenId, s.config.appKey, s.config.userId, s.refText,
-                            r.body, params, System.currentTimeMillis());
-                } catch (IllegalArgumentException e) {
-                    deliverError(s, ErrorTable.PROTOCOL_ERROR, "invalid platform response: " + e.getMessage());
-                    return;
-                }
-                YLog.i("result tokenId=" + s.tokenId + " attempts=" + r.attempts + (r.replayed ? " replayed" : ""));
-                deliverFinal(s, json);
+                deliverResult(s, r.body, "attempts=" + r.attempts, r.replayed);
                 return;
             } catch (CompatError e) {
                 if (e.isCancelled() || s.cancelled) {
@@ -849,6 +868,117 @@ public final class CompatEngine {
                 return;
             }
         }
+    }
+
+    /**
+     * Final envelope of a platform body: the REST answer and the final frame of the realtime
+     * channel are the same body and go through exactly this code (DESIGN 6.2 and 14.3).
+     */
+    private void deliverResult(Session s, String body, String attempts, boolean replayed) {
+        String params = null;
+        if (s.needParams) {
+            params = Envelope.params(s.config.appKey, s.config.userId, System.currentTimeMillis(),
+                    s.audioType, Wav.SAMPLE_RATE, Wav.CHANNELS, s.coreType, s.tokenId, s.fields);
+        }
+        String json;
+        try {
+            json = Envelope.success(s.tokenId, s.config.appKey, s.config.userId, s.refText,
+                    body, params, System.currentTimeMillis());
+        } catch (IllegalArgumentException e) {
+            deliverError(s, ErrorTable.PROTOCOL_ERROR, "invalid platform response: " + e.getMessage());
+            return;
+        }
+        YLog.i("result tokenId=" + s.tokenId + " " + attempts + (replayed ? " replayed" : ""));
+        deliverFinal(s, json);
+    }
+
+    /**
+     * End of a realtime_feedback round (DESIGN 14.3): the local pre-check as for REST, then end on
+     * the realtime channel and its final frame. A channel that failed before end is finished over
+     * REST with the same tokenId; autoRetry re-submits on the realtime channel, because after end
+     * the platform may have registered the key for the realtime request.
+     */
+    private void evaluateRealtime(Session s) {
+        RealtimeRound round = s.round;
+        try {
+            if (s.cancelled) {
+                return;
+            }
+            int pre = AudioFiles.precheck(s.file, true);
+            if (pre != 0) {
+                // no end: nothing is evaluated or billed
+                round.cancel();
+                deliverError(s, pre, CompatErrIds.message(pre));
+                return;
+            }
+            RealtimeRound.Outcome o = round.finish();
+            int resubmits = 0;
+            while (o.kind == RealtimeRound.Outcome.ERROR && !s.cancelled) {
+                int errId = ErrorMapper.errId(o.error);
+                if (!(s.autoRetry && resubmits < MAX_AUTO_RETRY && matches(s.errIds, errId))) {
+                    deliverError(s, errId, ErrorMapper.message(o.error, errId));
+                    return;
+                }
+                resubmits++;
+                long delay = CompatConfig.retryPolicy().delayMs(resubmits, CompatConfig.random().nextDouble(), -1);
+                YLog.w("autoRetry " + resubmits + "/" + MAX_AUTO_RETRY + " for errId " + errId + " in " + delay
+                        + " ms, same tokenId " + s.tokenId);
+                if (!CompatConfig.sleeper().sleep(s.token, delay)) {
+                    return;
+                }
+                o = round.resubmit();
+            }
+            if (s.cancelled || o.kind == RealtimeRound.Outcome.CANCELLED) {
+                return;
+            }
+            if (o.kind == RealtimeRound.Outcome.RESULT) {
+                deliverResult(s, o.body, "connections=" + o.connections, o.replayed);
+            } else if (o.kind == RealtimeRound.Outcome.FALLBACK) {
+                evaluate(s, s.file, RECORDING_KIND);
+            }
+        } finally {
+            round.cancel();
+        }
+    }
+
+    private RealtimeRound.Config roundConfig(Session s) {
+        RealtimeRound.Config c = new RealtimeRound.Config();
+        c.baseUrl = ServerAddress.effectiveBase(s.config.baseUrl);
+        c.coreType = s.coreType;
+        c.appKey = s.config.appKey;
+        c.secretKey = s.config.secretKey;
+        c.tokenId = s.tokenId;
+        c.fields = s.fields;
+        c.connectTimeoutMs = connectTimeoutMs(s);
+        c.readTimeoutMs = readTimeoutMs(s);
+        c.totalTimeoutMs = CompatConfig.totalTimeoutMs();
+        return c;
+    }
+
+    /**
+     * Intermediate results go to OnRecorderListener.onScore with eof 0; OnRecordListener has no
+     * callback for them and gets the final result only.
+     */
+    private RealtimeRound.Listener progressListener(final Session s) {
+        return new RealtimeRound.Listener() {
+            @Override
+            public void onProgress(String resultJson, String recordId) {
+                final String json = Envelope.progress(s.tokenId, recordId, s.config.appKey, s.config.userId, s.refText,
+                        resultJson, System.currentTimeMillis());
+                MainThread.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (s.cancelled || s.finalDelivered) {
+                            return;
+                        }
+                        OnRecorderListener r = s.recorderListener;
+                        if (r != null) {
+                            r.onScore(json);
+                        }
+                    }
+                });
+            }
+        };
     }
 
     static boolean matches(List<String> errIds, int errId) {
@@ -877,22 +1007,33 @@ public final class CompatEngine {
         req.audioContentType = kind.contentType;
         req.policy = CompatConfig.retryPolicy();
         req.totalTimeoutMs = CompatConfig.totalTimeoutMs();
+        req.connectTimeoutMs = connectTimeoutMs(s);
+        req.readTimeoutMs = readTimeoutMs(s);
+        return req;
+    }
+
+    /** YuguCompat.setTimeouts, then EngineSetting.setConnectTimeout, default 10 s. */
+    private static int connectTimeoutMs(Session s) {
         int connect = CompatConfig.connectTimeoutMs();
-        req.connectTimeoutMs = connect > 0 ? connect
+        return connect > 0 ? connect
                 : (s.config.connectTimeoutSec > 0 ? s.config.connectTimeoutSec * 1000 : CompatConfig.DEFAULT_CONNECT_TIMEOUT_MS);
+    }
+
+    /**
+     * existsAudioTrans timeout, then RecordSetting.setServerTimeout, YuguCompat.setTimeouts,
+     * EngineSetting.setServerTimeout, default 120 s. Also the read timeout of the realtime channel.
+     */
+    private static int readTimeoutMs(Session s) {
         Integer perRecord = s.serverTimeoutSec;
         int read = CompatConfig.readTimeoutMs();
         if (s.readTimeoutOverrideMs != null) {
-            req.readTimeoutMs = s.readTimeoutOverrideMs;
+            return s.readTimeoutOverrideMs;
         } else if (perRecord != null && perRecord > 0) {
-            req.readTimeoutMs = perRecord * 1000;
+            return perRecord * 1000;
         } else if (read > 0) {
-            req.readTimeoutMs = read;
-        } else {
-            req.readTimeoutMs = s.config.serverTimeoutSec > 0 ? s.config.serverTimeoutSec * 1000
-                    : CompatConfig.DEFAULT_READ_TIMEOUT_MS;
+            return read;
         }
-        return req;
+        return s.config.serverTimeoutSec > 0 ? s.config.serverTimeoutSec * 1000 : CompatConfig.DEFAULT_READ_TIMEOUT_MS;
     }
 
     private void deliverError(Session s, int errId, String message) {
@@ -911,6 +1052,7 @@ public final class CompatEngine {
                     }
                     s.evaluating = false;
                 }
+                s.finalDelivered = true;
                 OnRecorderListener r = s.recorderListener;
                 OnRecordListener rec = s.recordListener;
                 if (r != null) {

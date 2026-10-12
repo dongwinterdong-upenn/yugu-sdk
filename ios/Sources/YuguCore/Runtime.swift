@@ -2,10 +2,10 @@ import Foundation
 
 /// SDK identity.
 public enum YuguSDKInfo {
-    public static let version = "2.0.0"
+    public static let version = "2.1.0"
     public static let platform = "ios"
     /// Sent as `User-Agent` on every request and WebSocket handshake.
-    public static let userAgent = "yugu-ios-sdk/2.0.0"
+    public static let userAgent = "yugu-ios-sdk/2.1.0"
 }
 
 // MARK: - Cancellation

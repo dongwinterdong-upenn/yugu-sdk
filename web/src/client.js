@@ -351,20 +351,32 @@ export class YuguClient {
     return res.json.data != null ? res.json.data : res.json;
   }
 
-  /** Native streaming evaluation over wss://.../api/v1/ws/evaluate. Returns the session at once. */
+  /**
+   * Native streaming evaluation over wss://.../api/v1/ws/evaluate. Returns the session at once.
+   * config.realtimeFeedback true asks for reading progress (CONTRACT 5.5). The start frame carries
+   * "realtimeFeedback": true only then, so every other start frame stays as in 2.0.0.
+   */
   streamEvaluate(config, listener, options) {
     this._ensureOpen();
     if (!isPlainObject(config)) throw localError(90010, 'config 必须是对象');
     if (typeof config.coreType !== 'string' || !config.coreType) throw localError(90010, 'config.coreType 必填');
     if (typeof config.referenceText !== 'string') throw localError(90010, 'config.referenceText 必填');
+    if (config.realtimeFeedback != null && typeof config.realtimeFeedback !== 'boolean') {
+      throw localError(90010, 'config.realtimeFeedback 必须是布尔值');
+    }
     this._checkListener(listener);
     const so = this._sessionOptions(options);
     const params = Object.assign({}, config);
     delete params.idempotencyKey;
+    delete params.realtimeFeedback;
+    if (config.realtimeFeedback === true) params.realtimeFeedback = true;
     return this._openSession({ mode: 'native', coreType: config.coreType, path: '/api/v1/ws/evaluate', params, listener, options: so });
   }
 
-  /** Shengtong compatible streaming evaluation over wss://.../{coreType}. Returns the session at once. */
+  /**
+   * Shengtong compatible streaming evaluation over wss://.../{coreType}. Returns the session at once.
+   * params.realtime_feedback true asks for reading progress (CONTRACT 5.5).
+   */
   streamEvaluateCompat(coreType, params, listener, options) {
     this._ensureOpen();
     this._checkCompatCoreType(coreType);

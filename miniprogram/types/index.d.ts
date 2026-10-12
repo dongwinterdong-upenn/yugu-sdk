@@ -1,4 +1,4 @@
-// Type declarations of @shengzhiai/yugu-miniprogram-sdk 2.0.0.
+// Type declarations of @shengzhiai/yugu-miniprogram-sdk 2.1.0.
 // They depend on the ES2017 library only (no DOM, no Node types), like the mini program runtime.
 // Field names follow CONTRACT.md; nested score objects keep the platform's field names.
 
@@ -11,9 +11,9 @@ export type { ErrorTableEntry } from './error-table';
 
 // ---------------------------------------------------------------- constants
 
-export declare const SDK_VERSION: '2.0.0';
+export declare const SDK_VERSION: '2.1.0';
 /** Sent as the X-Yugu-SDK header, wx.request cannot set User-Agent. */
-export declare const USER_AGENT: 'yugu-miniprogram-sdk/2.0.0';
+export declare const USER_AGENT: 'yugu-miniprogram-sdk/2.1.0';
 
 /** coreType of native evaluation (REST /api/v1/evaluate and WS /api/v1/ws/evaluate). */
 export type CoreType = 'word' | 'sentence' | 'passage' | 'connected' | 'open' | 'alpha' | 'pinyin';
@@ -417,7 +417,7 @@ export interface ClientSettings {
   audioPrecheck?: AudioPrecheckMode;
   /** Throw AudioQualityException when evaluate returns warning 1001. Default false. */
   strictAudio?: boolean;
-  /** Value of the X-Yugu-SDK header. Default yugu-miniprogram-sdk/2.0.0. */
+  /** Value of the X-Yugu-SDK header. Default yugu-miniprogram-sdk/2.1.0. */
   userAgent?: string;
   /** Default ReconnectPolicy of sessions; false disables reconnects. */
   reconnect?: Partial<ReconnectPolicy> | false;
@@ -805,9 +805,52 @@ export interface ReportData {
 
 // ---------------------------------------------------------------- sessions
 
+/**
+ * One unit of the reference text in a progress partial (CONTRACT 5.5): a character for Chinese,
+ * punctuation and whitespace removed, a word for English. A plain object, compared field by field.
+ */
+export interface ReadingWord {
+  /** The character or word, taken from the reference text. */
+  word: string;
+  /** The reading position has passed this unit. Never goes back to false within a server session. */
+  read: boolean;
+  /**
+   * The partial recognition matched this unit; implies read. read without matched means misread,
+   * skipped or misrecognized, the final result decides.
+   */
+  matched: boolean;
+}
+
+/**
+ * Partial frame of either channel. With realtime feedback on, the platform reports reading progress
+ * while it receives audio and after end() until the final result. Partials carry no pronunciation
+ * scores.
+ */
 export interface PartialResult {
-  /** Audio bytes the server received so far (compat realtime_feedback). */
+  /** Audio bytes the server session received so far. */
   bytes: number;
+  /** Units with read true; -1 when the frame has no reading progress. */
+  readUnits: number;
+  /** Units with matched true; -1 when the frame has no reading progress. */
+  matchedUnits: number;
+  /** Number of units, the length of progress; -1 when the frame has no reading progress. */
+  totalUnits: number;
+  /**
+   * Every unit of the reference text in order, from result.progress; empty when the frame has no
+   * reading progress.
+   */
+  progress: ReadingWord[];
+  /**
+   * True when the frame has result.progress. False for frames with bytes only: realtime feedback off,
+   * an empty reference text, audio that is not 16 kHz 16 bit mono PCM, or no tracking on the platform
+   * for this round.
+   */
+  hasProgress: boolean;
+  /**
+   * The whole frame as received. Compat progress frames also carry "recordId": "" and the Shengtong
+   * style result.words with the units read since the previous frame (sent again from the first unit
+   * after a reconnect); the SDK does not interpret them.
+   */
   raw: Record<string, unknown>;
 }
 
@@ -831,6 +874,13 @@ export interface StreamListener {
   onConnected?(): void;
   /** First server session start only. */
   onStarted?(): void;
+  /**
+   * Partial frames while STARTED and ENDING. A progress partial is delivered only when readUnits and
+   * matchedUnits are both at least those of the last delivered one: after a reconnect the new server
+   * session computes the progress again from zero while the audio is replayed. With the DROP buffer
+   * policy the delivered progress is forgotten at every successful reconnect, the new server session
+   * scores only new audio. Partials without progress are always delivered.
+   */
   onPartial?(partial: PartialResult): void;
   onReconnecting?(attempt: number, delayMs: number, cause: YuguError): void;
   onReconnected?(attempt: number, info: ReconnectInfo): void;
@@ -861,6 +911,12 @@ export interface StreamOptions {
 export type StreamEvaluateParams = EvaluateConfig & {
   /** Sample rate of the PCM given to sendAudio, for the precheck. Default 16000. */
   sampleRate?: number;
+  /**
+   * Reading progress through onPartial (CONTRACT 5.5). true adds "realtimeFeedback": true to the start
+   * frame; without it the start frame is the same as in 2.0.0. Progress needs 16 kHz 16 bit mono PCM.
+   * Default false.
+   */
+  realtimeFeedback?: boolean;
 };
 
 export interface StreamCompatParams {
@@ -869,7 +925,10 @@ export interface StreamCompatParams {
   text?: string;
   language?: Language;
   refPinyin?: string;
-  /** Sends realtime_feedback; the server then reports progress through onPartial. */
+  /**
+   * Sends realtime_feedback in the parameter frame; the platform then reports reading progress through
+   * onPartial. Progress needs 16 kHz 16 bit mono PCM.
+   */
   realtimeFeedback?: boolean;
   /** Further parameter frame fields. */
   fields?: Record<string, string | number | boolean>;

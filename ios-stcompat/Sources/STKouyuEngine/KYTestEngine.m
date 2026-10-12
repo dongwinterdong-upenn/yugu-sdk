@@ -4,7 +4,9 @@
 //
 //  Session state lives on one private serial queue; every callback is dispatched to the main
 //  queue in order. A session ends with exactly one result or error JSON unless cancelEngine or
-//  deleteEngine was called first, then with none.
+//  deleteEngine was called first, then with none. With realtime_feedback the round streams over
+//  the compat WebSocket (YGSTRealtime.m) and eof 0 reading progress JSON comes before the result
+//  through the same callbacks.
 //
 //  Copyright 2026 优谷雅言 open.shengzhiai.com
 //  SPDX-License-Identifier: Apache-2.0
@@ -81,6 +83,10 @@ static NSString *const YGSTProvisionJSON = @"{\"provision\":\"cloud\",\"message\
 @property (nonatomic, copy) NSString *uploadExtension;
 @property (nonatomic, strong) dispatch_source_t tickTimer;
 @property (nonatomic, strong) YGSTUploader *uploader;
+/// realtime_feedback and this session can stream: recording or 16 kHz 16 bit mono PCM feed, iOS 13.
+@property (nonatomic) BOOL realtimeFeedback;
+/// The compat WebSocket round while it runs; nil for REST only.
+@property (nonatomic, strong) YGSTRealtimeRound *realtime;
 @property (nonatomic, copy) KYTestResultBlock resultBlock;
 @property (nonatomic, copy) void (^onStart)(void);
 @property (nonatomic, copy) void (^onStartFail)(NSString *failReason);
@@ -355,7 +361,7 @@ static const char *YGSTKeep(NSString *s, NSMutableArray<NSData *> *keep) {
     s.callbackIntervalMs = c.recordCallbackInterval > 0 ? c.recordCallbackInterval : 0;
     s.serverTimeout = c.serverTimeout > 0 ? c.serverTimeout : 0;
     s.recordFile = [self recordFileForConfig:c tokenId:s.tokenId];
-    if (c.realtime_feedback) YGSTLogf(YGST_LEVEL_INFO, @"realtime_feedback is not supported by the platform compat path");
+    if (c.realtime_feedback) s.realtimeFeedback = [self realtimeEligible:s];
 
     s->_policy.auto_retry = c.autoRetry ? 1 : 0;
     if (c.errIds.count) {
@@ -412,6 +418,30 @@ static const char *YGSTKeep(NSString *s, NSMutableArray<NSData *> *keep) {
     if (ygst_params_to_fields(&p, &s->_fields) != 0) YGSTLogf(YGST_LEVEL_ERROR, @"form fields: out of memory");
     ygst_fields_free(&custom);
     return s;
+}
+
+/// realtime_feedback streams the round over the compat WebSocket so that the platform reports reading
+/// progress. That needs audio as it is captured in 16 kHz 16 bit mono PCM (recording, or feed of such
+/// PCM) and NSURLSessionWebSocketTask (iOS 13). Otherwise the round is evaluated in one request as
+/// without the option, with one INFO line.
+- (BOOL)realtimeEligible:(YGSTSession *)s {
+    if (s.mode == YGSTModeFile) {
+        YGSTLogf(YGST_LEVEL_INFO, @"realtime_feedback: audioPath is evaluated in one request, reading progress needs "
+                                  @"recording or feed");
+        return NO;
+    }
+    if (s.mode == YGSTModeStream && !(ygst_audio_type_is_pcm(s.audioType.UTF8String) && s.sampleRate == 16000 &&
+                                      s.channels == 1 && s.sampleBytes == 2)) {
+        YGSTLogf(YGST_LEVEL_INFO, @"realtime_feedback: reading progress needs 16 kHz 16 bit mono PCM, this feed is "
+                                  @"evaluated in one request at stopEngine");
+        return NO;
+    }
+    if (![YGSTRealtimeRound isAvailable]) {
+        YGSTLogf(YGST_LEVEL_INFO, @"realtime_feedback needs iOS 13 or later for reading progress, the round is "
+                                  @"evaluated in one request at stopEngine");
+        return NO;
+    }
+    return YES;
 }
 
 - (NSString *)recordFileForConfig:(KYTestConfig *)c tokenId:(NSString *)tokenId {
@@ -473,8 +503,9 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
         return;
     }
     _session = s;
-    YGSTLogf(YGST_LEVEL_INFO, @"session %@: %@ %@", s.tokenId, s.coreType,
-             s.mode == YGSTModeFile ? @"file" : (s.mode == YGSTModeStream ? @"stream" : @"microphone"));
+    YGSTLogf(YGST_LEVEL_INFO, @"session %@: %@ %@%@", s.tokenId, s.coreType,
+             s.mode == YGSTModeFile ? @"file" : (s.mode == YGSTModeStream ? @"stream" : @"microphone"),
+             s.realtimeFeedback ? @", realtime feedback" : @"");
     switch (s.mode) {
     case YGSTModeFile:
         [self startFileSession:s];
@@ -573,6 +604,7 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
     s.phase = YGSTPhaseCapturing;
     s.captureStartMs = YGSTMonotonicMs();
     [self postStarted:s recording:YES];
+    [self startRealtime:s];
 }
 
 - (void)feedAudioData:(void *)audioData audioLength:(int)length {
@@ -616,6 +648,7 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
         NSUInteger room = s.audio.length < max ? max - s.audio.length : 0;
         if (chunk.length > room) chunk = [chunk subdataWithRange:NSMakeRange(0, room)];
         [s.audio appendData:chunk];
+        [s.realtime audioAppended:s.audio];
         if (s.vadEnabled && chunk.length) [self runVAD:s bytes:chunk];
         if (s.audio.length >= max && s.phase == YGSTPhaseCapturing) {
             YGSTLogf(YGST_LEVEL_WARN, @"stream reached the %d s limit, evaluating", YGST_MAX_AUDIO_MS / 1000);
@@ -624,6 +657,7 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
         return;
     }
     [s.audio appendData:chunk];
+    [s.realtime audioAppended:s.audio];
 }
 
 // ------------------------------------------------------------------ microphone mode
@@ -676,6 +710,7 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
     s.captureStartMs = YGSTMonotonicMs();
     [self postStarted:s recording:YES];
     [self startTicks:s];
+    [self startRealtime:s];
     if (s.stopRequested) [self stopCapture:s waitForStop:NO];
 }
 
@@ -688,6 +723,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     room = s.audio.length < kYGSTMaxRecordBytes ? kYGSTMaxRecordBytes - s.audio.length : 0;
     if (pcm.length > room) pcm = [pcm subdataWithRange:NSMakeRange(0, room)];
     [s.audio appendData:pcm];
+    [s.realtime audioAppended:s.audio];
     if (s.phase != YGSTPhaseCapturing) return;
     if (s.vadEnabled && pcm.length) {
         [self runVAD:s bytes:pcm];
@@ -847,7 +883,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
         YGSTLogf(YGST_LEVEL_INFO, @"session %@: recording kept until stopEngine (forceRecord)", s.tokenId);
         return;
     }
-    [self evaluate:s audio:upload extension:ext];
+    [self submit:s audio:upload extension:ext];
 }
 
 - (BOOL)writeRecording:(NSData *)data toPath:(NSString *)path {
@@ -868,13 +904,90 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     return YES;
 }
 
+/// Retries and autoRetry of one evaluation call: the session's policy with the YuguCompat settings.
+- (ygst_retry_policy)policyForSession:(YGSTSession *)s {
+    ygst_retry_policy policy = s->_policy;
+    NSInteger retries = [YGSTSettings shared].maxRetries;
+    policy.max_retries = (int)(retries < 0 ? 0 : (retries > 5 ? 5 : retries));
+    policy.total_timeout_ms = (int)([YGSTSettings shared].totalTimeout * 1000.0);
+    return policy;
+}
+
+/// Timeout of one attempt: the larger of serverTimeout and connectTimeout, in seconds.
+- (NSTimeInterval)attemptTimeoutForSession:(YGSTSession *)s {
+    NSTimeInterval timeout = s.serverTimeout > 0 ? s.serverTimeout : _serverTimeout;
+    return timeout < _connectTimeout ? _connectTimeout : timeout;
+}
+
+// ------------------------------------------------------------------ realtime feedback
+
+/// Starts the compat WebSocket round when capture starts; audio captured before the platform has
+/// started goes out then.
+- (void)startRealtime:(YGSTSession *)s {
+    YGSTRealtimeRound *round;
+    ygst_retry_policy policy;
+    __weak KYTestEngine *weakSelf = self;
+    __weak YGSTSession *weakSession = s;
+    if (!s.realtimeFeedback || s.realtime || s.cancelled) return;
+    policy = [self policyForSession:s];
+    round = [[YGSTRealtimeRound alloc] initWithQueue:_q
+                                             baseURL:[self effectiveBaseURL]
+                                            coreType:s.coreType
+                                              appKey:_appKey
+                                              secret:_secretKey
+                                             tokenId:s.tokenId
+                                              userId:s.userId
+                                             refText:s.refText
+                                              fields:&s->_fields
+                                              policy:&policy
+                                      connectTimeout:_connectTimeout
+                                      attemptTimeout:[self attemptTimeoutForSession:s]];
+    round.progressHandler = ^(NSString *json) {
+        [weakSelf deliverProgress:json session:weakSession];
+    };
+    round.resultHandler = ^(YGSTUploadResult *result) {
+        YGSTSession *session = weakSession;
+        if (session) [weakSelf uploadFinished:result session:session];
+    };
+    round.fallbackHandler = ^{
+        YGSTSession *session = weakSession;
+        if (session) [weakSelf evaluateAfterRealtimeFailed:session];
+    };
+    s.realtime = round;
+    [round start];
+    if (s.audio.length) [round audioAppended:s.audio];
+}
+
+/// stopEngine: a running realtime round sends end and delivers the final itself. Without one, or
+/// when it failed before end, the round is evaluated in one request with the same tokenId.
+- (void)submit:(YGSTSession *)s audio:(NSData *)audio extension:(NSString *)ext {
+    if (s.realtime && [s.realtime finish]) {
+        s.phase = YGSTPhaseEvaluating;
+        return;
+    }
+    s.realtime = nil;
+    [self evaluate:s audio:audio extension:ext];
+}
+
+/// The round failed before end while waiting to send it: REST evaluates the whole recording.
+- (void)evaluateAfterRealtimeFailed:(YGSTSession *)s {
+    if (s.cancelled || s != _session || s.phase != YGSTPhaseEvaluating) return;
+    s.realtime = nil;
+    [self evaluate:s audio:s.uploadAudio extension:s.uploadExtension ?: @"wav"];
+}
+
+/// eof 0 reading progress through the same callbacks as the result.
+- (void)deliverProgress:(NSString *)json session:(YGSTSession *)s {
+    if (!s || s.cancelled || s != _session || s.phase == YGSTPhaseDone) return;
+    [self deliverScore:json session:s];
+}
+
 - (void)evaluate:(YGSTSession *)s audio:(NSData *)audio extension:(NSString *)ext {
     NSString *error = nil;
     YGSTRequest *req;
     YGSTUploader *uploader;
-    ygst_retry_policy policy = s->_policy;
-    NSInteger retries = [YGSTSettings shared].maxRetries;
-    NSTimeInterval timeout = s.serverTimeout > 0 ? s.serverTimeout : _serverTimeout;
+    ygst_retry_policy policy = [self policyForSession:s];
+    NSTimeInterval timeout = [self attemptTimeoutForSession:s];
     __weak KYTestEngine *weakSelf = self;
     s.phase = YGSTPhaseEvaluating;
     req = [YGSTRequest requestWithBaseURL:[self effectiveBaseURL]
@@ -888,9 +1001,6 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
         [self complete:s json:YGSTErrorJSON(s.tokenId, 90010, error, _appKey)];
         return;
     }
-    policy.max_retries = (int)(retries < 0 ? 0 : (retries > 5 ? 5 : retries));
-    policy.total_timeout_ms = (int)([YGSTSettings shared].totalTimeout * 1000.0);
-    if (timeout < _connectTimeout) timeout = _connectTimeout;
     uploader = [[YGSTUploader alloc] initWithURLSession:YGSTSharedURLSession() queue:_q];
     s.uploader = uploader;
     YGSTLogf(YGST_LEVEL_DEBUG, @"session %@: POST %@ (%lu bytes audio)", s.tokenId, req.url.absoluteString,
@@ -940,6 +1050,13 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     if (_session == s) _session = nil;
     s.phase = YGSTPhaseDone;
     s.uploadAudio = nil;
+    [s.realtime cancel];
+    s.realtime = nil;
+    [self deliverScore:json session:s];
+}
+
+/// The result callbacks: testResultBlock or onScoreBlock, and kyTestEngineDidScore:.
+- (void)deliverScore:(NSString *)json session:(YGSTSession *)s {
     [self post:s
          block:^(id<KYTestEngineDelegate> d) {
              if (s.resultBlock) s.resultBlock(json);
@@ -964,7 +1081,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
             [self stopCapture:s waitForStop:NO];
             break;
         case YGSTPhaseCaptured:
-            [self evaluate:s audio:s.uploadAudio extension:s.uploadExtension ?: @"wav"];
+            [self submit:s audio:s.uploadAudio extension:s.uploadExtension ?: @"wav"];
             break;
         default:
             break; // stopping or evaluating already
@@ -991,6 +1108,8 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     if (s.mode == YGSTModeMicrophone) [self releaseRecorderHandlers];
     [s.uploader cancel];
     s.uploader = nil;
+    [s.realtime cancel]; // closes the connection: without end the platform evaluates nothing
+    s.realtime = nil;
     s.phase = YGSTPhaseDone;
     YGSTLogf(YGST_LEVEL_INFO, @"session %@ cancelled", s.tokenId);
 }

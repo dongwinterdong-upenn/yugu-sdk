@@ -1,6 +1,6 @@
 # 优谷雅言语音评测 PC Web SDK
 
-`@shengzhiai/yugu-web-sdk` 是优谷雅言语音评测平台的浏览器端 SDK，版本 `2.0.0`，按 Apache-2.0 许可发布。SDK 是推荐的接入方式，REST 与 WebSocket 直连只作为没有 SDK 的语言的兜底方式。同一个包也可以在 Node.js 18 及以上版本中运行。
+`@shengzhiai/yugu-web-sdk` 是优谷雅言语音评测平台的浏览器端 SDK，版本 `2.1.0`，按 Apache-2.0 许可发布。SDK 是推荐的接入方式，REST 与 WebSocket 直连只作为没有 SDK 的语言的兜底方式。同一个包也可以在 Node.js 18 及以上版本中运行。
 
 SDK 封装整段评测，声通兼容评测，实时流式评测，语音合成，报告查询与浏览器录音，内置幂等键，重试退避，断线重连，类型化错误，音频预检与完整的 TypeScript 类型。运行时没有任何第三方依赖。
 
@@ -29,10 +29,10 @@ SDK 发布在优谷雅言自建 npm 仓库 `https://open.shengzhiai.com/npm/`。
 然后安装指定版本：
 
 ```bash
-npm install @shengzhiai/yugu-web-sdk@2.0.0
+npm install @shengzhiai/yugu-web-sdk@2.1.0
 ```
 
-`pnpm` 与 Yarn 1 读取同一个 `.npmrc`，Yarn 2 及以上版本在 `.yarnrc.yml` 的 `npmScopes` 里配置同一个地址。查看全部可用版本用 `npm view @shengzhiai/yugu-web-sdk versions`，回退到历史版本时把 `@2.0.0` 换成目标版本号。
+`pnpm` 与 Yarn 1 读取同一个 `.npmrc`，Yarn 2 及以上版本在 `.yarnrc.yml` 的 `npmScopes` 里配置同一个地址。查看全部可用版本用 `npm view @shengzhiai/yugu-web-sdk versions`，回退到历史版本时把 `@2.1.0` 换成目标版本号。
 
 ### script 标签引入
 
@@ -63,7 +63,7 @@ import { YuguClient, YuguRecorder } from '@shengzhiai/yugu-web-sdk';
 mkdir yugu-quickstart && cd yugu-quickstart
 npm init -y
 echo "@shengzhiai:registry=https://open.shengzhiai.com/npm/" > .npmrc
-npm install @shengzhiai/yugu-web-sdk@2.0.0
+npm install @shengzhiai/yugu-web-sdk@2.1.0
 ```
 
 3. 新建 `quickstart.mjs`：
@@ -133,8 +133,8 @@ YUGU_APP_KEY=沙箱appKey YUGU_SECRET_KEY=沙箱secretKey node quickstart.mjs he
 | `evaluateCompat(coreType, params, audio, options)` | `Promise<EvalResult>` | 声通兼容整段评测，`coreType` 取声通命名 |
 | `tts(request, options)` | `Promise<TtsResult>` | 语音合成，`absoluteUrl` 可直接播放 |
 | `getReport(recordId, options)` | `Promise<ReportData>` | 报告查询 |
-| `streamEvaluate(config, listener, options)` | `YuguStreamSession` | 原生实时评测 |
-| `streamEvaluateCompat(coreType, params, listener, options)` | `YuguStreamSession` | 声通兼容实时评测 |
+| `streamEvaluate(config, listener, options)` | `YuguStreamSession` | 原生实时评测，`config.realtimeFeedback` 为 `true` 时回调朗读进度 |
+| `streamEvaluateCompat(coreType, params, listener, options)` | `YuguStreamSession` | 声通兼容实时评测，`params.realtime_feedback` 为 `true` 时回调朗读进度 |
 | `resolveTtsUrl(url)` 与 `resolveAudioUrl(url)` | 字符串 | 把相对音频地址转成可播放地址 |
 | `close()` | `Promise<void>` | 释放客户端，可重复调用 |
 | `isClosed()` | 布尔值 | 是否已经关闭 |
@@ -160,7 +160,7 @@ YUGU_APP_KEY=沙箱appKey YUGU_SECRET_KEY=沙箱secretKey node quickstart.mjs he
 | `eventListener` | 无 | 指标回调 |
 | `audioPrecheck` | `WARN` | 音频预检模式 |
 | `strictAudio` | `false` | 结果带警告码 1001 时抛出 `AudioQualityException` |
-| `userAgent` | `yugu-web-sdk/2.0.0` | 浏览器中通过 `X-Yugu-SDK` 请求头发送，其他环境通过 `User-Agent` 发送 |
+| `userAgent` | `yugu-web-sdk/2.1.0` | 浏览器中通过 `X-Yugu-SDK` 请求头发送，其他环境通过 `User-Agent` 发送 |
 | `fetch`，`WebSocket`，`crypto` | 全局对象 | 注入自定义实现，Node.js 中注入 `ws` 包的 WebSocket |
 | `random` | `Math.random` | 退避抖动的随机源，测试中可传入固定种子的随机函数 |
 
@@ -302,7 +302,7 @@ CONNECTING、CONNECTED、STARTED、ENDING -> RECONNECTING -> CONNECTING ...
 - `onClosed` 总是最后一个回调。
 - 同一会话的回调不会嵌套执行，回调里调用 `cancel()` 或 `end()` 产生的事件在当前回调返回后依次送达。
 - `onConnected` 与 `onStarted` 只在首次连接时触发，重连成功时触发 `onReconnected`。
-- 声通兼容会话的参数帧带 `realtime_feedback: true` 时，进度帧 `{"eof":0,"result":{"bytes":n}}` 送到 `onPartial({bytes})`。原生会话没有进度帧。
+- 原生会话的配置带 `realtimeFeedback: true`，或声通兼容会话的参数带 `realtime_feedback: true` 时，平台下发的朗读进度送到 `onPartial(partial)`，结束帧发出后的 ENDING 状态同样回调，字段与断线重连后的规则见朗读进度一节。
 
 ### 重连策略
 
@@ -350,6 +350,54 @@ CONNECTING、CONNECTED、STARTED、ENDING -> RECONNECTING -> CONNECTING ...
 ### 异常路径的清理
 
 会话进入 COMPLETED，FAILED 或 CANCELLED 后，SDK 关闭 WebSocket，清理全部定时器与缓冲区，然后进入 CLOSED，回调 `onClosed`。`cancel()` 与 `close()` 可以重复调用。`client.close()` 取消全部未结束的会话，中止进行中的 REST 调用，之后的调用抛出 `IllegalSessionStateException`，错误码 90004。录音器在 `stop()`，`release()` 与任何错误路径上都释放麦克风与 AudioContext。
+
+### 朗读进度
+
+原生会话在 `streamEvaluate` 的配置里传 `realtimeFeedback: true`，声通兼容会话在 `streamEvaluateCompat` 的参数里传 `realtime_feedback: true`，平台在收音过程中逐字或逐词下发参考文本的朗读进度。SDK 解析进度帧的 `result.progress` 后回调 `onPartial(partial)`，两条通道的字段相同。`realtimeFeedback` 默认 `false`，只有取 `true` 时开始帧才带 `"realtimeFeedback": true`，其余情况下开始帧与 `2.0.0` 一致。取值不是布尔值时 `streamEvaluate` 抛出 `InvalidParameterException`，错误码 90010。TypeScript 中的类型为 `StreamPartial` 与 `ReadingWord`。
+
+| 字段 | 含义 |
+|---|---|
+| `bytes` | 当前服务端会话已收到的音频字节数，帧里没有时为 `null` |
+| `hasProgress` | 这一帧带 `result.progress` 时为 `true` |
+| `progress` | 参考文本的全部单位，按原文顺序排列，每项为 `ReadingWord` 即 `{word, read, matched}`，没有进度时为空数组 |
+| `progress[].word` | 字或词，取自参考文本。中文按字，去掉标点与空白，英文按空白分词，去掉词首词尾的标点 |
+| `progress[].read` | 朗读位置已越过这个单位 |
+| `progress[].matched` | 识别结果与这个单位一致，为 `true` 时 `read` 也为 `true` |
+| `readUnits`，`matchedUnits`，`totalUnits` | 已读的单位数即当前朗读位置，对上的单位数，单位总数，没有进度时都为 `-1` |
+| `raw` | 平台下发的原始帧 |
+
+- `read` 为 `true` 而 `matched` 为 `false`，表示朗读已越过这个位置但识别结果与参考文本不一致，可能是读错，漏读或识别误差，以终评为准。一轮之内两个字段只会由 `false` 变为 `true`。
+- 声通兼容通道的进度帧沿用声通 `realtime_feedback` 中间结果的结构：`recordId` 为空串，`result` 另带 `kernel_version`，`resource_version` 与 `words`。这里的 `words` 只含本帧新读到的字或词，每项结构同终评的 `words`，对上的单位各项分数为 100，未对上的为 0。SDK 不转换这部分，原样保留在 `partial.raw`，朗读状态一律取自 `progress`。原生通道的进度帧没有这部分。
+- 进度变化时立即回调，此外每收约 0.5 秒音频回调一次，进度一般比朗读晚 1 到 2 秒。结束帧发出后的 ENDING 状态仍会收到最后一段音频的进度，终评回调在全部进度之后。
+- 进度帧不含发音评分，打开朗读进度不改变终评，不额外计费。
+- 进度只对 16 kHz 16 位单声道 PCM 生效，录音器输出的音频符合这一要求。参考文本为空，音频不是这种格式，或平台当时无法跟踪进度时，`onPartial` 照常收到 `bytes`，`hasProgress` 为 `false`，终评不受影响。
+- 断线重连后平台在新的服务端会话上从零计算进度。`REPLAY` 策略下重放音频期间进度逐步追上，会话记住上一次回调的 `readUnits` 与 `matchedUnits`，带进度的帧只有两项都不小于上一次的值才回调，界面上的进度不会倒退，跳过的帧各写一条 DEBUG 日志。`DROP` 策略下新的服务端会话只评测重连之后的音频，每次重连成功后会话清空记录，新的服务端会话的进度照常回调，界面上的进度从这一位置重新开始。不带进度的帧照常回调。每次调用 `streamEvaluate` 或 `streamEvaluateCompat` 得到的会话单独记录。
+
+按 `progress` 给参考文本着色，对上的单位为绿色，已读未对上的为红色，未读的为灰色：
+
+```js
+const referenceText = '我是中国人，我是中国人。我们都是中国人。中华民族是一家人。';
+const session = client.streamEvaluate(
+  { coreType: 'sentence', referenceText, language: 'zh-CN', realtimeFeedback: true },
+  {
+    onPartial: (p) => {
+      if (!p.hasProgress) return;
+      textBox.replaceChildren(...p.progress.map((w) => {
+        const span = document.createElement('span');
+        span.textContent = w.word;
+        span.style.color = w.matched ? 'green' : w.read ? 'red' : 'gray';
+        return span;
+      }));
+      countLabel.textContent = `${p.readUnits} / ${p.totalUnits}`;
+    },
+    onResult: (result) => console.log('总分', result.overall),
+    onError: (error) => console.warn('评测失败', error.code, error.message),
+  },
+);
+await recorder.start({ session });
+```
+
+中文的 `progress` 不含标点。英文参考文本按词给出，显示时在词之间加空格。
 
 ## 生命周期示例
 
@@ -498,10 +546,10 @@ Node.js 20 及以上版本不需要这一步。录音器只能在浏览器中使
 
 ## 开发与测试
 
-在 `web` 目录执行 `npm ci` 与 `npm test`。单元测试覆盖签名，错误码映射，各题型结果解析，multipart 组装，退避计算，会话状态机，录音器与生命周期。集成测试启动仓库里的平台模拟服务，覆盖幂等计费，重试，断线重连与 10 秒断网。`npm run typecheck` 检查类型声明，`ci/web.sh` 依次执行全部步骤，最后一行输出行覆盖率。
+在 `web` 目录执行 `npm ci` 与 `npm test`。单元测试覆盖签名，错误码映射，各题型结果解析，线上录制的朗读进度帧解析，multipart 组装，退避计算，会话状态机，录音器与生命周期。集成测试启动仓库里的平台模拟服务，覆盖幂等计费，重试，断线重连，10 秒断网与两条通道的朗读进度。`npm run typecheck` 检查类型声明，`ci/web.sh` 依次执行全部步骤，最后一行输出行覆盖率。
 
-设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`npm test` 另外运行沙箱端到端测试，`YUGU_SANDBOX_BASE` 默认 `https://open.shengzhiai.com`。每次运行调用平台 5 次：用同一个幂等键提交两次原生整段评测，第二次应为重放，另有声通兼容整段评测，原生实时评测与声通兼容实时评测各一次。没有设置密钥时这组测试自动跳过，不访问平台。沙箱密钥的申请方式与额度见 [`SANDBOX.md`](../SANDBOX.md)。
+设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`npm test` 另外运行沙箱端到端测试，`YUGU_SANDBOX_BASE` 默认 `https://open.shengzhiai.com`。每次运行调用平台 7 次：用同一个幂等键提交两次原生整段评测，第二次应为重放，另有声通兼容整段评测，原生实时评测与声通兼容实时评测各一次，打开朗读进度的原生实时评测与声通兼容实时评测各一次。没有设置密钥时这组测试自动跳过，不访问平台。沙箱密钥的申请方式与额度见 [`SANDBOX.md`](../SANDBOX.md)。
 
 ## 版本与许可
 
-当前版本 `2.0.0`，对应平台接口 v1 与契约 `2.0`，变更记录见 `CHANGELOG.md`。各端版本对应关系见 [`COMPATIBILITY.md`](../COMPATIBILITY.md)，从 `1.x` 升级的步骤见 [`MIGRATION-2.0.md`](../MIGRATION-2.0.md) 与 `CHANGELOG.md` 的破坏性变更一节，接口与协议帧的权威说明见 [`CONTRACT.md`](../CONTRACT.md)。SDK 按 Apache License 2.0 许可发布，许可全文见 `LICENSE`，版权与第三方说明见 `NOTICE`。
+当前版本 `2.1.0`，对应平台接口 v1 与契约 `2.1`，变更记录见 `CHANGELOG.md`。各端版本对应关系见 [`COMPATIBILITY.md`](../COMPATIBILITY.md)，从 `1.x` 升级的步骤见 [`MIGRATION-2.0.md`](../MIGRATION-2.0.md) 与 `CHANGELOG.md` 的破坏性变更一节，接口与协议帧的权威说明见 [`CONTRACT.md`](../CONTRACT.md)。SDK 按 Apache License 2.0 许可发布，许可全文见 `LICENSE`，版权与第三方说明见 `NOTICE`。

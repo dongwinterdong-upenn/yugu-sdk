@@ -39,7 +39,12 @@ public interface StreamListener {
     /** 收到服务端 `started`，可以开始送音频，此前送入的音频已排队。 */
     public fun onStarted() {}
 
-    /** 兼容实时评测开启 `realtimeFeedback` 后的进度中间帧。 */
+    /**
+     * 开启 `realtimeFeedback` 后的中间帧，原生与声通兼容两条通道都有，调用 `end()` 后直到终评之前仍可能回调。
+     * 带朗读进度时 [PartialResult.hasProgress] 为 true。REPLAY 策略下断线重连后服务端从零重算进度，SDK 只回调
+     * `readUnits` 与 `matchedUnits` 都不小于上一次回调的进度帧。DROP 策略下每次重连成功后，新会话的进度照常回调。
+     * 不带进度的中间帧照常回调。
+     */
     public fun onPartial(partial: PartialResult) {}
 
     /** 连接中断，[delayMs] 毫秒后进行第 [attempt] 次重连。 */

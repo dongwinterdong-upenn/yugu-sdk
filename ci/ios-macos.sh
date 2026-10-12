@@ -125,7 +125,7 @@ step_demo_app() {
   log "XcodeGen $(xcodegen --version 2>&1 | tail -n 1)"
   (
     cd "$ROOT/demos/ios-demo" || exit 1
-    sed -e 's#^    url: https://open.shengzhiai.com/git/yugu-ios-sdk.git#    path: ../../ios#' -e '/^    from: 2.0.0/d' \
+    sed -e 's#^    url: https://open.shengzhiai.com/git/yugu-ios-sdk.git#    path: ../../ios#' -e '/^    from: /d' \
       project.yml >.project.local.yml
     xcodegen generate --spec .project.local.yml || exit 1
     xcodebuild -project YuguDemo.xcodeproj -scheme YuguDemo -destination "generic/platform=iOS Simulator" \
