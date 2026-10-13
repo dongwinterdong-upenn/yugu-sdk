@@ -31,6 +31,7 @@
 | `compat_para.eval.cn_word_detail.json` | `para.eval.cn` | 带 `paragraph_need_word_score=1`，分句带 `details` 逐词详情 |
 | `compat_sent.eval.cn_attach_audio_url.json` | `sent.eval.cn` | 带 `attachAudioUrl=1`，返回体顶层带 `audioUrl`，为录音下载地址，保留 7 天 |
 | `compat_para.eval.cn_single_sentence.json` | `para.eval.cn` | 参考文本只有一句，带 `paragraph_need_word_score=1`，`sentences` 为一个分句 |
+| `compat_open.eval.cn.json` | `open.eval.cn` | 2026-10-13 录下，`refText` 为两条参考答案 `我是学生` 与 `我不是学生`，`qType` 为 6，作答为合成的“我是学生。”，音频为 `spec/fixtures/audio/zh_open_answer.wav`，`openTaskAudit.refKind` 为 `answers`，带声通扁平字段 |
 
 ## 实时评测帧序列
 
