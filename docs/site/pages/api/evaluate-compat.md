@@ -44,6 +44,7 @@ path: /{coreType}
 | `dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron` | string | 否 | 词典与自定义发音，原样传给评测引擎，`dict_dialect` 取 `en_br` 或 `en_us` |
 | `output_rawtext`，`readtype_diagnosis` | string | 否 | 原文输出与读法诊断，`1` 或 `0` |
 | `request` | string | 否 | JSON 文本，顶层标量字段并入业务参数 |
+| `timing` | string | 否 | `1` 时结果顶层附 `timing`，见下方分段耗时 |
 
 ## 返回
 
@@ -53,3 +54,9 @@ from: 成功时返回声通风格结果
 ```
 
 状态码与[原生整段评测](page:api-evaluate#状态码)相同，没有 415。
+
+## 分段耗时
+
+```include
+ref: CONTRACT.md#3 整段评测#3.3 分段耗时
+```

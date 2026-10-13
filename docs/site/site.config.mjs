@@ -171,7 +171,11 @@ export default {
     { file: 'CONTRACT.md', from: 'coreType 同 3.2 节。', to: 'coreType 取值同[声通兼容整段评测](page:api-evaluate-compat#路径参数)。' },
     { file: 'CONTRACT.md', from: '规则同 5.1 节。', to: '规则同[原生实时评测](page:api-ws-evaluate)。' },
     { file: 'CONTRACT.md', from: '下发朗读进度帧，见 5.5 节。', to: '下发朗读进度帧，见[朗读进度](page:api-ws-progress)。' },
-    { file: 'CONTRACT.md', from: '内部走 3.2 节的兼容整段评测。', to: '内部调用[声通兼容整段评测](page:api-evaluate-compat)。' },
+    { file: 'CONTRACT.md', from: '`2.1.1` 起麦克风录音与送流默认走 5.2 节的兼容实时评测边录边传，结束帧之前连接失败时改用 3.2 节的兼容整段评测，音频文件评测走 3.2 节。',
+      to: '`2.1.1` 起麦克风录音与送流默认走[声通兼容实时评测](page:api-ws-compat)边录边传，结束帧之前连接失败时改用[声通兼容整段评测](page:api-evaluate-compat)，音频文件评测同样走整段评测。' },
+    { file: 'CONTRACT.md', from: 'REST 用文本段，实时评测写在参数帧里，见 5.2 节：', to: 'REST 用文本段，实时评测写在参数帧里，见[声通兼容实时评测](page:api-ws-compat)：' },
+    { file: 'CONTRACT.md', from: '参数帧带 `"timing": 1` 时终评帧另有 `timing` 对象，见 3.3 节。',
+      to: '参数帧带 `"timing": 1` 时终评帧另有 `timing` 对象，见[声通兼容整段评测](page:api-evaluate-compat#分段耗时)。' },
     { file: 'CONTRACT.md', from: '见 `ERRORS.md`。接入方式见 `SHENGTONG-MIGRATION.md`。', to: '见[错误码](page:api-errors#声通平替层-errid)。接入方式见[从声通迁移](page:migrate-shengtong)。' },
   ],
 
