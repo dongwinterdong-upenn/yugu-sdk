@@ -10,7 +10,7 @@
 | `sentence` | `sent.eval`，`sent.eval.pro`，`sent.eval.cn` | `result.overall` | `native_sentence_en.json`，`native_evaluate_sentence_zh.json` |
 | `passage` | `para.eval`，`para.eval.cn` | `result.overall`，分句见 `result.sentences` | `native_passage_zh.json` |
 | `connected` | 无 | `result.connected_overall`，没有 `result.overall` | `native_connected_en.json` |
-| `open` | 无 | `result.overall`，分项见 `content`，`languageUse`，`delivery` | `native_open_zh.json` |
+| `open` | `open.eval.cn` | `result.overall`，分项见 `content`，`languageUse`，`delivery` | `native_open_zh.json` |
 | `alpha` | `alpha.eval` | `result.overall` | `native_alpha_en.json` |
 | `pinyin` | `pinyin` | `result.overall` | `native_pinyin_zh.json` |
 
@@ -79,6 +79,8 @@ SDK 结果模型的总分访问器在 connected 模式下取 `connected_overall`
 | `audioQuality` | object | `mos` 音质分，`quality` |
 | `taskType` | string | picture，situational，free |
 | `rubricVersion` | string | 评分细则版本 |
+
+声通兼容 `open.eval.cn` 的 `result` 另有 `pronunciation`，`fluency`，`integrity`，`coherence` 与 `speed`，分别取自 `delivery.pronunciation`，`delivery.fluency`，`content.task_achievement`，`content.coherence` 与每分钟字数。`openTaskAudit.refKind` 为 `answers` 时评分模型把 `refText` 当参考答案，为 `question` 时当题目。
 
 ## 报告与识别文本
 

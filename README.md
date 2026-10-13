@@ -4,7 +4,7 @@
 
 | 项 | 地址 |
 |---|---|
-| 当前版本 | 两个声通平替 `2.1.1`，2026-10-13。其余五端 `2.1.0`，2026-10-12 |
+| 当前版本 | 两个声通平替 `2.1.2`，2026-10-13。其余五端 `2.1.0`，2026-10-12 |
 | 服务基址 | `https://open.shengzhiai.com`，`wss://open.shengzhiai.com` |
 | 源码仓库 | `https://open.shengzhiai.com/git/yugu-sdk.git`，只读，匿名可克隆 |
 | Maven 仓库 | `https://open.shengzhiai.com/maven/` |
@@ -47,7 +47,7 @@ dependencies { implementation "com.shengzhiai.yugu:yugu-android-sdk:2.1.0" }
 
 ```groovy
 repositories { maven { url "https://open.shengzhiai.com/maven/" } }
-dependencies { api "com.shengzhiai.yugu:stkouyu-compat:2.1.1" }
+dependencies { api "com.shengzhiai.yugu:stkouyu-compat:2.1.2" }
 ```
 
 ### 网页
@@ -75,7 +75,7 @@ npm install @shengzhiai/yugu-miniprogram-sdk@2.1.0
 ### iOS 声通平替
 
 ```swift
-.package(url: "https://open.shengzhiai.com/git/stkouyu-ios-compat.git", from: "2.1.1")
+.package(url: "https://open.shengzhiai.com/git/stkouyu-ios-compat.git", from: "2.1.2")
 ```
 
 各端的初始化，五分钟上手，接口说明，错误处理，生命周期示例见各端目录的 README.md。

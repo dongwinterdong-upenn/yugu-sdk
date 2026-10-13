@@ -24,14 +24,14 @@ path: /{coreType}
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `coreType` | string | 是 | `word.eval`，`word.eval.pro`，`sent.eval`，`sent.eval.pro`，`para.eval`，`alpha.eval`，`word.eval.cn`，`sent.eval.cn`，`para.eval.cn`，`pinyin` |
+| `coreType` | string | 是 | `word.eval`，`word.eval.pro`，`sent.eval`，`sent.eval.pro`，`para.eval`，`alpha.eval`，`word.eval.cn`，`sent.eval.cn`，`para.eval.cn`，`pinyin`，`open.eval.cn` |
 
 ## 表单字段
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `audio` | 文件 | 是 | 音频文件，建议 WAV，PCM 16 位，16 kHz，单声道 |
-| `refText` | string | 否 | 参考文本。英文题必填，中文题设置了 `refPinyin` 时可以为空 |
+| `refText` | string | 否 | 参考文本。英文题必填，中文题设置了 `refPinyin` 时可以为空。`open.eval.cn` 必填，填用竖线隔开的参考答案或题目 |
 | `language` | string | 否 | 语种，例如 `zh-CN`，`en-US` |
 | `refPinyin` | string | 否 | 拼音，pinyin 题必填，例如 `chong2 qing4` |
 | `agegroup` | string | 否 | 年龄段，`1` 学前，`2` 小学，`3` 中学及以上 |
@@ -44,6 +44,9 @@ path: /{coreType}
 | `dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron` | string | 否 | 词典与自定义发音，原样传给评测引擎，`dict_dialect` 取 `en_br` 或 `en_us` |
 | `output_rawtext` | string | 否 | 原文输出，`1` 或 `0` |
 | `readtype_diagnosis` | string | 否 | `1` 时 `words` 另含增读与重复读，默认只含参考文本里的字词 |
+| `qType` | string | 否 | 只用于 `open.eval.cn`，`5` 看图说话，`6` 情景问答，其他取值或不带时为自由表达 |
+| `taskType` | string | 否 | 只用于 `open.eval.cn`，`picture`，`situational` 或 `free`，带了就不看 `qType` |
+| `keypoints`，`keywords` | string | 否 | 只用于 `open.eval.cn`，采分点，JSON 数组或用竖线隔开，两项合计最多 20 个 |
 | `request` | string | 否 | JSON 文本，顶层标量字段并入业务参数 |
 | `timing` | string | 否 | `1` 时结果顶层附 `timing`，见下方分段耗时 |
 

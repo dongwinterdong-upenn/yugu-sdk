@@ -75,8 +75,8 @@ NSString *YGSTCheckConstantsAndLog(void) {
     EXPECT([KYEngineCloud isEqualToString:@"cloud"] && [KYEngineNative isEqualToString:@"native"], @"engine names");
     EXPECT(STKouyuEngineVersionNumber == 2.1, @"version number");
     EXPECT(strstr((const char *)STKouyuEngineVersionString, "STKouyuEngine") != NULL, @"version string");
-    EXPECT([YuguCompat.sdkVersion isEqualToString:@"2.1.1"], @"YuguCompat.sdkVersion");
-    EXPECT([YuguCompat.userAgent isEqualToString:@"yugu-ios-stcompat-sdk/2.1.1"], @"YuguCompat.userAgent");
+    EXPECT([YuguCompat.sdkVersion isEqualToString:@"2.1.2"], @"YuguCompat.sdkVersion");
+    EXPECT([YuguCompat.userAgent isEqualToString:@"yugu-ios-stcompat-sdk/2.1.2"], @"YuguCompat.userAgent");
     EXPECT(KY_CloudEngine == 0 && KY_MultiEngine == 2 && KYTestType_Wordspell == 22, @"enum values");
     KYLog(KYLOG_INFO, @"KYLog from the Objective-C checks %d", 1);
     return nil;

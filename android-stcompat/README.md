@@ -1,6 +1,6 @@
 # 声通安卓平替接入说明
 
-`com.shengzhiai.yugu:stkouyu-compat:2.1.1` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
+`com.shengzhiai.yugu:stkouyu-compat:2.1.2` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
 
 各端平替层的概览与切换步骤见仓库根目录 [SHENGTONG-MIGRATION.md](../SHENGTONG-MIGRATION.md)，版本兼容矩阵见 [COMPATIBILITY.md](../COMPATIBILITY.md)。
 
@@ -9,7 +9,7 @@
 | 项目 | 说明 |
 |---|---|
 | 对应的声通版本 | `17kouyu_1.0.0.jar`，`Build.VERSION` 为 `1.0.62` |
-| 平替层版本 | `2.1.1`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.1.1 (api 1.0.62)` |
+| 平替层版本 | `2.1.2`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.1.2 (api 1.0.62)` |
 | 系统要求 | Android 5.0 及更高版本，`minSdk 21` |
 | 字节码版本 | Java 8 |
 | 运行时依赖 | 无，网络请求用 `HttpURLConnection`，边录边传与朗读进度用 AAR 内置的 WebSocket 客户端，录音用 `AudioRecord`，JSON 用系统自带的 `org.json` |
@@ -56,11 +56,11 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    api 'com.shengzhiai.yugu:stkouyu-compat:2.1.1'
+    api 'com.shengzhiai.yugu:stkouyu-compat:2.1.2'
 }
 ```
 
-不使用远程仓库时，把 `stkouyu-compat-2.1.1.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.1.1.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
+不使用远程仓库时，把 `stkouyu-compat-2.1.2.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.1.2.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
 
 ### 需要删除的文件与配置
 
@@ -139,8 +139,28 @@ manager.recycle();
 | `para.eval.cn` | `CoreType.CN_PARA_EVAL` | 中文段落 |
 | `alpha.eval` | 没有常量，直接传字符串 | 英文字母 |
 | `pinyin` | 没有常量，直接传字符串 | 拼音，需要同时设置 `refPinyin` |
+| `open.eval.cn` | 没有常量，直接传字符串 | 中文开放题，见下方中文开放题一节，`2.1.2` 起支持 |
 
 `choice.rec`，`open.eval`，`asr.rec`，`asr.eval`，`align.eval` 与法语，日语，韩语内核不受支持，平替层不发起网络请求，直接回调 errId 为 60003 的错误 JSON。
+
+### 中文开放题
+
+`2.1.2` 起支持 `open.eval.cn`。声通 SDK 没有这个内核的常量，`coreType` 直接传字符串 `"open.eval.cn"`。平台按原生开放题评分，看内容，语言运用与表达三项，语言固定为中文。
+
+| RecordSetting | 用法 |
+|---|---|
+| `refText` | 必填，与声通相同，填一条或多条参考答案，多条用竖线隔开，写法见下方示例。也可以填题目或任务提示，由评分模型判断是哪一种。是参考答案时，作答与任意一条意思一致就算答对，不要求逐字相同，作答简短不扣分。`refPinyin` 不能代替 `refText` |
+| `qType` | `QType.QTYPE_LOOK_PIC_TO_SPEAK` 即 5 按看图说话评，`QType.QTYPE_SITUATIONAL` 即 6 按情景问答评，其他取值或不设置时按自由表达评。兼容接口不收图片，看图说话按自由表达的细则评分 |
+| `keypoints`，`keywords` | 采分点，写成 JSON 数组或用竖线隔开，两项合计最多 20 个。评分时参考，也用来提高这些词的识别率。参考答案不用来提高识别率 |
+| `negative_keypoints`，`keypoints_weight`，`mode` | 照常发送，开放题评分不使用 |
+
+```java
+RecordSetting rs = new RecordSetting("open.eval.cn", "我是学生|我不是学生");
+rs.setqType(QType.QTYPE_SITUATIONAL);
+manager.startRecord(rs, listener);
+```
+
+结果 JSON 的 `result` 含原生开放题的全部字段：`overall` 总分，`content` 内容，`languageUse` 语言运用，`delivery` 表达，`transcript` 识别文本，`feedback` 点评，含义见仓库根目录 [RESULTS.md](../RESULTS.md) 的开放题一节。`openTaskAudit.refKind` 为 `answers` 时评分模型把 `refText` 当参考答案，为 `question` 时当题目。另有与声通相同的扁平字段 `pronunciation`，`fluency`，`integrity`，`coherence` 与 `speed`，`speed` 为每分钟字数。结果里没有逐字的 `words` 与 `sentences`。录音同样边录边传，`realtime_feedback` 设为 1 时中间结果只有已收音频的字节数 `bytes`，没有朗读进度。
 
 ## 参数映射
 
@@ -149,7 +169,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | RecordSetting | 表单字段 | 说明 |
 |---|---|---|
 | `coreType` | 请求路径 `/{coreType}` | 取值见上一节 |
-| `refText` | `refText` | 中文内核设置了 `refPinyin` 时可以为空 |
+| `refText` | `refText` | 中文内核设置了 `refPinyin` 时可以为空，`open.eval.cn` 除外 |
 | `refPinyin` | `refPinyin` | |
 | `agegroup` | `agegroup` | 设为 1，2，3 时发送，含义与声通相同 |
 | `scale`，`scaleD` | `scale` | |
@@ -161,7 +181,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | `dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron` | 同名 | 原样传递 |
 | `readtypeDiagnosis` | `readtype_diagnosis` | 设为 1 时结果的 `words` 另含增读与重复读，默认只含参考文本里的字词 |
 | `output_rawtext`，`punctuate`，`itn`，`detect_nonscorable`，`vad_detction` | 同名 | 原样传递，评测引擎可能忽略 |
-| `keywords`，`keypoints`，`keypoints_weight`，`negative_keypoints`，`negativeReftext`，`mode`，`qType` | 同名 | 原样传递，评测引擎可能忽略 |
+| `keywords`，`keypoints`，`keypoints_weight`，`negative_keypoints`，`negativeReftext`，`mode`，`qType` | 同名 | 原样传递。`open.eval.cn` 用到 `qType`，`keypoints` 与 `keywords`，见中文开放题一节，其他内核的评测引擎可能忽略 |
 | `newParams` | 每个 `CustomParam` 对应一个字段 | 键值原样传递，与前面的字段同名时覆盖前者 |
 | `request` | `request` | 原始 JSON 字符串，平台合并其中的标量字段 |
 | `realtime_feedback` | 不进表单，设为 1 时实时评测通道的参数帧带 `"realtime_feedback": true` | 录音过程中 `onScore` 先收到 `eof` 为 0 的中间结果，见“朗读进度”一节。其他取值时录音同样边录边传，只回调最终结果，见“边录边传”一节 |
@@ -512,14 +532,14 @@ timing tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c mode=ws audio=4.48s afterStop=16
 `tools/api-diff/run.sh` 核对平替 AAR 与接入方手中的声通 jar 接口是否一致，接入方可以用自己的 jar 运行：
 
 ```bash
-tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.1.1.aar --report-dir api-diff-report
+tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.1.2.aar --report-dir api-diff-report
 ```
 
 核对分两步。第一步用 japicmp `0.23.1` 检查公共与受保护元素的二进制兼容与源码兼容，japicmp 在首次运行时从 Maven Central 下载，校验 SHA-1 与 SHA-256 后存入 `tools/api-diff/lib`。随后严格检查 japicmp 的报告，注解与修饰符的变化也算差异，只容许类文件版本从 Java 7 升到 Java 8。第二步用 javap 逐条比对类声明，成员签名，泛型签名，异常声明与常量值，`native` 修饰符除外。发现缺失或改变的元素时退出码为 1，报告写入 `--report-dir` 指定的目录。
 
 运行条件为 JDK 11 或更高版本，bash，首次运行还需要 curl 或 wget。环境变量 `JAPICMP_JAR` 可以指定已下载的 japicmp，`ANDROID_JAR` 可以指定 `android.jar`。
 
-`2.1.1` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`。
+`2.1.2` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`。
 
 ## 构建与测试
 

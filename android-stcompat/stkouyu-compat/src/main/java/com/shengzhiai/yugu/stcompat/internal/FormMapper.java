@@ -27,7 +27,7 @@ public final class FormMapper {
         }
         boolean hasText = !Codec.isBlank(s.getRefText());
         boolean hasPinyin = !Codec.isBlank(s.getRefPinyin());
-        if (!hasText && !(hasPinyin && CoreTypes.isChinese(coreType))) {
+        if (!hasText && !(hasPinyin && CoreTypes.isChinese(coreType) && !CoreTypes.isOpenQuestion(coreType))) {
             return CompatErrIds.REF_TEXT_EMPTY;
         }
         return 0;

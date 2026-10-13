@@ -215,6 +215,30 @@ public class FormMapperTest {
     }
 
     @Test
+    public void chineseOpenQuestion() {
+        // 2.1.2: open.eval.cn is evaluated; its refText is the question, a reference pinyin cannot replace it
+        assertTrue(CoreTypes.isSupported("open.eval.cn"));
+        assertTrue(CoreTypes.isOpenQuestion(" open.eval.cn "));
+        assertFalse(CoreTypes.isOpenQuestion(CoreType.EN_OPEN_EVAL));
+        assertEquals(0, FormMapper.validate(new RecordSetting("open.eval.cn", "请说一说你周末做了什么。")));
+        RecordSetting pinyinOnly = new RecordSetting("open.eval.cn");
+        pinyinOnly.setRefPinyin("zhou1 mo4");
+        assertEquals(60006, FormMapper.validate(pinyinOnly));
+        assertEquals("English stays local 60003", 60003, FormMapper.validate(new RecordSetting(CoreType.EN_OPEN_EVAL, "x")));
+
+        RecordSetting s = new RecordSetting("open.eval.cn", "请说一说你周末做了什么。");
+        s.setqType(QType.QTYPE_SITUATIONAL);
+        s.setKeypoints("[\"公园\",\"风筝\"]");
+        s.setKeywords("电影");
+        java.util.Map<String, String> f = FormMapper.fields(s);
+        assertEquals("请说一说你周末做了什么。", f.get("refText"));
+        assertEquals("6", f.get("qType"));
+        assertEquals("[\"公园\",\"风筝\"]", f.get("keypoints"));
+        assertEquals("电影", f.get("keywords"));
+        assertFalse(f.containsKey("paragraph_need_word_score"));
+    }
+
+    @Test
     public void coreTypeDetection() {
         assertTrue(CoreTypes.looksLikeCoreType("sent.eval.cn"));
         assertTrue(CoreTypes.looksLikeCoreType("pinyin"));

@@ -2,6 +2,13 @@
 
 格式参照 Keep a Changelog，版本号规则见 `COMPATIBILITY.md`。各端的详细变更见各端目录下的 CHANGELOG.md。
 
+## 版本 `2.1.2`，2026-10-13
+
+只发了安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个声通平替，其余五端仍为 `2.1.0`。
+
+### 新增
+- 声通兼容接口新增中文开放题 `open.eval.cn`，与原生 `coreType` 为 `open` 同一套评分。`refText` 与声通相同，可以是用竖线隔开的参考答案，也可以是题目，由评分模型判断，是参考答案时意思一致就算答对，短答不扣分。`qType` 5 与 6 分别按看图说话与情景问答评，其他按自由表达评，`keypoints` 与 `keywords` 为采分点。结果另有声通的 `pronunciation`，`fluency`，`integrity`，`coherence`，`speed`。两个平替层放开这个内核，实时评测不下发朗读进度。
+
 ## 版本 `2.1.1`，2026-10-13
 
 只发了安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个声通平替，其余五端仍为 `2.1.0`。

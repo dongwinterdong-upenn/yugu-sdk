@@ -164,7 +164,8 @@ static void test_coretype_enum_table(void) {
 
 static void test_coretype_support(void) {
     static const char *supported[] = {"word.eval",    "word.eval.pro", "sent.eval",  "sent.eval.pro", "para.eval",
-                                      "word.eval.cn", "sent.eval.cn",  "para.eval.cn", "alpha.eval",  "pinyin"};
+                                      "word.eval.cn", "sent.eval.cn",  "para.eval.cn", "alpha.eval",  "pinyin",
+                                      "open.eval.cn"};
     static const char *unsupported[] = {"choice.rec",   "open.eval",    "asr.rec",      "asr.eval",    "align.eval",
                                         "word.eval.fr", "sent.eval.fr", "para.eval.fr", "word.eval.jp", "sent.eval.jp",
                                         "para.eval.jp", "word.eval.kr", "sent.eval.kr", "para.eval.kr"};
@@ -193,6 +194,12 @@ static void test_coretype_support(void) {
     CHECK_INT(ygst_validate_request(YGST_CT_SUPPORTED, "pinyin", "", "chong2 qing4"), 0);
     CHECK_INT(ygst_validate_request(YGST_CT_SUPPORTED, "pinyin", "", ""), 60006);
     CHECK_INT(ygst_validate_request(YGST_CT_UNSUPPORTED, "open.eval", "hi", NULL), 60003);
+    /* 2.1.2 open.eval.cn: refText is the question, refPinyin cannot replace it */
+    CHECK(ygst_coretype_is_open_question("open.eval.cn"));
+    CHECK(!ygst_coretype_is_open_question("open.eval"));
+    CHECK(!ygst_coretype_is_open_question(NULL));
+    CHECK_INT(ygst_validate_request(YGST_CT_SUPPORTED, "open.eval.cn", "请说一说你周末做了什么。", NULL), 0);
+    CHECK_INT(ygst_validate_request(YGST_CT_SUPPORTED, "open.eval.cn", " ", "zhou1 mo4"), 60006);
     CHECK_INT(ygst_validate_request(YGST_CT_UNKNOWN, "x.y", "hi", NULL), 60003);
 }
 

@@ -120,7 +120,7 @@ final class SwiftSurfaceTests: XCTestCase {
     }
 
     func testYuguCompatSettings() {
-        XCTAssertEqual(YuguCompat.sdkVersion, "2.1.1")
+        XCTAssertEqual(YuguCompat.sdkVersion, "2.1.2")
         XCTAssertEqual(YuguCompat.defaultBaseURL, "https://open.shengzhiai.com")
         YuguCompat.baseURL = "ftp://nope"
         XCTAssertNil(YuguCompat.baseURL)

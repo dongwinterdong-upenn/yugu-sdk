@@ -164,7 +164,7 @@ def s_success_envelope(c):
         c(e["idempotencyKey"] == r["tokenId"], "Idempotency-Key is the tokenId")
         c(e.get("fields") == {"refText": "今天天气很好", "phoneme_output": "1"}, "form fields %r" % e.get("fields"))
         c(e["contentType"].startswith("multipart/form-data; boundary=----YuguSTCompat"), "multipart content type")
-        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.1.1", "User-Agent %r" % e["userAgent"])
+        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.1.2", "User-Agent %r" % e["userAgent"])
     b = billing()
     c(b["billed"] == 1 and b["byKey"].get(r["tokenId"]) == 1, "billed once %r" % b)
 
@@ -455,6 +455,28 @@ def s_paragraph_word_details(c):
 ZH_TEXT = "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。"
 EN_TEXT = "Nice to see you again. I am a student, and I like reading books every day."
 PROGRESS_KEYS = ["tokenId", "recordId", "applicationId", "userId", "refText", "eof", "dtLastResponse", "result"]
+
+
+def s_open_question(c):
+    """2.1.2: open.eval.cn goes to its own path with refText and qType as set, refPinyin cannot replace its
+    refText, the result passes through, and a realtime_feedback round delivers no reading progress."""
+    reset()
+    r = driver("--core-type", "open.eval.cn", "--ref-text", "我是学生|我不是学生", "--custom", "qType=6",
+               "--audio", audio("zh_short.wav"))
+    e = entries_for(r["tokenId"])
+    c(r["outcome"] == "result" and r["json"].get("result") == fixture_result("compat_open.eval.cn.json"),
+      "open.eval.cn result as sent %r" % r["json"].get("errId"))
+    c(e and e[0].get("path") == "/open.eval.cn", "path /open.eval.cn %r" % (e and e[0].get("path")))
+    f = (e and e[0].get("fields")) or {}
+    c(f.get("refText") == "我是学生|我不是学生" and f.get("qType") == "6", "refText and qType sent %r" % f)
+    c("paragraph_need_word_score" not in f, "no paragraph flag for an open question")
+    r = driver("--core-type", "open.eval.cn", "--ref-text", "", "--ref-pinyin", "wo3 shi4", "--audio", audio("zh_short.wav"))
+    c(r["json"].get("errId") == 60006 and r["attempts"] == 0, "refPinyin does not replace the refText of an open question")
+    r = driver("--realtime", "--core-type", "open.eval.cn", "--audio", audio("zh_progress.wav"),
+               "--ref-text", "请说一说你周末做了什么。", "--chunk-bytes", "6400", "--pace-ms", "10")
+    c(r["outcome"] == "result" and r.get("mode") == "ws", "realtime round over the WebSocket %r" % r.get("mode"))
+    c(r["progress"] == [], "no reading progress for an open question")
+    c(r["json"].get("result") == fixture_result("compat_open.eval.cn.json"), "final result as sent")
 
 
 def units_of(text, chinese):
@@ -826,7 +848,7 @@ SCENARIOS = [
     s_success_envelope, s_word_params_custom, s_attach_audio_url, s_retry_500_same_key, s_retry_429_retry_after, s_timeout_then_replay,
     s_slow_inflight_replay, s_inflight_conflict_40901, s_nonce_reuse_rejected, s_no_retry_400, s_retries_exhausted, s_auto_retry, s_auto_retry_custom_errid, s_drop_then_success,
     s_hang_then_success, s_fastapi_detail, s_auth_errors, s_local_errors_no_network, s_pinyin, s_fixture_passthrough,
-    s_paragraph_word_details,
+    s_paragraph_word_details, s_open_question,
     s_realtime_progress, s_realtime_english, s_realtime_refused_rest, s_realtime_kill_before_end,
     s_realtime_kill_after_end_reconnect, s_realtime_retries_exhausted, s_realtime_error_not_retryable,
     s_realtime_progress_mismatch, s_realtime_progress_off, s_realtime_heartbeat, s_realtime_result_timeout_replay,

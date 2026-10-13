@@ -328,7 +328,7 @@ public class SkEgnManager {
         return SERVER_TYPE_CLOUD;
     }
 
-    /** {@code yugu-stkouyu-compat/2.1.1 (api 1.0.62)}. */
+    /** {@code yugu-stkouyu-compat/2.1.2 (api 1.0.62)}. */
     public String getSDKVersion() {
         return CompatConfig.SDK_VERSION;
     }

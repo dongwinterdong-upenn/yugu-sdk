@@ -2,6 +2,22 @@
 
 STKouyuEngine 声通 iOS 平替包的版本记录。版本号遵循语义化版本，包地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`。
 
+## `2.1.2` 2026-10-13
+
+### 新增
+
+1. 支持声通中文开放题 `open.eval.cn`，用 `coreTypeNS` 指定，`KYTestType` 没有对应成员。平台按原生开放题评分，看内容，语言运用与表达三项。`refText` 必填，与声通相同，填一条或多条参考答案，多条用竖线隔开，也可以填题目，由评分模型判断是哪一种。是参考答案时作答与任意一条意思一致就算答对，短答不扣分。`qType` 为 `KYQType_LookAndSay` 时按看图说话评，为 `KYQType_SituationalReply` 时按情景问答评，其他取值按自由表达评。`keypoints` 与 `keywords` 作为采分点，两项合计最多 20 个。结果含原生开放题的字段与声通的 `pronunciation`，`fluency`，`integrity`，`coherence`，`speed`，说明见 README 的中文开放题一节。
+2. `open.eval.cn` 的录音同样边录边传。`realtime_feedback` 为 YES 时中间结果只有已收音频的字节数 `bytes`，没有朗读进度。
+
+### 变更
+
+1. `YuguCompat.sdkVersion` 为 `2.1.2`，`User-Agent` 为 `yugu-ios-stcompat-sdk/2.1.2`。
+
+### 与声通 SDK 的差异
+
+1. 兼容接口不收图片，看图说话按自由表达的细则评分。
+2. 录音最长 300 秒，与其他内核相同。
+
 ## `2.1.1` 2026-10-13
 
 ### 新增

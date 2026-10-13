@@ -28,7 +28,7 @@ typedef enum : NSUInteger {
     KYTestType_Word,              // word.eval
     KYTestType_Sentence,          // sent.eval
     KYTestType_Paragraph,         // para.eval
-    KYTestType_Open,              // open.eval，平台不支持，回调 errId 60003
+    KYTestType_Open,              // open.eval，平台不支持，回调 errId 60003。中文开放题用 coreTypeNS 传 open.eval.cn
     KYTestType_Choice,            // choice.rec，平台不支持
     KYTestType_Asr,               // asr.rec，平台不支持
     KYTestType_Align,              // align.eval，平台不支持
@@ -177,7 +177,7 @@ extern NSString *const KYEngineNative;   // @"native"，平替层按云端评测
 // 评测内核，coreTypeNS 为空时生效
 @property (nonatomic, assign) KYTestType coreType;
 
-// 可选，字符串内核，优先于 coreType
+// 可选，字符串内核，优先于 coreType。中文开放题 open.eval.cn 没有对应的 KYTestType，只能用它指定
 @property (nonatomic, copy) NSString *coreTypeNS;
 
 // 评测文本，以 refText 发送。为空且 refPinyin 也为空时回调 errId 60006

@@ -31,7 +31,7 @@ export const MOCK_TOKEN = 'mock-jwt-token';
 const KEYS = { [MOCK_APP_KEY]: MOCK_SECRET, 'mock-app-key-2': 'mock-secret-key-2' };
 
 const COMPAT_CORE_TYPES = new Set(['word.eval', 'word.eval.pro', 'sent.eval', 'sent.eval.pro', 'para.eval',
-  'alpha.eval', 'word.eval.cn', 'sent.eval.cn', 'para.eval.cn', 'pinyin']);
+  'alpha.eval', 'word.eval.cn', 'sent.eval.cn', 'para.eval.cn', 'pinyin', 'open.eval.cn']);
 const NATIVE_CORE_TYPES = new Set(['word', 'sentence', 'passage', 'connected', 'open', 'alpha', 'pinyin']);
 
 // ---------------------------------------------------------------- state
@@ -559,7 +559,9 @@ function wsSession(ws, ctx) {
     progress = 0;
     chinese = isChinese(j, ctx);
     reported = 0;
-    units = realtime() ? readingUnits(ctx.isNative ? j.referenceText : (j.refText || j.text), chinese) : null;
+    // open.eval.cn (2.1.2): refText is the question, so like the platform no reading progress, bytes only
+    units = realtime() && ctx.coreType !== 'open.eval.cn'
+      ? readingUnits(ctx.isNative ? j.referenceText : (j.refText || j.text), chinese) : null;
     send(ctx.isNative ? { event: 'started' } : { event: 'started', coreType: ctx.coreType });
   });
 

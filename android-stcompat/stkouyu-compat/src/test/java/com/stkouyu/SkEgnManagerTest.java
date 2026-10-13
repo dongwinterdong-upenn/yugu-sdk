@@ -63,7 +63,7 @@ public class SkEgnManagerTest extends CompatTestBase {
         assertEquals(Arrays.asList("onStartInitEngine", "onInitEngineSuccess"), ev.log);
         assertNotEquals(0L, SkEgnManager.engine);
         assertEquals("cloud", m.getCurrentEngineType());
-        assertEquals("yugu-stkouyu-compat/2.1.1 (api 1.0.62)", m.getSDKVersion());
+        assertEquals("yugu-stkouyu-compat/2.1.2 (api 1.0.62)", m.getSDKVersion());
         assertEquals(SkEgnManager.engine_status.IDLE, m.getEngineStatus());
         assertMainThreadOnly();
         m.recycle();

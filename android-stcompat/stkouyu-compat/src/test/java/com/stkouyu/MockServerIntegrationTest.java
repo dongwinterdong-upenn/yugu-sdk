@@ -106,7 +106,7 @@ public class MockServerIntegrationTest extends CompatTestBase {
         assertEquals("/sent.eval.cn", req.getString("path"));
         assertEquals(token, req.getString("idempotencyKey"));
         assertEquals("今天天气很好", req.getJSONObject("fields").getString("refText"));
-        assertEquals("yugu-stkouyu-compat/2.1.1", req.getString("userAgent"));
+        assertEquals("yugu-stkouyu-compat/2.1.2", req.getString("userAgent"));
         JSONObject billing = server.billing();
         assertEquals(1, billing.getInt("billed"));
         assertEquals(1, billing.getJSONObject("byKey").getInt(token));
@@ -125,6 +125,50 @@ public class MockServerIntegrationTest extends CompatTestBase {
         JSONObject req = server.log().getJSONObject(0);
         assertEquals("/word.eval", req.getString("path"));
         assertEquals("1", req.getJSONObject("fields").getString("phoneme_output"));
+    }
+
+    /** 2.1.2: open.eval.cn goes to its own path with the open-question fields, the result passes through. */
+    @Test
+    public void chineseOpenQuestionFileEvaluation() throws Exception {
+        SkEgnManager m = init(MockServer.SECRET);
+        RecordSetting s = new RecordSetting("open.eval.cn", "我是学生|我不是学生");
+        s.setqType(QType.QTYPE_SITUATIONAL);
+        s.setKeypoints("[\"学生\"]");
+        s.setAudioPath(Fixtures.file("spec/fixtures/audio/zh_short.wav").getAbsolutePath());
+        m.existsAudioTrans(s, ev.record);
+        Main.await("onRecordEnd(json)", 30000, () -> ev.json != null);
+        JSONObject r = ev.result();
+        JSONObject fixture = new JSONObject(Fixtures.text("spec/fixtures/platform/compat_open.eval.cn.json"))
+                .getJSONObject("result");
+        JSONObject result = r.getJSONObject("result");
+        assertEquals(fixture.getDouble("overall"), result.getDouble("overall"), 1e-9);
+        assertEquals(fixture.getString("transcript"), result.getString("transcript"));
+        assertEquals("answers", result.getJSONObject("openTaskAudit").getString("refKind"));
+        assertEquals(fixture.getInt("integrity"), result.getInt("integrity"));
+        assertEquals("我是学生|我不是学生", r.getString("refText"));
+        JSONObject req = server.log().getJSONObject(0);
+        assertEquals("/open.eval.cn", req.getString("path"));
+        JSONObject f = req.getJSONObject("fields");
+        assertEquals("我是学生|我不是学生", f.getString("refText"));
+        assertEquals("6", f.getString("qType"));
+        assertEquals("[\"学生\"]", f.getString("keypoints"));
+        assertFalse(f.has("paragraph_need_word_score"));
+    }
+
+    /** 2.1.2: open.eval.cn streams like every recording; with realtime_feedback there is no reading progress. */
+    @Test
+    public void chineseOpenQuestionStreamsWithoutReadingProgress() throws Exception {
+        SkEgnManager m = init(MockServer.SECRET);
+        RecordSetting s = new RecordSetting("open.eval.cn", "请说一说你周末做了什么。");
+        s.setRealtime_feedback(1);
+        JSONObject r = streamEvaluate(m, s, ev);
+        assertEquals(fixtureOverall("compat_open.eval.cn.json"), r.getJSONObject("result").getDouble("overall"), 1e-9);
+        for (JSONObject mid : ev.intermediate()) {
+            JSONObject res = mid.getJSONObject("result");
+            assertFalse(mid.toString(), res.has("words") && res.getJSONArray("words").length() > 0);
+            assertFalse(mid.toString(), res.has("progress"));
+        }
+        assertEquals("/open.eval.cn", server.log().getJSONObject(0).getString("path"));
     }
 
     @Test

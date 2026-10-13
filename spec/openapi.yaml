@@ -79,7 +79,8 @@ paths:
           required: true
           schema:
             type: string
-            enum: [word.eval, word.eval.pro, sent.eval, sent.eval.pro, para.eval, alpha.eval, word.eval.cn, sent.eval.cn, para.eval.cn, pinyin]
+            enum: [word.eval, word.eval.pro, sent.eval, sent.eval.pro, para.eval, alpha.eval, word.eval.cn, sent.eval.cn, para.eval.cn, pinyin, open.eval.cn]
+          description: open.eval.cn 为中文开放题，refText 填用竖线隔开的参考答案或题目，结果含原生开放题字段与 pronunciation，fluency，integrity，coherence，speed
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -90,7 +91,7 @@ paths:
               required: [audio]
               properties:
                 audio: {type: string, format: binary}
-                refText: {type: string, description: 参考文本}
+                refText: {type: string, description: 参考文本，open.eval.cn 为用竖线隔开的参考答案或题目}
                 language: {type: string, example: zh-CN}
                 refPinyin: {type: string, description: 拼音，pinyin 题必填}
                 agegroup: {type: string, enum: ['1', '2', '3']}
@@ -107,6 +108,10 @@ paths:
                 output_rawtext: {type: string, enum: ['0', '1']}
                 readtype_diagnosis: {type: string, enum: ['0', '1'], description: 1 时 words 另含增读与重复读，默认只含参考文本里的字词}
                 timing: {type: string, enum: ['0', '1'], description: 1 时结果顶层附 timing，见契约 3.3 节}
+                qType: {type: string, description: 只用于 open.eval.cn，5 看图说话，6 情景问答，其他取值或不带时为自由表达}
+                taskType: {type: string, enum: [picture, situational, free], description: 只用于 open.eval.cn，带了就不看 qType}
+                keypoints: {type: string, description: 只用于 open.eval.cn，采分点，JSON 数组或用竖线隔开}
+                keywords: {type: string, description: 只用于 open.eval.cn，与 keypoints 合并，两项合计最多 20 个}
                 request: {type: string, description: JSON 文本，顶层标量字段并入业务参数}
       responses:
         '200':
@@ -383,6 +388,14 @@ components:
         yuguScores:
           type: object
           additionalProperties: true
+        taskType: {type: string, enum: [picture, situational, free], description: 开放题题型，原生 open 与兼容 open.eval.cn}
+        transcript: {type: string, description: 开放题识别文本}
+        content: {type: object, additionalProperties: true, description: 开放题内容分，overall，relevance，coherence，task_achievement}
+        languageUse: {type: object, additionalProperties: true, description: 开放题语言运用分，overall，grammar，vocabulary}
+        delivery: {type: object, additionalProperties: true, description: 开放题表达分，overall，fluency，pronunciation，speech_rate，n_pauses，longest_pause_s}
+        feedback: {type: object, additionalProperties: true, description: 开放题点评，strengths，weaknesses，suggestions}
+        openTaskAudit: {type: object, additionalProperties: true, description: 开放题念题，空话，跑题，看图缺图等审计标记，open.eval.cn 另有 refKind，answers 或 question}
+        coherence: {type: integer, description: 只在 open.eval.cn，取自 content.coherence}
       additionalProperties: true
     EvaluationResponse:
       type: object

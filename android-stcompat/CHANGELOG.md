@@ -2,6 +2,28 @@
 
 `com.shengzhiai.yugu:stkouyu-compat` 的版本记录。格式参照 Keep a Changelog，版本号遵循语义化版本，破坏性变更只在主版本号升级时出现。
 
+## 版本 `2.1.2` 2026-10-13
+
+支持声通中文开放题 `open.eval.cn`。
+
+### 新增
+
+- `coreType` 为 `"open.eval.cn"` 时由平台的开放题评测打分，看内容，语言运用与表达三项。`refText` 必填，与声通相同，填一条或多条参考答案，多条用竖线隔开，也可以填题目，由评分模型判断是哪一种。是参考答案时作答与任意一条意思一致就算答对，短答不扣分。`qType` 为 5 时按看图说话评，6 时按情景问答评，其他取值按自由表达评。`keypoints` 与 `keywords` 作为采分点，两项合计最多 20 个。结果含原生开放题的字段与声通的 `pronunciation`，`fluency`，`integrity`，`coherence`，`speed`，说明见 README 的中文开放题一节。
+- `open.eval.cn` 的录音同样边录边传。`realtime_feedback` 设为 1 时中间结果只有已收音频的字节数 `bytes`，没有朗读进度。
+
+### 变更
+
+- `getSDKVersion()` 返回 `yugu-stkouyu-compat/2.1.2 (api 1.0.62)`，请求头 `User-Agent` 为 `yugu-stkouyu-compat/2.1.2`。
+
+### 与声通 SDK 的差异
+
+- 兼容接口不收图片，看图说话按自由表达的细则评分。
+- 录音最长 300 秒，与其他内核相同。
+
+### 破坏性变更
+
+- 无。其他内核的请求与结果不变，英文 `open.eval` 仍在本地回 errId 60003。
+
 ## 版本 `2.1.1` 2026-10-13
 
 边录边传成为默认，最终结果压缩传输，日志给出每次评测的分段耗时。

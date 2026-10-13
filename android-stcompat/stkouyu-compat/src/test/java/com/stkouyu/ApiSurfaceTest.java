@@ -71,8 +71,8 @@ public class ApiSurfaceTest extends CompatTestBase {
 
     @Test
     public void yuguCompatHooks() {
-        assertEquals("2.1.1", YuguCompat.VERSION);
-        assertEquals("yugu-stkouyu-compat/2.1.1 (api 1.0.62)", YuguCompat.getVersion());
+        assertEquals("2.1.2", YuguCompat.VERSION);
+        assertEquals("yugu-stkouyu-compat/2.1.2 (api 1.0.62)", YuguCompat.getVersion());
         assertNull(YuguCompat.getBaseUrl());
         YuguCompat.setBaseUrl("wss://sandbox.example.com/");
         assertEquals("https://sandbox.example.com", YuguCompat.getBaseUrl());

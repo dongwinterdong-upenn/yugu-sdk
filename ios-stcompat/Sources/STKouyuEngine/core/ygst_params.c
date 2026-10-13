@@ -39,10 +39,11 @@ static const char *const KY_TEST_TYPES[] = {
     NULL             /* KYTestType_Wordspell */
 };
 
-/* coreTypes the platform evaluates on POST /{coreType} (DESIGN 6.1). */
+/* coreTypes the platform evaluates on POST /{coreType} (DESIGN 6.1). open.eval.cn since 2.1.2: Shengtong's
+ * Chinese open question, passed as coreTypeNS because KYTestType has no member for it. */
 static const char *const SUPPORTED[] = {"word.eval",    "word.eval.pro", "sent.eval",    "sent.eval.pro",
                                         "para.eval",    "word.eval.cn",  "sent.eval.cn", "para.eval.cn",
-                                        "alpha.eval",   "pinyin"};
+                                        "alpha.eval",   "pinyin",        "open.eval.cn"};
 
 /* Shengtong coreTypes that are answered with errId 60003 without network I/O. */
 static const char *const UNSUPPORTED[] = {"choice.rec",   "open.eval",    "asr.rec",      "asr.eval",
@@ -90,6 +91,10 @@ int ygst_coretype_is_chinese(const char *core_type) {
     return core_type && (ygst_has_suffix_ci(core_type, ".cn") || strcmp(core_type, "pinyin") == 0);
 }
 
+int ygst_coretype_is_open_question(const char *core_type) {
+    return core_type && strcmp(core_type, "open.eval.cn") == 0;
+}
+
 int ygst_coretype_is_paragraph(const char *core_type) {
     return core_type && strncmp(core_type, "para.", 5) == 0;
 }
@@ -103,7 +108,9 @@ int ygst_validate_request(ygst_ct_status status, const char *core_type, const ch
                           const char *ref_pinyin) {
     if (status != YGST_CT_SUPPORTED) return YGST_ERRID_CORETYPE_UNSUPPORTED;
     if (!ygst_is_blank(ref_text)) return 0;
-    if (!ygst_is_blank(ref_pinyin) && ygst_coretype_is_chinese(core_type)) return 0;
+    /* the refText of an open question is the question: a reference pinyin cannot replace it */
+    if (!ygst_is_blank(ref_pinyin) && ygst_coretype_is_chinese(core_type) && !ygst_coretype_is_open_question(core_type))
+        return 0;
     return YGST_ERRID_REFTEXT_EMPTY;
 }
 

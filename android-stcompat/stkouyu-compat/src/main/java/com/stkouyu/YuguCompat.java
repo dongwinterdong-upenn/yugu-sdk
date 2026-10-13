@@ -11,7 +11,7 @@ import com.shengzhiai.yugu.stcompat.internal.YLog;
  */
 public final class YuguCompat {
     /** Version of the compat layer. */
-    public static final String VERSION = "2.1.1";
+    public static final String VERSION = "2.1.2";
 
     public static final int LOG_OFF = 0;
     public static final int LOG_ERROR = 1;
@@ -84,7 +84,7 @@ public final class YuguCompat {
         return CompatConfig.streamUpload();
     }
 
-    /** Version string, {@code yugu-stkouyu-compat/2.1.1 (api 1.0.62)}. */
+    /** Version string, {@code yugu-stkouyu-compat/2.1.2 (api 1.0.62)}. */
     public static String getVersion() {
         return CompatConfig.SDK_VERSION;
     }

@@ -331,8 +331,28 @@ def s_stream_paragraph(c):
                                                                 detail)
 
 
+def s_open_question(c):
+    """2.1.2 open.eval.cn, zh_open_answer.wav saying 我是学生, refText two model answers separated by |:
+    refKind answers, an overall above the old short-answer cap, the Shengtong flat fields and no words."""
+    text = "我是学生|我不是学生"
+    r = driver("--core-type", "open.eval.cn", "--ref-text", text, "--custom", "qType=6",
+               "--audio", audio("zh_open_answer.wav"))
+    if not success_envelope(c, r, text):
+        return "attempts=%d" % r["attempts"]
+    result = r["json"]["result"]
+    audit = result.get("openTaskAudit") if isinstance(result.get("openTaskAudit"), dict) else {}
+    c(is_number(result.get("overall")) and result["overall"] >= 60,
+      "overall above the old short-answer cap of 55: %r" % (result.get("overall"),))
+    c(audit.get("refKind") == "answers", "refText read as model answers: %r" % (audit.get("refKind"),))
+    flat = ("pronunciation", "fluency", "integrity", "coherence", "speed")
+    c(all(is_number(result.get(k)) for k in flat), "Shengtong flat fields: %r" % ({k: result.get(k) for k in flat},))
+    c(not result.get("words"), "no word details for an open question")
+    return "overall=%s, refKind=%s, attempts=%d, recordId=%s" % (result.get("overall"), audit.get("refKind"),
+                                                               r["attempts"], r["json"].get("recordId"))
+
+
 CASES = [s_sentence, s_paragraph, s_attach_audio_url, s_realtime_progress, s_stream_paragraph, s_unknown_app_key,
-         s_pinyin_without_ref_pinyin]
+         s_pinyin_without_ref_pinyin, s_open_question]
 
 
 def write_junit(path, results, skipped=None):

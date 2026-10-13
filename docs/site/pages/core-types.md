@@ -8,7 +8,7 @@
 | 句子 | `sentence` | `sent.eval`，`sent.eval.pro`，`sent.eval.cn` | 中文，英文 | 一句话 |
 | 段落 | `passage` | `para.eval`，`para.eval.cn` | 中文，英文 | 多句，逐句给出分句结果 |
 | 连读 | `connected` | 无 | 英文 | 一句话，评连读，失爆与弱读 |
-| 开放题 | `open` | 无 | 中文，英文 | 题目，`taskType` 取 `picture`，`situational`，`free` |
+| 开放题 | `open` | `open.eval.cn`，只有中文 | 中文，英文 | 题目，`taskType` 取 `picture`，`situational`，`free`。`open.eval.cn` 另可填用竖线隔开的参考答案 |
 | 字母 | `alpha` | `alpha.eval` | 英文 | 字母序列 |
 | 拼音 | `pinyin` | `pinyin` | 中文 | 汉字，`refPinyin` 必填，例如 `chong2 qing4` |
 

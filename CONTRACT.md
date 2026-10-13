@@ -115,9 +115,11 @@ expected = A+6uVB/D7khxQEt8tzgCNjMUC1QtQQd1UF+NCYVYZqE=
 
 ### 3.2 声通兼容接口
 
-`POST /{coreType}`，路径取声通命名，已注册 `word.eval`，`word.eval.pro`，`sent.eval`，`sent.eval.pro`，`para.eval`，`alpha.eval`，`word.eval.cn`，`sent.eval.cn`，`para.eval.cn`，`pinyin`。`multipart/form-data`，`audio` 为文件段，业务参数为文本段，使用声通参数名：`refText`，`language`，`refPinyin`，`agegroup`，`scale`，`precision`，`slack`，`paragraph_need_word_score`，`phoneme_output`，`attachAudioUrl`，`dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron`，`output_rawtext`，`readtype_diagnosis` 等。另可带文本段 `request`，内容为 JSON，其顶层标量字段并入业务参数。兼容接口必须带 `X-App-Key`。
+`POST /{coreType}`，路径取声通命名，已注册 `word.eval`，`word.eval.pro`，`sent.eval`，`sent.eval.pro`，`para.eval`，`alpha.eval`，`word.eval.cn`，`sent.eval.cn`，`para.eval.cn`，`pinyin`，`open.eval.cn`。`multipart/form-data`，`audio` 为文件段，业务参数为文本段，使用声通参数名：`refText`，`language`，`refPinyin`，`agegroup`，`scale`，`precision`，`slack`，`paragraph_need_word_score`，`phoneme_output`，`attachAudioUrl`，`dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron`，`output_rawtext`，`readtype_diagnosis` 等。另可带文本段 `request`，内容为 JSON，其顶层标量字段并入业务参数。兼容接口必须带 `X-App-Key`。
 
 成功时返回声通风格结果 `{"recordId": ..., "eof": 1, "result": {...}}`，`result` 内的字段与 3.1 节一致，段落题按 `paragraph_need_word_score` 决定是否带逐词详情。请求带 `attachAudioUrl=1` 时顶层另有 `audioUrl`，为录音下载地址，保留 7 天，同一个幂等键重放时地址不变。兼容接口不返回示范音，服务端也不合成。固定内容题型的 `words` 只含参考文本里的字词，请求带 `readtype_diagnosis=1` 时另含增读与重复读，`readType` 分别为 1 与 3。
+
+`open.eval.cn` 是中文开放题，与原生 `coreType` 为 `open` 的开放题用同一套评分，语言固定为中文。`refText` 与声通的用法相同，可以填一条或多条参考答案，多条用竖线隔开，也可以填题目或任务提示，由评分模型判断是哪一种。是参考答案时，作答与任意一条意思一致就算答对，不要求逐字相同，作答简短不扣分，复述参考答案也不按念题处理，意思不同或答非所问时总分不超过 45。是题目时与原生开放题的评分相同。`qType` 为 5 时按看图说话评，为 6 时按情景问答评，其他取值或不带时按自由表达评，也可以直接带 `taskType`。兼容接口不收图片，看图说话按自由表达的细则评分，`openTaskAudit.pictureUngrounded` 为 true。`keypoints` 与 `keywords` 是采分点，写成 JSON 数组或用竖线隔开，合计最多 20 个，评分时参考，也用来提高这些词的识别率，参考答案不用来提高识别率。`negative_keypoints` 与 `keypoints_weight` 不参与评分。`result` 含原生开放题的全部字段，`openTaskAudit.refKind` 为 `answers` 或 `question`，是评分模型的判断。另有与声通相同的扁平字段：`pronunciation` 与 `fluency` 取自 `delivery`，`integrity` 取自 `content.task_achievement`，`coherence` 取自 `content.coherence`，`speed` 为每分钟字数。没有 `words` 与 `sentences`。实时评测不下发朗读进度，带 `realtime_feedback` 时中间帧只有 `bytes`。
 
 ### 3.3 分段耗时
 
