@@ -41,7 +41,7 @@ SDK 结果模型的总分访问器在 connected 模式下取 `connected_overall`
 | `word` | string | 字或词 |
 | `pinyin`，`symbolpinyin`，`tone` | string | 中文拼音，带调拼音，声调 `tone1` 到 `tone5` |
 | `charType` | int | 0 为字词，1 为标点 |
-| `readType` | int | 0 正常，1 增读，2 漏读，3 重复读 |
+| `readType` | int | 0 正常，1 增读，2 漏读，3 重复读。声通兼容接口默认不给 1 与 3，请求带 `readtype_diagnosis=1` 时才有 |
 | `read_status` | string | correct，mispronounced，skipped，inserted |
 | `scores.overall` | int | 字词得分 |
 | `scores.pronunciation` | int | 字词发音分 |

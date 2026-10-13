@@ -7,6 +7,7 @@
 只发了安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个声通平替，其余五端仍为 `2.1.0`。
 
 ### 变更
+- 平台侧：声通兼容接口固定内容题型的 `words` 只含参考文本里的字词，增读与重复读在请求带 `readtype_diagnosis=1` 时才给，计分不变。
 - 两个平替层默认边录边传：麦克风录音与送流走兼容实时评测，不再等录音结束才整段上传。安卓 `YuguCompat.setStreamUpload(false)`，iOS `YuguCompat.streamUpload = NO` 时恢复录完整段上传。`realtime_feedback` 只决定有没有朗读进度回调。
 - 安卓平替层的实时连接协商 `permessage-deflate`，终评结果压缩传输。iOS 由系统网络库协商。
 - 日志级别为 INFO 时每次评测记一行分段耗时，含上传，等待，下载，解析与服务端各环节耗时，DEBUG 时另记引擎各环节。安卓的日志设置在 `initEngine` 之后修改也立即生效。

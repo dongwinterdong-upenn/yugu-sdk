@@ -42,7 +42,8 @@ path: /{coreType}
 | `phoneme_output` | string | 否 | 音素级输出，`1` 或 `0` |
 | `attachAudioUrl` | string | 否 | `1` 时返回体顶层带录音下载地址 `audioUrl`，保留 7 天 |
 | `dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron` | string | 否 | 词典与自定义发音，原样传给评测引擎，`dict_dialect` 取 `en_br` 或 `en_us` |
-| `output_rawtext`，`readtype_diagnosis` | string | 否 | 原文输出与读法诊断，`1` 或 `0` |
+| `output_rawtext` | string | 否 | 原文输出，`1` 或 `0` |
+| `readtype_diagnosis` | string | 否 | `1` 时 `words` 另含增读与重复读，默认只含参考文本里的字词 |
 | `request` | string | 否 | JSON 文本，顶层标量字段并入业务参数 |
 | `timing` | string | 否 | `1` 时结果顶层附 `timing`，见下方分段耗时 |
 

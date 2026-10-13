@@ -186,7 +186,7 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 | `dict_dialect` | `dict_dialect` | 原样发送 |
 | `customized_lexicon` | `customized_lexicon` | 字典序列化为 JSON 文本 |
 | `customized_pron` | `customized_pron` | 字典序列化为 JSON 文本 |
-| `readtype_diagnosis` | `readtype_diagnosis` | 非 0 时发送 |
+| `readtype_diagnosis` | `readtype_diagnosis` | 非 0 时发送，结果的 `words` 另含增读与重复读，默认只含参考文本里的字词 |
 | `output_rawtext` | `output_rawtext` | YES 时发送 1 |
 | `punctuate` | `punctuate` | YES 时发送 1 |
 | `itn` | `itn` | 非 0 时发送 |

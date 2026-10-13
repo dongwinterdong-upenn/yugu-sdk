@@ -159,7 +159,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | `needPhonemeOutputInWord` | `phoneme_output=1` | |
 | `needAttachAudioUrlInResult` | `attachAudioUrl=1` | 结果 JSON 带平台返回的录音下载地址 `audioUrl`，地址保留 7 天 |
 | `dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron` | 同名 | 原样传递 |
-| `readtypeDiagnosis` | `readtype_diagnosis` | |
+| `readtypeDiagnosis` | `readtype_diagnosis` | 设为 1 时结果的 `words` 另含增读与重复读，默认只含参考文本里的字词 |
 | `output_rawtext`，`punctuate`，`itn`，`detect_nonscorable`，`vad_detction` | 同名 | 原样传递，评测引擎可能忽略 |
 | `keywords`，`keypoints`，`keypoints_weight`，`negative_keypoints`，`negativeReftext`，`mode`，`qType` | 同名 | 原样传递，评测引擎可能忽略 |
 | `newParams` | 每个 `CustomParam` 对应一个字段 | 键值原样传递，与前面的字段同名时覆盖前者 |
