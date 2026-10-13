@@ -43,14 +43,15 @@ import static org.junit.Assert.assertTrue;
  *
  * <p>Runs only when YUGU_SANDBOX_APPKEY and YUGU_SANDBOX_SECRET are set (YUGU_SANDBOX_BASE
  * defaults to https://open.shengzhiai.com); otherwise every case is skipped, so push builds never
- * call the platform. At most 7 platform calls per run (REST requests and realtime connections):
+ * call the platform. At most 9 platform calls per run (REST requests and realtime connections):
  * one retry per evaluation and a counting transport and connector that refuse further calls. Key
  * values are never printed: failure messages carry errId, error and recordId only, never the
- * envelope (it contains applicationId).
+ * envelope (it contains applicationId). Since 2.1.1 sessions stream over the realtime channel by
+ * default; the cases that inspect the REST form switch streaming upload off.
  */
 @RunWith(RobolectricTestRunner.class)
 public class SandboxIntegrationTest extends CompatTestBase {
-    static final int MAX_CALLS = 7;
+    static final int MAX_CALLS = 9;
     private static final String APP_KEY = env("YUGU_SANDBOX_APPKEY");
     private static final String SECRET = env("YUGU_SANDBOX_SECRET");
     private static final String BASE = env("YUGU_SANDBOX_BASE") != null ? env("YUGU_SANDBOX_BASE") : "https://open.shengzhiai.com";
@@ -59,6 +60,9 @@ public class SandboxIntegrationTest extends CompatTestBase {
     private final Events ev = new Events();
     private final List<HttpTransport.Request> requests = Collections.synchronizedList(new ArrayList<HttpTransport.Request>());
     private final AtomicInteger wsConnects = new AtomicInteger();
+    /** idempotencyKey of every realtime connection, from the handshake query (never the signature). */
+    private final List<String> wsKeys = Collections.synchronizedList(new ArrayList<String>());
+    private final List<String> logLines = Collections.synchronizedList(new ArrayList<String>());
 
     private static String env(String name) {
         String v = System.getenv(name);
@@ -87,6 +91,8 @@ public class SandboxIntegrationTest extends CompatTestBase {
                 throw new IOException("sandbox call budget of " + MAX_CALLS + " platform calls per run is used up");
             }
             wsConnects.incrementAndGet();
+            java.util.regex.Matcher k = java.util.regex.Pattern.compile("[?&]idempotencyKey=([0-9a-f]{32})").matcher(url);
+            wsKeys.add(k.find() ? k.group(1) : "");
             return WsClient.CONNECTOR.connect(url, headers, connectTimeoutMs, readTimeoutMs, listener);
         });
         // one retry at most per evaluation keeps the run within the call budget
@@ -174,7 +180,33 @@ public class SandboxIntegrationTest extends CompatTestBase {
         assertTrue("dtLastResponse", r.has("dtLastResponse"));
         Object overall = r.getJSONObject("result").get("overall");
         assertTrue("result.overall is not numeric", overall instanceof Number);
-        assertEquals(r.getString("tokenId"), requests.get(0).headers.get("Idempotency-Key"));
+        String key = requests.isEmpty() ? wsKeys.get(0) : requests.get(0).headers.get("Idempotency-Key");
+        assertEquals(r.getString("tokenId"), key);
+        assertFalse("the platform's timing object never reaches the app", r.has("timing"));
+    }
+
+    /** SDK log lines from now on, at the given level. */
+    private void captureLog(int level) {
+        YuguCompat.setLogLevel(level);
+        com.shengzhiai.yugu.stcompat.internal.YLog.setSink((l, tag, msg, err) -> logLines.add(msg));
+    }
+
+    /** The INFO summary line of an evaluation. */
+    private String summary(String token) {
+        synchronized (logLines) {
+            for (String l : logLines) {
+                if (l.startsWith("timing tokenId=" + token + " ")) {
+                    return l;
+                }
+            }
+        }
+        throw new AssertionError("no timing line for the evaluation");
+    }
+
+    private static long number(String line, String name) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(" " + java.util.regex.Pattern.quote(name) + "=(\\d+)").matcher(line);
+        assertTrue(name + " in " + line, m.find());
+        return Long.parseLong(m.group(1));
     }
 
     /** Case 1: sent.eval.cn, zh_short.wav, refText 今天天气很好. */
@@ -200,6 +232,7 @@ public class SandboxIntegrationTest extends CompatTestBase {
      */
     @Test
     public void paragraphWordDetailsInShengtongShape() throws Exception {
+        YuguCompat.setStreamUpload(false);
         SkEgnManager m = init(SECRET);
         JSONObject r = evaluate(m, new RecordSetting(CoreType.CN_PARA_EVAL, "今天天气很好。我们一起去公园散步。"));
         assertSuccessEnvelope(r);
@@ -242,6 +275,7 @@ public class SandboxIntegrationTest extends CompatTestBase {
      */
     @Test
     public void attachAudioUrlIsReturned() throws Exception {
+        YuguCompat.setStreamUpload(false);
         SkEgnManager m = init(SECRET);
         JSONObject r = evaluate(m, new RecordSetting(CoreType.CN_SENT_EVAL, "今天天气很好").setNeedAttachAudioUrlInResult(true));
         assertSuccessEnvelope(r);
@@ -320,5 +354,92 @@ public class SandboxIntegrationTest extends CompatTestBase {
         System.out.println("sandbox realtime_feedback: intermediate results=" + mid.size() + " (" + whileReading
                 + " while reading), words read=" + read.length() + " of 25, final overall="
                 + r.getJSONObject("result").get("overall") + ", connections=" + wsConnects.get());
+    }
+
+    /**
+     * Case 6 (SDK 2.1.1): the streaming default at real-time pace with the customer sentence, log
+     * level DEBUG. The final frame comes compressed with permessage-deflate, the platform's timing
+     * object arrives (timing=1 in the parameter frame) and is removed before onScore; the summary
+     * line is printed (tokenId, times and sizes only).
+     */
+    @Test
+    public void streamingDefaultCompressedFinalAndServerTiming() throws Exception {
+        captureLog(YuguCompat.LOG_DEBUG);
+        SkEgnManager m = init(SECRET);
+        RecordSetting s = new RecordSetting(CoreType.CN_SENT_EVAL, "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。");
+        s.setIsStream(true);
+        m.startRecord(s, ev.recorder);
+        byte[] pcm = Fixtures.pcm("spec/fixtures/audio/zh_progress.wav");
+        long t0 = System.nanoTime();
+        for (int i = 0; i < pcm.length; i += 3200) {
+            int n = Math.min(3200, pcm.length - i);
+            byte[] chunk = new byte[n];
+            System.arraycopy(pcm, i, chunk, 0, n);
+            m.feed(chunk, n);
+            long wait = (t0 + (i + n) / 32L * 1000000L - System.nanoTime()) / 1000000L;
+            if (wait > 0) {
+                Thread.sleep(wait);
+            }
+            Main.idle();
+        }
+        m.stopRecord();
+        Main.await("final onScore from the sandbox", 180000, () -> ev.json != null);
+        JSONObject r = new JSONObject(ev.json);
+        assertSuccessEnvelope(r);
+        assertEquals("no intermediate results without realtime_feedback", 0, ev.intermediate().size());
+        assertEquals("no REST upload", 0, requests.size());
+        String line = summary(r.getString("tokenId"));
+        System.out.println("sandbox streaming default: " + line);
+        assertTrue(line, line.contains(" mode=ws "));
+        assertTrue("the final frame did not come compressed: " + line, line.contains(" deflate"));
+        long finalBytes = number(line, "final");
+        long wire = number(line, "wire");
+        assertTrue(line, wire < finalBytes);
+        assertTrue("no timing object in the final frame: " + line, line.contains(" server.total="));
+        System.out.println("sandbox final frame: " + finalBytes + " bytes, " + wire + " bytes compressed on the wire ("
+                + (wire * 100 / finalBytes) + " %), upload after stop " + number(line, "upload") + " ms");
+        synchronized (logLines) {
+            for (String l : logLines) {
+                if (l.contains("engineStages") || l.contains(" ws.handshake")) {
+                    System.out.println("sandbox debug: " + l);
+                }
+            }
+        }
+    }
+
+    /**
+     * Case 7 (SDK 2.1.1): streaming upload switched off, log level DEBUG: the REST answer carries
+     * Server-Timing and the timing object (form field timing=1), neither reaches onScore.
+     */
+    @Test
+    public void restUploadCarriesServerTimingWhenStreamingIsOff() throws Exception {
+        captureLog(YuguCompat.LOG_DEBUG);
+        YuguCompat.setStreamUpload(false);
+        SkEgnManager m = init(SECRET);
+        JSONObject r = evaluate(m, new RecordSetting(CoreType.CN_SENT_EVAL, "今天天气很好"));
+        assertSuccessEnvelope(r);
+        boolean timingAsked = false;
+        for (Multipart.Part p : requests.get(0).body.parts()) {
+            timingAsked |= "timing".equals(p.name) && "1".equals(p.value);
+        }
+        assertTrue("timing=1 was not sent", timingAsked);
+        assertEquals(0, wsConnects.get());
+        String line = summary(r.getString("tokenId"));
+        System.out.println("sandbox REST: " + line);
+        assertTrue(line, line.contains(" mode=rest "));
+        assertTrue("no server timing: " + line, line.contains(" server.total="));
+        boolean header = false;
+        synchronized (logLines) {
+            for (String l : logLines) {
+                if (l.contains(" rest.headers status=200")) {
+                    header |= l.contains("server-timing=\"total;dur=");
+                    System.out.println("sandbox debug: " + l);
+                }
+                if (l.contains(" rest.body ") || l.contains("engineStages")) {
+                    System.out.println("sandbox debug: " + l);
+                }
+            }
+        }
+        assertTrue("no Server-Timing header on the REST answer", header);
     }
 }

@@ -7,7 +7,10 @@ The cases run it_driver built with -DYGST_IT_TLS: the same C core path as the mo
 tests (coreType check, local audio checks, field mapping, signing, multipart, retry controller,
 envelope, result alignment), over HTTPS to YUGU_SANDBOX_BASE with certificate verification. The
 realtime case streams the customer sentence in real time over the compat WebSocket (wss) with
-realtime_feedback (2.1.0) and checks the reading progress and the final.
+realtime_feedback (2.1.0) and checks the reading progress and the final. 2.1.1: the evaluations run
+as at log level INFO (--timing: timing=1, "timing":1) and check the timing line with the platform's
+share (Server-Timing on REST, the timing object on the WebSocket), and a paragraph is streamed in
+real time without realtime_feedback, the default for recordings.
 
   run_sandbox.py --spec ../spec [--driver build/it_driver_tls] [--junit sandbox.xml] [--log sandbox.log]
                  [--case NAME]...
@@ -15,8 +18,8 @@ realtime_feedback (2.1.0) and checks the reading progress and the final.
 Runs only when YUGU_SANDBOX_APPKEY and YUGU_SANDBOX_SECRET are set (YUGU_SANDBOX_BASE defaults to
 https://open.shengzhiai.com). Otherwise it writes a JUnit report with skipped cases and exits 77,
 so push builds never call the platform. The cases run one after another (the sandbox account
-allows 2 concurrent evaluations): four evaluations, then two error paths the platform answers
-without evaluating, sent once. No autoRetry. A run makes at most 7 platform calls: an evaluation
+allows 2 concurrent evaluations): five evaluations, then two error paths the platform answers
+without evaluating, sent once. No autoRetry. A run makes at most 8 platform calls: an evaluation
 gets one retry only while every later case still has its call. --case runs only the named cases.
 
 The keys reach the driver through its environment, never through argv. Nothing printed or
@@ -34,7 +37,7 @@ import time
 import traceback
 import urllib.parse
 
-MAX_CALLS = 7
+MAX_CALLS = 8
 USER_ID = "sandbox-ios-stcompat"
 DEFAULT_BASE = "https://open.shengzhiai.com"
 SKIP_REASON = ("YUGU_SANDBOX_APPKEY and YUGU_SANDBOX_SECRET are not set: the sandbox cases call the real "
@@ -161,12 +164,21 @@ def success_envelope(c, r, ref_text, extra_keys=()):
     return isinstance(j.get("result"), dict)
 
 
+def timing_line(c, r, mode):
+    """2.1.1: the INFO line of the evaluation with the platform's share; the envelope keys checked by
+    success_envelope show that the timing object stayed out of the JSON for the app."""
+    line = r.get("timing") or ""
+    c(line.startswith("timing tokenId=%s mode=%s audio=" % (r["tokenId"], mode)), "timing line %r" % line)
+    c(" server.total=" in line and " errId=" not in line, "the platform's timing is in the line: %r" % line)
+    return line
+
+
 # ------------------------------------------------------------------ cases
 
 
 def s_sentence(c):
     """sent.eval.cn, zh_short.wav, refText 今天天气很好: success envelope with a numeric result.overall."""
-    r = driver("--core-type", "sent.eval.cn", "--ref-text", "今天天气很好", "--audio", audio("zh_short.wav"))
+    r = driver("--core-type", "sent.eval.cn", "--ref-text", "今天天气很好", "--audio", audio("zh_short.wav"), "--timing")
     if not success_envelope(c, r, "今天天气很好"):
         return "attempts=%d" % r["attempts"]
     result = r["json"]["result"]
@@ -174,14 +186,14 @@ def s_sentence(c):
     c(is_number(overall) and 0 <= overall <= 100, "result.overall numeric in 0..100: %r" % (overall,))
     c(result == aligned(result), "details items carry overall and pronunciation from scores")
     words = result.get("words") if isinstance(result.get("words"), list) else []
-    return "overall=%s, words=%d, attempts=%d, recordId=%s" % (overall, len(words), r["attempts"],
-                                                               r["json"].get("recordId"))
+    return "overall=%s, words=%d, attempts=%d, recordId=%s; %s" % (overall, len(words), r["attempts"],
+                                                                   r["json"].get("recordId"), timing_line(c, r, "rest"))
 
 
 def s_paragraph(c):
     """para.eval.cn, zh_para.wav and its text: details[] carry overall the way Shengtong's do."""
     text = "今天天气很好。我们一起去公园散步。"
-    r = driver("--core-type", "para.eval.cn", "--ref-text", text, "--audio", audio("zh_para.wav"))
+    r = driver("--core-type", "para.eval.cn", "--ref-text", text, "--audio", audio("zh_para.wav"), "--timing")
     if not success_envelope(c, r, text):
         return "attempts=%d" % r["attempts"]
     result = r["json"]["result"]
@@ -199,8 +211,9 @@ def s_paragraph(c):
                and "pronunciation" in d["scores"] and "pronunciation" not in d]
     c(not no_pron, "details items without pronunciation: %r" % no_pron[:5])
     c(result == aligned(result), "alignment reference agrees")
-    return "overall=%s, sentences=%d, details=%d, attempts=%d, recordId=%s" % (
-        result.get("overall"), len(sentences), len(details), r["attempts"], r["json"].get("recordId"))
+    return "overall=%s, sentences=%d, details=%d, attempts=%d, recordId=%s; %s" % (
+        result.get("overall"), len(sentences), len(details), r["attempts"], r["json"].get("recordId"),
+        timing_line(c, r, "rest"))
 
 
 def url_shape(url):
@@ -260,14 +273,15 @@ def s_pinyin_without_ref_pinyin(c):
 def s_realtime_progress(c):
     """realtime_feedback (2.1.0): the customer sentence streamed in real time over the compat WebSocket,
     signed handshake, eof 0 progress with Shengtong-shaped words, the final envelope as over REST."""
-    r = driver("--realtime", "--core-type", "sent.eval.cn", "--ref-text", CUSTOMER_TEXT, "--audio",
+    r = driver("--realtime", "--timing", "--core-type", "sent.eval.cn", "--ref-text", CUSTOMER_TEXT, "--audio",
                audio("zh_progress.wav"), "--chunk-bytes", "3200", "--pace-ms", "100")
     summary = "mode=%s, connections=%s, attempts=%d" % (r.get("mode"), r.get("connections"), r["attempts"])
     if not success_envelope(c, r, CUSTOMER_TEXT):
         return summary + ", reason=%s" % r.get("restReason")
     c(r.get("mode") == "ws", "evaluated over the WebSocket, not REST: %s" % r.get("restReason"))
     pf = r.get("paramFrame") or {}
-    c(pf.get("realtime_feedback") is True and pf.get("idempotencyKey") == r["tokenId"], "parameter frame")
+    c(pf.get("realtime_feedback") is True and pf.get("timing") == 1 and pf.get("idempotencyKey") == r["tokenId"],
+      "parameter frame")
     progress = r.get("progress") or []
     c(len(progress) > 0, "progress callbacks while reading")
     words = []
@@ -287,12 +301,37 @@ def s_realtime_progress(c):
                                                                                        len(CUSTOMER_UNITS)))
     overall = r["json"]["result"].get("overall")
     c(is_number(overall), "result.overall numeric")
-    return "%s, progress callbacks=%d, units %d/%d %s, overall=%s, recordId=%s" % (
+    return "%s, progress callbacks=%d, units %d/%d %s, overall=%s, recordId=%s; %s" % (
         summary, len(progress), len(words), len(CUSTOMER_UNITS), "".join(str(w) for w in words), overall,
-        r["json"].get("recordId"))
+        r["json"].get("recordId"), timing_line(c, r, "ws"))
 
 
-CASES = [s_sentence, s_paragraph, s_attach_audio_url, s_realtime_progress, s_unknown_app_key,
+def s_stream_paragraph(c):
+    """2.1.1: para.eval.cn streamed in real time over the compat WebSocket without realtime_feedback,
+    the default for recordings: no progress asked for, the final envelope as over REST, the timing
+    object of the final frame in the timing line (with wsFirstAudioAt) and never in the envelope."""
+    text = "今天天气很好。我们一起去公园散步。"
+    r = driver("--stream", "--timing", "--core-type", "para.eval.cn", "--ref-text", text, "--audio",
+               audio("zh_para.wav"), "--chunk-bytes", "3200", "--pace-ms", "100")
+    summary = "mode=%s, connections=%s, attempts=%d" % (r.get("mode"), r.get("connections"), r["attempts"])
+    if not success_envelope(c, r, text):
+        return summary + ", reason=%s" % r.get("restReason")
+    c(r.get("mode") == "ws", "streamed over the WebSocket, not REST: %s" % r.get("restReason"))
+    pf = r.get("paramFrame") or {}
+    c("realtime_feedback" not in pf and pf.get("timing") == 1 and pf.get("idempotencyKey") == r["tokenId"],
+      "parameter frame without realtime_feedback, with timing: %r" % sorted(pf.keys()))
+    c(r.get("progress") == [], "no progress without realtime_feedback")
+    result = r["json"]["result"]
+    details = [d for s in (result.get("sentences") or []) if isinstance(s, dict) for d in (s.get("details") or [])]
+    c(len(details) > 0 and result == aligned(result), "paragraph details aligned as over REST")
+    detail = r.get("timingStages") or ""
+    c("wsFirstAudioAt=" in detail, "the timing object of the final frame: %r" % detail)
+    return "%s, overall=%s, details=%d, recordId=%s; %s; %s" % (summary, result.get("overall"), len(details),
+                                                                r["json"].get("recordId"), timing_line(c, r, "ws"),
+                                                                detail)
+
+
+CASES = [s_sentence, s_paragraph, s_attach_audio_url, s_realtime_progress, s_stream_paragraph, s_unknown_app_key,
          s_pinyin_without_ref_pinyin]
 
 

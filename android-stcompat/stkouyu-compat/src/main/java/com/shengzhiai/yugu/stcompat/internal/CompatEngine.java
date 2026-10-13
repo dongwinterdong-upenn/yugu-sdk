@@ -94,13 +94,21 @@ public final class CompatEngine {
         final Integer duration;
         final Integer durationInterval;
         /**
-         * RecordSetting.realtime_feedback is 1 on a recording or stream session: the round streams over
-         * the compat WebSocket and onScore also gets the eof 0 intermediate results (DESIGN 14.3).
+         * RecordSetting.realtime_feedback is 1 on a recording or stream session: onScore also gets
+         * the eof 0 intermediate results (DESIGN 14.3).
          */
         final boolean realtime;
+        /**
+         * A recording or stream session streams over the compat WebSocket while recording: always
+         * since 2.1.1, only with realtime_feedback after {@code YuguCompat.setStreamUpload(false)}.
+         */
+        final boolean streaming;
+        /** The log level was INFO or DEBUG at the start: requests carry timing=1 (SDK 2.1.1). */
+        final boolean timing;
+        final EvalTiming phases;
         final CancelToken token = new CancelToken();
         final WavStreamStripper stripper = new WavStreamStripper();
-        /** Realtime round, set before the session is published; null without realtime_feedback. */
+        /** Realtime round, set before the session is published; null when the session does not stream. */
         RealtimeRound round;
         volatile OnRecorderListener recorderListener;
         volatile OnRecordListener recordListener;
@@ -150,6 +158,9 @@ public final class CompatEngine {
             this.duration = setting.getDuration();
             this.durationInterval = setting.getDurationInterval();
             this.realtime = !fileMode && Integer.valueOf(1).equals(setting.getRealtime_feedback());
+            this.streaming = !fileMode && (realtime || CompatConfig.streamUpload());
+            this.timing = ServerTiming.wanted();
+            this.phases = new EvalTiming(tokenId);
             this.recorderListener = rl;
             this.recordListener = l;
         }
@@ -276,15 +287,30 @@ public final class CompatEngine {
     }
 
     private void applyLogSettings(EngineSetting es) {
+        applyLogOptions(es, context, false);
+        if (es.getEnableUploadLog()) {
+            YLog.warnOnce("uploadLog", "log upload is not available in the compat layer; logs stay on the device");
+        }
+    }
+
+    /**
+     * Log options of an EngineSetting: with SDKLogEnabled, logLevel 0, 1, 2 and 3 (and above) give
+     * ERROR, WARN, INFO and DEBUG unless {@code YuguCompat.setLogLevel} pinned a level;
+     * enableSaveLogCatToFile writes the log to {@code <externalFilesDir>/log/stkouyu_sdk.log}.
+     * initEngine applies them, and since 2.1.1 so does every change of these options, also after
+     * initEngine; switching SDKLogEnabled off then restores WARN.
+     *
+     * @param optionChanged called by an EngineSetting setter rather than by initEngine
+     */
+    public static void applyLogOptions(EngineSetting es, Context context, boolean optionChanged) {
         if (es.isSDKLogEnabled()) {
             int l = es.getLogLevel();
             YLog.setLevelFromSettings(l <= 0 ? YLog.ERROR : l == 1 ? YLog.WARN : l == 2 ? YLog.INFO : YLog.DEBUG);
+        } else if (optionChanged) {
+            YLog.clearLevelFromSettings();
         }
         if (es.getEnableSaveLogCatToFile()) {
-            LogFileSink.install(new File(new File(AiUtil.externalFilesDir(context), "log"), "stkouyu_sdk.log"));
-        }
-        if (es.getEnableUploadLog()) {
-            YLog.warnOnce("uploadLog", "log upload is not available in the compat layer; logs stay on the device");
+            LogFileSink.ensure(new File(new File(AiUtil.externalFilesDir(context), "log"), "stkouyu_sdk.log"));
         }
     }
 
@@ -357,9 +383,11 @@ public final class CompatEngine {
             session.vad = new EnergyVad(s.getSeek(), s.getRef_length());
             session.reportRecording = vadOn || s.isNeedSoundIntensity();
             session.vadAutoStop = vadOn && !s.isForceRecord();
-            if (session.realtime) {
+            if (session.streaming) {
                 // before the session is published, so every PCM byte also reaches the round
-                session.round = new RealtimeRound(roundConfig(session), progressListener(session), session.token);
+                session.round = new RealtimeRound(roundConfig(session),
+                        session.realtime ? progressListener(session) : null, session.token);
+                session.phases.streaming();
             }
             current = session;
             status = SkEgnManager.engine_status.RECORDING;
@@ -394,7 +422,8 @@ public final class CompatEngine {
             lastRecordPath = session.file.getAbsolutePath();
         }
         YLog.i("recording started tokenId=" + session.tokenId + " coreType=" + session.coreType
-                + (session.stream ? " (stream)" : "") + (session.realtime ? " (realtime_feedback)" : ""));
+                + (session.stream ? " (stream)" : "") + (session.realtime ? " (realtime_feedback)" : "")
+                + (session.streaming ? " (streaming upload)" : " (upload after stop)"));
         if (session.round != null) {
             session.round.start();
         }
@@ -590,6 +619,7 @@ public final class CompatEngine {
             status = SkEgnManager.engine_status.STOP;
             s.evaluating = true;
         }
+        s.phases.stop();
         stopTicks(s);
         if (s.capture != null) {
             s.capture.stop();
@@ -656,6 +686,7 @@ public final class CompatEngine {
             status = SkEgnManager.engine_status.STOP;
             s.evaluating = true;
         }
+        s.phases.stop();
         stopTicks(s);
         if (s.capture != null) {
             s.capture.stop();
@@ -686,6 +717,7 @@ public final class CompatEngine {
         if (s.cancelled) {
             return;
         }
+        s.phases.audioPcm(s.pcmBytes);
         YLog.i("recording ended tokenId=" + s.tokenId + " pcmBytes=" + s.pcmBytes);
         MainThread.post(new Runnable() {
             @Override
@@ -755,6 +787,8 @@ public final class CompatEngine {
                 lastRecordPath = s.getAudioPath();
             }
         }
+        // no recording to stop: the timing log counts from this call
+        session.phases.stop();
         if (timeout != null && timeout > 0) {
             session.readTimeoutOverrideMs = timeout <= 1000 ? timeout * 1000 : timeout;
         }
@@ -814,6 +848,7 @@ public final class CompatEngine {
                 return;
             }
         }
+        s.phases.audioFile(upload.length(), wavSeconds(upload, kind));
         try {
             evaluate(s, upload, kind);
         } finally {
@@ -821,6 +856,19 @@ public final class CompatEngine {
                 //noinspection ResultOfMethodCallIgnored
                 temp.delete();
             }
+        }
+    }
+
+    /** Duration of a WAV upload for the timing log, -1 for other formats or an unreadable header. */
+    private static double wavSeconds(File f, AudioFiles.Kind kind) {
+        if (!"audio/wav".equals(kind.contentType)) {
+            return -1;
+        }
+        try {
+            Wav.Info info = Wav.parse(f);
+            return info == null ? -1 : info.durationSeconds();
+        } catch (IOException e) {
+            return -1;
         }
     }
 
@@ -872,9 +920,13 @@ public final class CompatEngine {
 
     /**
      * Final envelope of a platform body: the REST answer and the final frame of the realtime
-     * channel are the same body and go through exactly this code (DESIGN 6.2 and 14.3).
+     * channel are the same body and go through exactly this code (DESIGN 6.2 and 14.3). The
+     * platform's timing object goes to the timing log and never into the app's JSON.
      */
     private void deliverResult(Session s, String body, String attempts, boolean replayed) {
+        ServerTiming.Split split = ServerTiming.split(body);
+        s.phases.serverBody(split.timing);
+        s.phases.replayed(replayed);
         String params = null;
         if (s.needParams) {
             params = Envelope.params(s.config.appKey, s.config.userId, System.currentTimeMillis(),
@@ -883,11 +935,12 @@ public final class CompatEngine {
         String json;
         try {
             json = Envelope.success(s.tokenId, s.config.appKey, s.config.userId, s.refText,
-                    body, params, System.currentTimeMillis());
+                    split.body, params, System.currentTimeMillis());
         } catch (IllegalArgumentException e) {
             deliverError(s, ErrorTable.PROTOCOL_ERROR, "invalid platform response: " + e.getMessage());
             return;
         }
+        s.phases.parsed();
         YLog.i("result tokenId=" + s.tokenId + " " + attempts + (replayed ? " replayed" : ""));
         deliverFinal(s, json);
     }
@@ -934,6 +987,7 @@ public final class CompatEngine {
             if (o.kind == RealtimeRound.Outcome.RESULT) {
                 deliverResult(s, o.body, "connections=" + o.connections, o.replayed);
             } else if (o.kind == RealtimeRound.Outcome.FALLBACK) {
+                s.phases.fallback(o.reason);
                 evaluate(s, s.file, RECORDING_KIND);
             }
         } finally {
@@ -952,6 +1006,9 @@ public final class CompatEngine {
         c.connectTimeoutMs = connectTimeoutMs(s);
         c.readTimeoutMs = readTimeoutMs(s);
         c.totalTimeoutMs = CompatConfig.totalTimeoutMs();
+        c.realtimeFeedback = s.realtime;
+        c.timing = s.timing;
+        c.phases = s.phases;
         return c;
     }
 
@@ -1001,7 +1058,9 @@ public final class CompatEngine {
         req.appKey = s.config.appKey;
         req.secretKey = s.config.secretKey;
         req.idempotencyKey = s.tokenId;
-        req.fields = s.fields;
+        // timing=1 goes to the platform only; params in the result keep the fields of 2.1.0
+        req.fields = ServerTiming.requestFields(s.fields, s.timing);
+        req.phases = s.phases;
         req.audioFile = audio;
         req.audioFilename = s.tokenId + "." + kind.extension;
         req.audioContentType = kind.contentType;
@@ -1038,10 +1097,14 @@ public final class CompatEngine {
 
     private void deliverError(Session s, int errId, String message) {
         YLog.w("evaluation failed tokenId=" + s.tokenId + " errId=" + errId + ": " + message);
+        s.phases.error(errId);
         deliverFinal(s, Envelope.error(s.tokenId, errId, message, s.config.appKey));
     }
 
-    /** Posts the final JSON; the session stops being busy right before the callback runs. */
+    /**
+     * Posts the final JSON; the session stops being busy right before the callback runs, and the
+     * timing summary is logged right before it too.
+     */
     private void deliverFinal(final Session s, final String json) {
         MainThread.post(new Runnable() {
             @Override
@@ -1053,6 +1116,8 @@ public final class CompatEngine {
                     s.evaluating = false;
                 }
                 s.finalDelivered = true;
+                s.phases.delivered();
+                s.phases.log();
                 OnRecorderListener r = s.recorderListener;
                 OnRecordListener rec = s.recordListener;
                 if (r != null) {

@@ -1,6 +1,6 @@
 //
 //  YGSTSupport.m
-//  STKouyuEngine 平替层：日志，全局设置，工具函数，请求组装与 HTTP 执行。
+//  STKouyuEngine 平替层：日志，全局设置，分段耗时，工具函数，请求组装与 HTTP 执行。
 //
 //  Copyright 2026 优谷雅言 open.shengzhiai.com
 //  SPDX-License-Identifier: Apache-2.0
@@ -30,6 +30,7 @@
         _logLevelOverride = NSNotFound;
         _maxRetries = 2;
         _totalTimeout = 300;
+        _streamUpload = YES;
         _configuredBaseURL = @YGST_DEFAULT_BASE_URL;
     }
     return self;
@@ -136,6 +137,55 @@ void YGSTLogf(NSInteger level, NSString *format, ...) {
     va_end(ap);
     YGSTLogEmit(level, msg);
 }
+
+// ------------------------------------------------------------------ per-phase timing (2.1.1)
+
+BOOL YGSTTimingWanted(void) {
+    return ygst_timing_wanted((int)YGSTLogLevel()) != 0;
+}
+
+@implementation YGSTTiming {
+    BOOL _logged;
+}
+
+- (instancetype)init {
+    if ((self = [super init])) ygst_timing_init(&_t);
+    return self;
+}
+
+- (void)takeTimingFromRoot:(ygst_span)root {
+    ygst_span obj;
+    if (ygst_timing_member(root, &_t, &obj) == 1 && obj.p) {
+        self.timingObject = [NSData dataWithBytes:obj.p length:obj.n];
+    }
+}
+
+- (void)logForToken:(NSString *)tokenId {
+    ygst_buf b;
+    if (_logged || _t.mode == YGST_TM_NONE || YGSTLogLevel() < YGST_LEVEL_INFO) return;
+    _logged = YES;
+    ygst_buf_init(&b);
+    if (ygst_timing_summary(&_t, YGSTNonEmpty(tokenId).UTF8String, &b) == 0) {
+        YGSTLogEmit(YGST_LEVEL_INFO, YGSTStringFromBuf(&b));
+    }
+    if (YGSTLogLevel() >= YGST_LEVEL_DEBUG) {
+        NSData *object = self.timingObject;
+        ygst_span span;
+        span.p = object.length ? (const char *)object.bytes : NULL;
+        span.n = object.length;
+        ygst_buf_reset(&b);
+        if (ygst_timing_phases(&_t, YGSTNonEmpty(tokenId).UTF8String, &b) == 0) {
+            YGSTLogEmit(YGST_LEVEL_DEBUG, YGSTStringFromBuf(&b));
+        }
+        ygst_buf_reset(&b);
+        if (ygst_timing_stages(span, YGSTNonEmpty(tokenId).UTF8String, &b) == 1) {
+            YGSTLogEmit(YGST_LEVEL_DEBUG, YGSTStringFromBuf(&b));
+        }
+    }
+    ygst_buf_free(&b);
+}
+
+@end
 
 // ------------------------------------------------------------------ helpers
 
@@ -285,6 +335,7 @@ NSString *YGSTResultJSON(YGSTUploadResult *result, NSString *tokenId, NSString *
 + (instancetype)requestWithBaseURL:(NSString *)baseURL
                           coreType:(NSString *)coreType
                             fields:(const ygst_fields *)fields
+                            timing:(BOOL)timing
                             secret:(NSString *)secret
                              audio:(NSData *)audio
                          extension:(NSString *)extension
@@ -296,6 +347,7 @@ NSString *YGSTResultJSON(YGSTUploadResult *result, NSString *tokenId, NSString *
     char filename[64];
     const char *ext = ygst_audio_ext(extension.UTF8String);
     ygst_buf body;
+    ygst_fields sent; /* the signed fields of this request: the evaluation's, plus timing=1 */
     int rc = -2;
     int tries;
     YGSTRequest *r;
@@ -303,7 +355,14 @@ NSString *YGSTResultJSON(YGSTUploadResult *result, NSString *tokenId, NSString *
         if (error) *error = @"platform URL is too long";
         return nil;
     }
-    if (ygst_sign(fields, YGSTNonEmpty(secret).UTF8String, sig) != 0) {
+    ygst_fields_init(&sent);
+    if (ygst_fields_copy(fields, &sent) != 0 || (timing && ygst_fields_set(&sent, "timing", "1") != 0)) {
+        ygst_fields_free(&sent);
+        if (error) *error = @"form fields: out of memory";
+        return nil;
+    }
+    if (ygst_sign(&sent, YGSTNonEmpty(secret).UTF8String, sig) != 0) {
+        ygst_fields_free(&sent);
         if (error) *error = @"request signing failed";
         return nil;
     }
@@ -314,9 +373,10 @@ NSString *YGSTResultJSON(YGSTUploadResult *result, NSString *tokenId, NSString *
         YGSTRandomBytes(rnd, sizeof rnd);
         ygst_multipart_boundary(rnd, boundary);
         ygst_buf_reset(&body);
-        rc = ygst_multipart_build(fields, boundary, "audio", filename, ygst_audio_content_type(ext),
+        rc = ygst_multipart_build(&sent, boundary, "audio", filename, ygst_audio_content_type(ext),
                                   (const unsigned char *)audio.bytes, audio.length, &body);
     }
+    ygst_fields_free(&sent);
     if (rc != 0) {
         ygst_buf_free(&body);
         if (error) *error = @"multipart body could not be built";
@@ -340,6 +400,89 @@ NSString *YGSTResultJSON(YGSTUploadResult *result, NSString *tokenId, NSString *
 
 // ------------------------------------------------------------------ HTTP
 
+/// The REST split of one attempt from NSURLSessionTaskMetrics, -1 when unknown.
+typedef struct {
+    long upload_ms;
+    long wait_ms;
+    long download_ms;
+    long long wire_bytes;
+    long long body_bytes;
+} YGSTRestSplit;
+
+static long YGSTMillisBetween(NSDate *from, NSDate *to) {
+    NSTimeInterval d;
+    if (!from || !to) return -1;
+    d = [to timeIntervalSinceDate:from];
+    return d >= 0 ? (long)(d * 1000.0 + 0.5) : -1;
+}
+
+/// Request start (fetch) to the last byte sent, to the first byte of the response, to its last
+/// byte, from the transaction that produced the response. The byte counts need iOS 13.
+static YGSTRestSplit YGSTRestSplitFromMetrics(NSURLSessionTaskMetrics *metrics) {
+    YGSTRestSplit split = {-1, -1, -1, -1, -1};
+    NSURLSessionTaskTransactionMetrics *tx = metrics.transactionMetrics.lastObject;
+    if (!tx) return split;
+    split.upload_ms = YGSTMillisBetween(tx.fetchStartDate, tx.requestEndDate);
+    split.wait_ms = YGSTMillisBetween(tx.requestEndDate, tx.responseStartDate);
+    split.download_ms = YGSTMillisBetween(tx.responseStartDate, tx.responseEndDate);
+    if (@available(iOS 13.0, macOS 10.15, *)) {
+        split.wire_bytes = tx.countOfResponseBodyBytesReceived;
+        split.body_bytes = tx.countOfResponseBodyBytesAfterDecoding;
+    }
+    return split;
+}
+
+/// Delegate of the shared session: hands the metrics of a task to the uploader that registered for
+/// it. Completion-handler tasks still get this callback, before or after their completion handler,
+/// on the session's serial delegate queue.
+@interface YGSTSessionDelegate : NSObject <NSURLSessionTaskDelegate>
+- (void)setMetricsHandler:(nullable void (^)(NSURLSessionTaskMetrics *metrics))handler forTask:(NSURLSessionTask *)task;
+@end
+
+@implementation YGSTSessionDelegate {
+    NSMutableDictionary<NSNumber *, void (^)(NSURLSessionTaskMetrics *)> *_handlers;
+}
+
+- (instancetype)init {
+    if ((self = [super init])) _handlers = [NSMutableDictionary dictionary];
+    return self;
+}
+
+- (void)setMetricsHandler:(void (^)(NSURLSessionTaskMetrics *))handler forTask:(NSURLSessionTask *)task {
+    NSNumber *key = @(task.taskIdentifier);
+    @synchronized(self) {
+        if (handler) {
+            _handlers[key] = [handler copy];
+        } else {
+            [_handlers removeObjectForKey:key];
+        }
+    }
+}
+
+- (void)URLSession:(NSURLSession *)session
+                          task:(NSURLSessionTask *)task
+    didFinishCollectingMetrics:(NSURLSessionTaskMetrics *)metrics {
+    NSNumber *key = @(task.taskIdentifier);
+    void (^handler)(NSURLSessionTaskMetrics *);
+    (void)session;
+    @synchronized(self) {
+        handler = _handlers[key];
+        [_handlers removeObjectForKey:key];
+    }
+    if (handler) handler(metrics);
+}
+
+@end
+
+static YGSTSessionDelegate *YGSTSharedSessionDelegate(void) {
+    static YGSTSessionDelegate *delegate;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        delegate = [[YGSTSessionDelegate alloc] init];
+    });
+    return delegate;
+}
+
 NSURLSession *YGSTSharedURLSession(void) {
     static NSURLSession *session;
     static dispatch_once_t once;
@@ -351,7 +494,8 @@ NSURLSession *YGSTSharedURLSession(void) {
         c.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
         c.timeoutIntervalForRequest = 60;
         c.timeoutIntervalForResource = 600;
-        session = [NSURLSession sessionWithConfiguration:c];
+        // the delegate only collects task metrics (2.1.1); bodies still go to the completion handlers
+        session = [NSURLSession sessionWithConfiguration:c delegate:YGSTSharedSessionDelegate() delegateQueue:nil];
     });
     return session;
 }
@@ -436,6 +580,7 @@ NSString *YGSTLocalMessageForError(NSError *error) {
     NSURLSession *_session;
     dispatch_queue_t _queue;
     NSURLSessionTask *_task;
+    NSURLSessionTask *_lastTask; /* the attempt whose metrics count, kept after it finished */
     BOOL _cancelled;
     ygst_call _call;
     NSURL *_url;
@@ -493,6 +638,7 @@ NSString *YGSTLocalMessageForError(NSError *error) {
 - (void)attempt {
     NSMutableURLRequest *req;
     NSURLSessionUploadTask *task;
+    YGSTTiming *timing = _timing;
     if (_cancelled) return;
     req = [NSMutableURLRequest requestWithURL:_url
                                   cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
@@ -510,21 +656,57 @@ NSString *YGSTLocalMessageForError(NSError *error) {
     task = [_session uploadTaskWithRequest:req
                                   fromData:_body
                          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                             int64_t done = YGSTMonotonicMs();
                              dispatch_async(self->_queue, ^{
-                                 [self attemptFinished:data response:response error:error];
+                                 [self attemptFinished:data response:response error:error at:done];
                              });
                          }];
     _task = task;
+    _lastTask = task;
+    if (timing) {
+        __weak YGSTUploader *weakSelf = self;
+        dispatch_queue_t queue = _queue;
+        timing->_t.rest_start_ms = YGSTMonotonicMs();
+        timing->_t.rest_done_ms = 0;
+        timing->_t.upload_ms = timing->_t.wait_ms = timing->_t.download_ms = -1;
+        timing->_t.wire_bytes = timing->_t.body_bytes = -1;
+        timing->_t.upload_bytes = (long long)_body.length;
+        [YGSTSharedSessionDelegate() setMetricsHandler:^(NSURLSessionTaskMetrics *metrics) {
+            YGSTRestSplit split = YGSTRestSplitFromMetrics(metrics);
+            dispatch_async(queue, ^{
+                [weakSelf takeSplit:split ofTask:task];
+            });
+        }
+                                               forTask:task];
+        // the metrics come with the completion and remove the handler; one that never fired goes once
+        // the session's resource timeout (600 s) has ended every task
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)610 * (int64_t)NSEC_PER_SEC),
+                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                           [YGSTSharedSessionDelegate() setMetricsHandler:nil forTask:task];
+                       });
+    }
     [task resume];
 }
 
-- (void)attemptFinished:(NSData *)data response:(NSURLResponse *)response error:(NSError *)error {
+/// The metrics of an attempt, before or after its completion handler; only the latest attempt counts.
+- (void)takeSplit:(YGSTRestSplit)split ofTask:(NSURLSessionTask *)task {
+    YGSTTiming *timing = _timing;
+    if (!timing || task != _lastTask) return;
+    timing->_t.upload_ms = split.upload_ms;
+    timing->_t.wait_ms = split.wait_ms;
+    timing->_t.download_ms = split.download_ms;
+    if (split.wire_bytes >= 0) timing->_t.wire_bytes = split.wire_bytes;
+    if (split.body_bytes >= 0) timing->_t.body_bytes = split.body_bytes;
+}
+
+- (void)attemptFinished:(NSData *)data response:(NSURLResponse *)response error:(NSError *)error at:(int64_t)done {
     ygst_outcome o;
     ygst_classification c;
     ygst_action a;
     NS_VALID_UNTIL_END_OF_SCOPE NSString *localMessage = nil;
     NSHTTPURLResponse *http = nil;
     BOOL replayed = NO;
+    YGSTTiming *timing = _timing;
     _task = nil;
     if (_cancelled) return;
     memset(&o, 0, sizeof o);
@@ -552,6 +734,20 @@ NSString *YGSTLocalMessageForError(NSError *error) {
     ygst_classification_init(&c);
     ygst_classify(&o, &c);
     a = ygst_call_next(&_call, &c, o.retry_after_ms, YGSTMonotonicMs());
+    if (timing) {
+        // 2.1.1: the platform's share from Server-Timing, or from the timing object of the body
+        NSString *serverTiming = YGSTHeader(http, @"Server-Timing");
+        NSString *encoding = YGSTHeader(http, @"Content-Encoding");
+        timing->_t.rest_done_ms = done;
+        timing->_t.attempts = _call.total_attempts;
+        timing->_t.replayed = replayed;
+        snprintf(timing->_t.encoding, sizeof timing->_t.encoding, "%s",
+                 encoding.length < sizeof timing->_t.encoding ? YGSTNonEmpty(encoding).UTF8String : "");
+        if (http && timing->_t.body_bytes < 0) timing->_t.body_bytes = (long long)data.length;
+        timing->_t.server_total_ms = timing->_t.server_engine_ms = timing->_t.server_platform_ms = -1;
+        if (serverTiming.length) ygst_server_timing_parse(serverTiming.UTF8String, &timing->_t);
+        if (c.success) [timing takeTimingFromRoot:c.root];
+    }
     if (a.kind == YGST_ACT_RETRY) {
         NSString *what = o.local_code ? [NSString stringWithFormat:@"local %d", o.local_code]
                                       : [NSString stringWithFormat:@"HTTP %d code=%d", o.http_status, c.biz_code];

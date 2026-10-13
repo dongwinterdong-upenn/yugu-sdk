@@ -11,6 +11,11 @@ eof 0 progress with incremental words, REST fallback before end, reconnect and r
 heartbeat, result timeout), asserts on the driver output and on the mock's /__mock/log and
 /__mock/billing, writes a JUnit report and stops the mock server in every case.
 
+2.1.1: the default stream round without realtime_feedback (no progress asked for, REST fallback
+with the same tokenId), timing=1 and "timing":1 only at log level INFO, and the per-phase summary
+line. The Server-Timing header and the platform timing object are not in the shared mock, so
+those scenarios run against timing_server.py next to this file (BRIEF 2.1.1 rule 5).
+
   run_it.py --driver build/it_driver --mock ../tools/mock-server/server.mjs --spec ../spec
             [--junit it.xml] [--log it.log]
 """
@@ -28,7 +33,9 @@ import urllib.request
 
 ARGS = None
 PORT = None
+TIMING_PORT = None
 LOG_LINES = []
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def log(msg):
@@ -60,8 +67,16 @@ def billing():
     return http("GET", "/__mock/billing")
 
 
-def driver(*extra):
-    cmd = [ARGS.driver, "--port", str(PORT)] + [str(x) for x in extra]
+def timing_server(method, path, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request("http://127.0.0.1:%d%s" % (TIMING_PORT, path), data=data, method=method,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read().decode() or "null")
+
+
+def driver(*extra, port=None):
+    cmd = [ARGS.driver, "--port", str(port or PORT)] + [str(x) for x in extra]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if p.returncode != 0:
         raise AssertionError("driver exit %d: %s" % (p.returncode, p.stderr))
@@ -149,7 +164,7 @@ def s_success_envelope(c):
         c(e["idempotencyKey"] == r["tokenId"], "Idempotency-Key is the tokenId")
         c(e.get("fields") == {"refText": "今天天气很好", "phoneme_output": "1"}, "form fields %r" % e.get("fields"))
         c(e["contentType"].startswith("multipart/form-data; boundary=----YuguSTCompat"), "multipart content type")
-        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.1.0", "User-Agent %r" % e["userAgent"])
+        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.1.1", "User-Agent %r" % e["userAgent"])
     b = billing()
     c(b["billed"] == 1 and b["byKey"].get(r["tokenId"]) == 1, "billed once %r" % b)
 
@@ -664,6 +679,149 @@ def s_realtime_too_short(c):
     c(billing()["billed"] == 0, "nothing evaluated")
 
 
+# ------------------------------------------------------------------ stream upload and timing (2.1.1)
+
+ENVELOPE_KEYS = ["tokenId", "recordId", "applicationId", "userId", "refText", "eof", "dtLastResponse", "result"]
+SUMMARY = re.compile(r"^timing tokenId=([0-9a-f]{32}) mode=(rest|ws|ws>rest) audio=\S+ afterStop=\S+ upload=\S+ "
+                     r"wait=\S+ download=\S+ parse=\S+ deliver=\S+ ")
+
+
+def summary_fields(line):
+    """The key=value members of the INFO line (the format of the Android drop-in); markers such as
+    deflate, gzip or replayed map to True."""
+    out = {}
+    for kv in re.findall(r'(\S+?)=("[^"]*"|\S+)|(?<= )([a-z]+)(?= |$)', line):
+        if kv[0]:
+            out[kv[0]] = kv[1]
+        elif kv[2]:
+            out[kv[2]] = True
+    return out
+
+
+def check_summary(c, r, mode):
+    line = r.get("timing") or ""
+    m = SUMMARY.match(line)
+    c(m is not None and m.group(1) == r["tokenId"] and m.group(2) == mode, "summary line %r" % line)
+    return summary_fields(line) if m else {}
+
+
+def s_stream_default(c):
+    """2.1.1: a recording streams over the compat WebSocket without realtime_feedback: the parameter
+    frame has no realtime_feedback key, the platform sends only the final, the envelope is the REST one."""
+    reset()
+    r = driver("--stream", "--audio", audio("zh_progress.wav"), "--ref-text", ZH_TEXT, "--chunk-bytes", "6400",
+               "--pace-ms", "10")
+    c(r["outcome"] == "result" and r.get("mode") == "ws" and r["connections"] == 1, "streamed %r" % {
+        k: r.get(k) for k in ("outcome", "mode", "restReason", "connections")})
+    pf = r.get("paramFrame") or {}
+    c(pf == {"refText": ZH_TEXT, "phoneme_output": "1", "idempotencyKey": r["tokenId"]},
+      "parameter frame = the REST form fields plus idempotencyKey, no realtime_feedback, no timing %r" % pf)
+    c(r["progress"] == [] and r["held"] == 0, "no progress asked for, none delivered")
+    j = r["json"]
+    c(list(j.keys()) == ENVELOPE_KEYS and j.get("result") == aligned(fixture_result("compat_sent.eval.cn.json")),
+      "final envelope as REST %r" % list(j.keys()))
+    entries = mock_log()
+    c([(e.get("method"), e.get("idempotencyKey")) for e in entries] == [("WS", r["tokenId"])], "one round %r" % entries)
+    b = billing()
+    c(b["billed"] == 1 and b["records"][0]["op"] == "ws-compat" and b["records"][0]["bytes"] == pcm_len("zh_progress.wav"),
+      "billed once, every byte streamed %r" % b)
+    f = check_summary(c, r, "ws")
+    c("connections" not in f and "errId" not in f and f.get("final", "-").endswith("B") and f.get("wire") == f.get("final")
+      and f.get("audio") == "%.2fs" % (pcm_len("zh_progress.wav") / 32000.0), "summary members %r" % f)
+    c(f.get("queued") == "0B" and f.get("handshake", "-") != "-" and f.get("upload", "-") != "-", "phases %r" % f)
+    c("server.total" not in f, "the mock reports no server timing")
+
+
+def s_stream_refused_rest(c):
+    """2.1.1 fallback: the handshake is refused, the recording goes over REST after stop, same tokenId."""
+    reset()
+    faults(("/sent.eval.cn", "ws-refuse"))
+    r = driver("--stream", "--audio", audio("zh_progress.wav"), "--ref-text", ZH_TEXT, "--chunk-bytes", "6400",
+               "--pace-ms", "5")
+    c(r["outcome"] == "result" and r.get("mode") == "rest" and "refused" in r.get("restReason", ""),
+      "REST after the refused handshake %r" % r.get("restReason"))
+    entries = mock_log()
+    c([(e["method"], e.get("rejected"), e.get("idempotencyKey")) for e in entries] ==
+      [("WS", 503, r["tokenId"]), ("POST", None, r["tokenId"])], "one tokenId %r" % entries)
+    c(billing()["billed"] == 1, "billed once")
+    f = check_summary(c, r, "ws>rest")
+    c(f.get("attempts") == "1" and f.get("upload", "-") != "-" and f.get("sent", "-") != "-", "REST part %r" % f)
+    c("refused" in f.get("fallback", ""), "the fallback reason %r" % f.get("fallback"))
+
+
+def s_timing_only_at_info(c):
+    """timing=1 (REST, signed with the other fields) and "timing":1 (parameter frame) only at INFO:
+    the mock accepts both, ignores them, and the envelope stays the 2.1.0 one."""
+    reset()
+    r = driver("--timing", "--audio", audio("zh_short.wav"), "--get-param")
+    c(r["outcome"] == "result", "signed with timing=1 %r" % r["json"].get("error"))
+    e = entries_for(r["tokenId"])
+    c(len(e) == 1 and e[0].get("fields", {}).get("timing") == "1", "timing=1 sent %r" % e)
+    c("timing" not in json.dumps(r["json"]["params"]), "params of the result JSON never show timing")
+    r2 = driver("--audio", audio("zh_short.wav"))
+    e2 = entries_for(r2["tokenId"])
+    c(len(e2) == 1 and "timing" not in e2[0].get("fields", {}), "no timing field below INFO %r" % e2)
+    r3 = driver("--stream", "--timing", "--audio", audio("zh_progress.wav"), "--ref-text", ZH_TEXT, "--chunk-bytes",
+                "32000")
+    pf = r3.get("paramFrame") or {}
+    c(r3["outcome"] == "result" and list(pf.keys()) == ["refText", "phoneme_output", "timing", "idempotencyKey"] and
+      pf.get("timing") == 1, "parameter frame with \"timing\":1 %r" % pf)
+    r4 = driver("--realtime", "--timing", "--audio", audio("zh_progress.wav"), "--ref-text", ZH_TEXT, "--chunk-bytes",
+                "32000")
+    pf = r4.get("paramFrame") or {}
+    c(list(pf.keys()) == ["refText", "phoneme_output", "realtime_feedback", "timing", "idempotencyKey"],
+      "realtime_feedback and timing together %r" % pf)
+
+
+def s_server_timing_rest(c):
+    """Server-Timing on every REST response, the timing object only with timing=1, never in the envelope."""
+    timing_server("POST", "/__ctl/reset")
+    r = driver("--timing", "--audio", audio("zh_short.wav"), port=TIMING_PORT)
+    j = r["json"]
+    c(r["outcome"] == "result" and list(j.keys()) == ENVELOPE_KEYS, "envelope keys %r" % list(j.keys()))
+    c("timing" not in j and "receivedAt" not in json.dumps(j), "the timing object never reaches the app")
+    f = check_summary(c, r, "rest")
+    c((f.get("server.total"), f.get("server.engine"), f.get("server.platform")) == ("321ms", "300ms", "21ms"),
+      "server timing %r" % f)
+    c(f.get("body", "").endswith("B") and f.get("download", "-") != "-" and f.get("afterStop", "-") != "-",
+      "phases %r" % f)
+    d = r.get("timingStages", "")
+    c(d.startswith("timing tokenId=%s engineStages text_frontend_ms=12.5 asr_ms=33.0 pipeline_total_ms=290.0 "
+                   "receivedAt=" % r["tokenId"]) and "wsFirstAudioAt" not in d, "engine stages %r" % d)
+    c(" requestStart=+" in r.get("timingPhases", ""), "phases line %r" % r.get("timingPhases"))
+    log_entries = timing_server("GET", "/__ctl/log")
+    c(log_entries and log_entries[-1]["fields"].get("timing") == "1", "timing=1 reached the server")
+    # without timing=1 the header alone still gives the platform's share
+    r = driver("--audio", audio("zh_short.wav"), port=TIMING_PORT)
+    f = check_summary(c, r, "rest")
+    c(f.get("server.total") == "321ms", "Server-Timing without timing=1 %r" % f)
+    c(r.get("timingStages") == "", "no timing object without timing=1")
+
+
+def s_server_timing_ws(c):
+    """The WebSocket final with "timing" (wsFirstAudioAt): server times in the summary, not in the envelope."""
+    timing_server("POST", "/__ctl/reset")
+    r = driver("--stream", "--timing", "--audio", audio("zh_progress.wav"), "--chunk-bytes", "6400", "--pace-ms", "5",
+               port=TIMING_PORT)
+    j = r["json"]
+    c(r["outcome"] == "result" and r.get("mode") == "ws" and list(j.keys()) == ENVELOPE_KEYS, "streamed %r" % r.get("mode"))
+    c("timing" not in j, "the timing object never reaches the app")
+    f = check_summary(c, r, "ws")
+    c(f.get("server.total") == "321ms" and f.get("queued") == "0B", "summary %r" % f)
+    d = r.get("timingPhases", "")
+    c(all(k in d for k in (" connect=+", " handshake=+", " params=+", " firstAudio=+", " stop=+", " endWritten=+",
+                           " final=+", " parsed=+", " delivered=+")), "phases %r" % d)
+    d = r.get("timingStages", "")
+    c("wsFirstAudioAt=" in d and "audioBytes=%d" % pcm_len("zh_progress.wav") in d, "engine stages %r" % d)
+    entry = timing_server("GET", "/__ctl/log")[-1]
+    c(entry["params"].get("timing") == 1 and "realtime_feedback" not in entry["params"], "parameter frame %r" % entry["params"])
+    # below INFO: no timing asked for, the WebSocket has no header, the server share is unknown
+    r = driver("--stream", "--audio", audio("zh_progress.wav"), "--chunk-bytes", "32000", port=TIMING_PORT)
+    f = check_summary(c, r, "ws")
+    c("server.total" not in f and "timing" not in timing_server("GET", "/__ctl/log")[-1]["params"],
+      "no timing without INFO %r" % f)
+
+
 SCENARIOS = [
     s_success_envelope, s_word_params_custom, s_attach_audio_url, s_retry_500_same_key, s_retry_429_retry_after, s_timeout_then_replay,
     s_slow_inflight_replay, s_inflight_conflict_40901, s_nonce_reuse_rejected, s_no_retry_400, s_retries_exhausted, s_auto_retry, s_auto_retry_custom_errid, s_drop_then_success,
@@ -673,6 +831,7 @@ SCENARIOS = [
     s_realtime_kill_after_end_reconnect, s_realtime_retries_exhausted, s_realtime_error_not_retryable,
     s_realtime_progress_mismatch, s_realtime_progress_off, s_realtime_heartbeat, s_realtime_result_timeout_replay,
     s_realtime_too_short,
+    s_stream_default, s_stream_refused_rest, s_timing_only_at_info, s_server_timing_rest, s_server_timing_ws,
 ]
 
 
@@ -693,7 +852,7 @@ def write_junit(path, results):
 
 
 def main():
-    global ARGS, PORT
+    global ARGS, PORT, TIMING_PORT
     ap = argparse.ArgumentParser()
     ap.add_argument("--driver", required=True)
     ap.add_argument("--mock", required=True)
@@ -704,10 +863,13 @@ def main():
     ARGS = ap.parse_args()
     proc = subprocess.Popen([ARGS.node, ARGS.mock, "--port", "0", "--processing-ms", "50"], stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True)
+    timing_proc = subprocess.Popen([sys.executable, os.path.join(HERE, "timing_server.py"), "--port", "0"],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     results = []
 
     def stop_mock(signum, frame):  # noqa: ARG001 - signal handler signature
         proc.terminate()
+        timing_proc.terminate()
         raise SystemExit(128 + signum)
 
     signal.signal(signal.SIGTERM, stop_mock)
@@ -716,6 +878,8 @@ def main():
         line = proc.stdout.readline()
         PORT = json.loads(line)["port"]
         log("mock platform listening on 127.0.0.1:%d (pid %d)" % (PORT, proc.pid))
+        TIMING_PORT = json.loads(timing_proc.stdout.readline())["port"]
+        log("timing server listening on 127.0.0.1:%d (pid %d)" % (TIMING_PORT, timing_proc.pid))
         for fn in SCENARIOS:
             c = Check()
             t0 = time.time()
@@ -729,13 +893,15 @@ def main():
             for f in c.failures:
                 log("     " + f.replace("\n", "\n     "))
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
-        log("mock platform stopped (exit %s)" % proc.returncode)
+        for p in (proc, timing_proc):
+            p.terminate()
+            try:
+                p.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                p.kill()
+                p.wait()
+        log("mock platform stopped (exit %s), timing server stopped (exit %s)" % (proc.returncode,
+                                                                                   timing_proc.returncode))
     failed = [r for r in results if r["failures"]]
     log("integration: %d scenarios, %d failed, %d checks" % (len(results), len(failed),
                                                              sum(r["checks"] for r in results)))

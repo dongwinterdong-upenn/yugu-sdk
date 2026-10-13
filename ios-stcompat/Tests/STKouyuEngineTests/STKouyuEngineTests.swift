@@ -120,7 +120,7 @@ final class SwiftSurfaceTests: XCTestCase {
     }
 
     func testYuguCompatSettings() {
-        XCTAssertEqual(YuguCompat.sdkVersion, "2.1.0")
+        XCTAssertEqual(YuguCompat.sdkVersion, "2.1.1")
         XCTAssertEqual(YuguCompat.defaultBaseURL, "https://open.shengzhiai.com")
         YuguCompat.baseURL = "ftp://nope"
         XCTAssertNil(YuguCompat.baseURL)
@@ -133,6 +133,11 @@ final class SwiftSurfaceTests: XCTestCase {
         YuguCompat.maxRetries = 2
         YuguCompat.setLogLevel(.debug)
         YuguCompat.resetLogLevel()
+        // 2.1.1: streaming while recording is the default, false is the 2.1.0 upload after stop
+        XCTAssertTrue(YuguCompat.streamUpload)
+        YuguCompat.streamUpload = false
+        XCTAssertFalse(YuguCompat.streamUpload)
+        YuguCompat.streamUpload = true
     }
 }
 
@@ -206,6 +211,129 @@ final class RealtimeFeedbackTests: XCTestCase {
         XCTAssertNil(YGSTCheckRealtimeCancel(base, spec, 30))
     }
 }
+
+/// 2.1.1 stream upload against the mock platform through the Objective-C API: a stream session goes
+/// over the compat WebSocket while it is fed (no progress without realtime_feedback), streamUpload
+/// false restores the upload after stop, a refused handshake falls back with the same tokenId, and the
+/// documented log switch (sdkLogEnable, logLevel 2) writes one timing line per evaluation.
+final class StreamUploadTests: XCTestCase {
+    private func mock() throws -> (String, String) {
+        let env = ProcessInfo.processInfo.environment
+        guard let base = env["YUGU_MOCK_BASE_URL"], let spec = env["YUGU_SPEC_DIR"] else {
+            throw XCTSkip("YUGU_MOCK_BASE_URL and YUGU_SPEC_DIR are not set")
+        }
+        return (base, spec)
+    }
+
+    func testStreamingIsTheDefault() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckStreamUploadDefault(base, spec, 30))
+    }
+
+    func testStreamUploadOffUploadsAfterStop() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckStreamUploadOff(base, spec, 30))
+    }
+
+    func testRefusedHandshakeFallsBackWithTheSameTokenId() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckStreamRefusedFallsBack(base, spec, 30))
+    }
+
+    func testRealtimeFeedbackStreamsWithStreamUploadOff() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckRealtimeWithStreamUploadOff(base, spec, 30))
+    }
+
+    func testLogLevelInfoWritesTheTimingLine() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckLogLevelInfoTiming(base, spec, 30))
+    }
+}
+
+#if os(macOS)
+/// 2.1.1 against core-tests/integration/timing_server.py, which has what the shared mock platform
+/// lacks: the Server-Timing header, the timing object, gzip bodies, and permessage-deflate framed the
+/// way the platform's Tomcat frames it (compressed with context takeover, fragments of 8 KB). It
+/// prints what URLSessionWebSocketTask offered and how the final went over the wire. macOS only:
+/// the iOS simulator cannot start the Python process.
+final class TimingAndCompressionTests: XCTestCase {
+    private static var server: Process?
+    private static var baseURL: String?
+    private static var startError = "timing_server.py did not start"
+
+    override class func setUp() {
+        super.setUp()
+        let pkg = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let process = Process()
+        let out = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["python3", pkg.appendingPathComponent("core-tests/integration/timing_server.py").path,
+                             "--port", "0"]
+        process.standardOutput = out
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            startError = "python3 timing_server.py: \(error)"
+            return
+        }
+        server = process
+        var head = Data()
+        while !head.contains(UInt8(ascii: "\n")) {
+            let chunk = out.fileHandleForReading.availableData
+            if chunk.isEmpty { break }
+            head.append(chunk)
+        }
+        let line = Data(head.prefix(while: { $0 != UInt8(ascii: "\n") }))
+        if let o = try? JSONSerialization.jsonObject(with: line) as? [String: Any], let port = o["port"] as? Int {
+            baseURL = "http://127.0.0.1:\(port)"
+        } else {
+            startError = "timing_server.py printed no port: " + String(decoding: head, as: UTF8.self)
+        }
+    }
+
+    override class func tearDown() {
+        server?.terminate()
+        server?.waitUntilExit()
+        server = nil
+        super.tearDown()
+    }
+
+    private func environment() -> (String, String)? {
+        guard let base = Self.baseURL else {
+            XCTFail(Self.startError)
+            return nil
+        }
+        let here = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let spec = ProcessInfo.processInfo.environment["YUGU_SPEC_DIR"]
+            ?? here.appendingPathComponent("../../../spec").standardized.path
+        return (base, spec)
+    }
+
+    func testWebSocketFinalCompressedByTheServer() {
+        guard let env = environment() else { return }
+        var report: NSString?
+        XCTAssertNil(YGSTCheckTimingServerWebSocket(env.0, env.1, true, 60, &report))
+        print("permessage-deflate: " + ((report as String?) ?? "-"))
+    }
+
+    func testWebSocketFinalWithoutCompression() {
+        guard let env = environment() else { return }
+        var report: NSString?
+        XCTAssertNil(YGSTCheckTimingServerWebSocket(env.0, env.1, false, 60, &report))
+        print("permessage-deflate: " + ((report as String?) ?? "-"))
+    }
+
+    func testRestGzipServerTimingAndMetrics() {
+        guard let env = environment() else { return }
+        var report: NSString?
+        XCTAssertNil(YGSTCheckTimingServerRest(env.0, env.1, 60, &report))
+        print("REST timing: " + ((report as String?) ?? "-"))
+    }
+}
+#endif
 
 final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
     private var engine: KYTestEngine!

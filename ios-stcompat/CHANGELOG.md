@@ -2,6 +2,29 @@
 
 STKouyuEngine 声通 iOS 平替包的版本记录。版本号遵循语义化版本，包地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`。
 
+## `2.1.1` 2026-10-13
+
+### 新增
+
+1. 边录边传。录音模式与 16 kHz 16 位单声道 PCM 的 feed 模式默认在录音过程中经声通兼容实时评测接口上传音频，`stopEngine` 之后只需发出最后一小段音频与结束帧，不再等录音结束后整段上传。`YuguCompat.streamUpload` 默认 YES，设为 NO 时与 `2.1.0` 相同。结束帧发出之前连接失败时，`stopEngine` 之后用同一个 tokenId 整段上传评测，日志级别为 warn 时打印失败原因。
+2. 分段耗时日志。日志级别为 info 或 debug 时，每次评测在结果回调开始之后打印一行 `timing`：上传方式，音频时长，结束录音到回调的总耗时，上传，等待，下载，解析与回调各段耗时，结果的字节数，以及平台侧的总耗时，引擎耗时与平台其余耗时。debug 级别另外打印各阶段时刻与评测引擎各环节耗时。字段与安卓平替层相同，说明见 README 的日志一节。
+3. info 与 debug 级别下整段评测的请求带 `timing=1`，实时评测的参数帧带 `"timing":1`，平台在结果里附上平台侧耗时，平替包读取之后从结果中去掉，应用收到的结果 JSON 与 `2.1.0` 相同。整段评测另外读取响应头 `Server-Timing`。
+4. 整段评测的分段耗时取自 NSURLSessionTaskMetrics，含请求体发完，收到第一个字节与收齐结果的时刻，以及结果压缩前后的字节数。
+5. C 接口 `skegn_new` 的 cfg 里 `sdkLog.level` 也接受 `error`，`warn`，`info`，`debug` 这几个名称，取值为空或不是数字时按 warn 处理。
+
+### 变更
+
+1. 版本号 `2.1.1`。`YuguCompat.sdkVersion` 为 `2.1.1`，User-Agent 为 `yugu-ios-stcompat-sdk/2.1.1`，`STKouyuEngineVersionNumber` 仍为 2.1。
+2. 不打开 `realtime_feedback` 的录音与 feed 评测也经实时评测接口上传，参数帧不带 `realtime_feedback`，平台不下发进度，结果回调只收到终评 JSON，与 `2.1.0` 的终评 JSON 相同。打开 `realtime_feedback` 时的回调与 `2.1.0` 相同。
+3. 整段评测共用的 NSURLSession 设置了代理，只用于收集 NSURLSessionTaskMetrics，请求内容与回调不变。
+4. warn 级别下的日志与 `2.1.0` 相同，评测成功时不打印。
+
+### 已知限制
+
+1. 边录边传需要 iOS 13，iOS 12 上照旧整段上传。`audioPath` 模式与其他格式的 feed 照旧整段上传。C 接口 `skegn_*` 照旧在 `skegn_stop` 之后整段上传。
+2. 边录边传的终评帧由系统的 NSURLSessionWebSocketTask 自行协商 `permessage-deflate` 压缩，平替包不另写 WebSocket 实现。系统是否提出由 iOS 版本决定，协商成功时分段耗时日志带 `deflate`。系统不报告终评帧在网络上的字节数。
+3. Objective-C 层的 `2.1.1` 改动在 Linux 上通过了语法与类型检查，macOS 与 iOS 模拟器上的构建与测试，以及真机上的边录边传，验证情况见 README 的验证状态一节。
+
 ## `2.1.0` 2026-10-12
 
 ### 新增

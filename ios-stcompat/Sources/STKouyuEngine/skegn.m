@@ -5,7 +5,7 @@
 //  skegn_new 读取 cfg JSON 的 appKey、secretKey 与 cloud.server；skegn_start 读取 param JSON
 //  的 app、audio 与 request；feed 收集音频；skegn_stop 后用与 KYTestEngine 相同的请求、重试与
 //  结果 JSON 评测，结果经 callback(usrdata, tokenId, SKEGN_MESSAGE_TYPE_JSON, json, size)
-//  在内部队列回调。
+//  在内部队列回调。日志级别为 info 时每次评测之后打印一行分段耗时（2.1.1）。
 //
 //  Copyright 2026 优谷雅言 open.shengzhiai.com
 //  SPDX-License-Identifier: Apache-2.0
@@ -77,6 +77,8 @@ static NSString *YGSTSkegnFieldText(id value) {
 @property (nonatomic, strong) YGSTUploader *uploader;
 @property (nonatomic) skegn_callback callback;
 @property (nonatomic) const void *usrdata;
+/// The phases of this evaluation (2.1.1), written on the engine queue.
+@property (nonatomic, strong) YGSTTiming *timing;
 @end
 
 @implementation YGSTCSession
@@ -85,6 +87,7 @@ static NSString *YGSTSkegnFieldText(id value) {
         ygst_fields_init(&_fields);
         ygst_retry_policy_default(&_policy);
         _audio = [NSMutableData data];
+        _timing = [[YGSTTiming alloc] init];
     }
     return self;
 }
@@ -162,8 +165,30 @@ static void YGSTSkegnDeliver(YGSTCSession *s, NSString *json) {
     {
         NSMutableData *z = [bytes mutableCopy];
         [z appendBytes:"" length:1];
+        // 2.1.1: delivered when the callback starts, on this queue
+        s.timing->_t.delivered_ms = YGSTMonotonicMs();
         s.callback(s.usrdata, s.tokenId.UTF8String, SKEGN_MESSAGE_TYPE_JSON, z.bytes, (int)bytes.length);
     }
+    [s.timing logForToken:s.tokenId];
+}
+
+/// sdkLog.level: 0 to 3 as a number or numeric text, or the names error, warn, info and debug.
+static NSInteger YGSTSkegnLogLevel(id value) {
+    static NSString *const names[] = {@"error", @"warn", @"info", @"debug"};
+    NSInteger i;
+    if ([value isKindOfClass:[NSNumber class]]) return [(NSNumber *)value integerValue];
+    if ([value isKindOfClass:[NSString class]]) {
+        NSString *text = [(NSString *)value stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        for (i = 0; i < 4; i++) {
+            if ([text caseInsensitiveCompare:names[i]] == NSOrderedSame) return i;
+        }
+        if ([text caseInsensitiveCompare:@"warning"] == NSOrderedSame) return YGST_LEVEL_WARN;
+        if (text.length && [text rangeOfCharacterFromSet:[[NSCharacterSet decimalDigitCharacterSet] invertedSet]].location ==
+                               NSNotFound) {
+            return text.integerValue;
+        }
+    }
+    return YGST_LEVEL_WARN;
 }
 
 struct skegn *skegn_new(const char *cfg) {
@@ -182,8 +207,10 @@ struct skegn *skegn_new(const char *cfg) {
         return NULL;
     }
     if (log) {
-        YGSTLogConfigure([log[@"enable"] boolValue], log[@"level"] ? [log[@"level"] integerValue] : YGST_LEVEL_WARN,
-                         YGSTDictString(log, @"output"), YES);
+        id enable = log[@"enable"];
+        YGSTLogConfigure([enable isKindOfClass:[NSNumber class]] || [enable isKindOfClass:[NSString class]] ? [enable boolValue]
+                                                                                                             : NO,
+                         YGSTSkegnLogLevel(log[@"level"]), YGSTDictString(log, @"output"), YES);
     }
     if (!appKey.length || !secret.length) {
         YGSTSkegnFail(YGST_SGN_BADCFG);
@@ -245,6 +272,7 @@ int skegn_start(struct skegn *engine, const char *param, char id[64], skegn_call
 
     s = [[YGSTCSession alloc] init];
     s.tokenId = YGSTNewTokenId();
+    s.timing->_t.start_ms = YGSTMonotonicMs();
     s.coreTypeStatus = ygst_coretype_resolve(YGSTDictString(request, @"coreType").UTF8String, 0, coreType, sizeof coreType);
     if (!YGSTDictString(request, @"coreType").length) s.coreTypeStatus = YGST_CT_UNKNOWN;
     s.coreType = [NSString stringWithUTF8String:coreType] ?: @"";
@@ -342,6 +370,7 @@ int skegn_stop(struct skegn *engine) {
             rc = YGSTSkegnFail(YGST_SGN_FUNCTION_STOP_AND_STOP);
         } else {
             s.stopped = YES;
+            s.timing->_t.stop_ms = YGSTMonotonicMs();
         }
     });
     if (rc) return rc;
@@ -366,14 +395,25 @@ int skegn_stop(struct skegn *engine) {
             YGSTSkegnDeliver(s, YGSTErrorJSON(s.tokenId, check, YGSTCompatMessage(check), e.appKey));
             return;
         }
+        {
+            ygst_wav_info info;
+            s.timing->_t.mode = YGST_TM_REST;
+            s.timing->_t.audio_bytes = (long long)upload.length;
+            if (ygst_wav_parse(upload.bytes, upload.length, &info) == 0 && info.format == 1 && info.bits > 0) {
+                s.timing->_t.audio_bytes = (long long)info.data_len;
+                s.timing->_t.audio_bytes_per_sec = info.sample_rate * info.channels * (info.bits / 8);
+            }
+        }
         req = [YGSTRequest requestWithBaseURL:([YGSTSettings shared].baseURLOverride ?: e.baseURL)
                                      coreType:s.coreType
                                        fields:&s->_fields
+                                       timing:YGSTTimingWanted()
                                        secret:e.secret
                                         audio:upload
                                     extension:ext
                                         error:&error];
         if (!req) {
+            s.timing->_t.mode = YGST_TM_NONE;
             YGSTSkegnDeliver(s, YGSTErrorJSON(s.tokenId, 90010, error, e.appKey));
             return;
         }
@@ -383,6 +423,7 @@ int skegn_stop(struct skegn *engine) {
             policy.max_retries = (int)(retries < 0 ? 0 : (retries > 5 ? 5 : retries));
             policy.total_timeout_ms = (int)([YGSTSettings shared].totalTimeout * 1000.0);
             uploader = [[YGSTUploader alloc] initWithURLSession:YGSTSharedURLSession() queue:e.queue];
+            uploader.timing = s.timing;
             s.uploader = uploader;
             [uploader startWithURL:req.url
                             appKey:e.appKey
@@ -409,8 +450,11 @@ int skegn_stop(struct skegn *engine) {
                                 }
                                 json = YGSTResultJSON(result, s.tokenId, e.appKey, s.userId, s.refText, params);
                             }
+                            s.timing->_t.ok = json != nil;
+                            s.timing->_t.err_id = json ? 0 : (result.success ? YGST_LOCAL_PROTOCOL : result.errId);
                             if (!json) json = YGSTErrorJSON(s.tokenId, result.success ? YGST_LOCAL_PROTOCOL : result.errId,
                                                             result.message, e.appKey);
+                            s.timing->_t.parsed_ms = YGSTMonotonicMs();
                             YGSTSkegnDeliver(s, json);
                         }];
         }

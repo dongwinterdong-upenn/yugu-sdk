@@ -8,6 +8,8 @@
  * unit tested on Linux: signing, form field mapping, multipart assembly, WAV handling, VAD,
  * retry decisions, error mapping, result envelope assembly and, since 2.1.0, the realtime
  * feedback round over the compat WebSocket (handshake, frames, progress, reconnect decisions).
+ * Since 2.1.1 the same round streams every recording by default, and the per-phase timing of an
+ * evaluation (its log lines, the Server-Timing header and the platform timing object) is here.
  * The Objective-C layer only moves bytes between this core and NSURLSession / AVFoundation.
  *
  * Internal header. Not part of the public module.
@@ -22,7 +24,7 @@
 extern "C" {
 #endif
 
-#define YGST_SDK_VERSION "2.1.0"
+#define YGST_SDK_VERSION "2.1.1"
 #define YGST_USER_AGENT "yugu-ios-stcompat-sdk/" YGST_SDK_VERSION
 #define YGST_DEFAULT_BASE_URL "https://open.shengzhiai.com"
 
@@ -377,6 +379,7 @@ typedef struct {
 
 typedef struct {
     int success;
+    ygst_span root;            /* the body object of a success (2.1.1: its "timing"), p NULL otherwise */
     ygst_span result;          /* raw JSON value of "result", points into the body */
     ygst_buf record_id;
     int has_record_id;
@@ -475,7 +478,9 @@ void ygst_mask_app_key(const char *app_key, char out[16]);
 
 /* CONTRACT 5.2 and 5.5, DESIGN 14.3, BRIEF change of 2026-10-12 06:00 UTC: with
  * KYTestConfig.realtime_feedback the round streams over the compat WebSocket wss://<base>/{coreType}
- * and the platform reports reading progress while the learner reads. A compat progress frame is
+ * and the platform reports reading progress while the learner reads. Since 2.1.1 every recording
+ * and 16 kHz mono PCM feed streams over the same round by default (YuguCompat.streamUpload); the
+ * parameter frame asks for progress only with realtime_feedback. A compat progress frame is
  *   {"eof":0,"recordId":"","result":{"kernel_version","resource_version","bytes","readUnits",
  *    "matchedUnits","totalUnits","progress":[{word,read,matched}],"words":[Shengtong items]}}
  * where words holds the units that became read since the previous progress frame, covering units
@@ -496,11 +501,18 @@ int ygst_ws_base_url(const char *rest_base, char *out, size_t cap);
 int ygst_ws_handshake_url(const char *rest_base, const char *core_type, const char *app_key, const char *secret,
                           int64_t timestamp_sec, const char *nonce, const char *idempotency_key,
                           const ygst_fields *extra, ygst_buf *out);
+/* Members of the parameter frame besides the form fields (2.1.1: a recording streams over the
+ * WebSocket whether or not reading progress was asked for). */
+#define YGST_WSP_REALTIME_FEEDBACK 1 /* "realtime_feedback":true, only with KYTestConfig.realtime_feedback:
+                                      * the platform sends progress frames; without it only the final */
+#define YGST_WSP_TIMING 2            /* "timing":1, only at log level INFO or DEBUG: the final frame
+                                      * carries the platform timing object */
 /* Compat parameter frame: the REST form fields as JSON strings in their order, then
- * "realtime_feedback":true and "idempotencyKey". Names the platform reads as commands or sets
- * itself (cmd, end, data, realtime_feedback, idempotencyKey) are left out. Returns how many
- * fields were left out, or -1 on bad input. */
-int ygst_ws_param_frame(const ygst_fields *fields, const char *idempotency_key, ygst_buf *out);
+ * "realtime_feedback":true and "timing":1 as flags asks, then "idempotencyKey". Names the platform
+ * reads as commands or that the frame sets itself (cmd, end, data, realtime_feedback,
+ * idempotencyKey, and timing with YGST_WSP_TIMING) are left out. Returns how many fields were left
+ * out, or -1 on bad input. */
+int ygst_ws_param_frame(const ygst_fields *fields, const char *idempotency_key, int flags, ygst_buf *out);
 
 typedef enum {
     YGST_WSF_INVALID = 0,   /* not a JSON object */
@@ -642,6 +654,99 @@ void ygst_rt_cancel(ygst_rt *rt);
 int ygst_rt_active(const ygst_rt *rt);
 /* error text of a fail action, like the REST error JSON. */
 int ygst_rt_error_message(const ygst_rt *rt, int err_id, ygst_buf *out);
+
+/* ------------------------------------------------------------------ per-phase timing (2.1.1) */
+
+/* BRIEF 2.1.1 C and D: where the time of one evaluation goes, for one INFO summary line per
+ * evaluation and DEBUG detail. Times are milliseconds of a monotonic clock, 0 when the phase did
+ * not happen; durations and sizes are -1 when unknown. The platform reports its own share in the
+ * Server-Timing header of every compat REST response, and in a top-level "timing" object of the
+ * final JSON when the request asked for it (form field timing=1, or "timing":1 in the parameter
+ * frame). The SDK asks only at log level INFO or DEBUG; the result envelope is built from
+ * "result", "recordId" and "audioUrl" only, so "timing" never reaches the app. */
+
+typedef enum {
+    YGST_TM_NONE = 0,   /* answered locally: nothing went to the platform */
+    YGST_TM_REST = 1,   /* one request after capture: file mode, stream upload off, not streamable */
+    YGST_TM_WS = 2,     /* streamed over the compat WebSocket while capturing */
+    YGST_TM_WS_REST = 3 /* the WebSocket failed before end: the request after stop evaluated it */
+} ygst_tm_mode;
+
+typedef struct {
+    ygst_tm_mode mode;
+    int ok;                    /* 1 result, 0 error */
+    int err_id;                /* errId of an error */
+    int attempts;              /* REST attempts of the evaluating call, or WebSocket connections */
+    int replayed;              /* the platform replayed an earlier evaluation of this tokenId */
+    int deflate;               /* WebSocket: permessage-deflate was negotiated */
+    char encoding[16];         /* REST: Content-Encoding of the response, "" none */
+    char fallback[160];        /* ws>rest: why the WebSocket failed before end */
+    /* monotonic milliseconds */
+    int64_t start_ms;          /* capture started, or a file evaluation started */
+    int64_t stop_ms;           /* stopEngine, the automatic end of capture (VAD, duration, limits), or the
+                                * start call of an audioPath or skegn evaluation */
+    int64_t ws_connect_ms;     /* first connection requested */
+    int64_t ws_handshake_ms;   /* "connected" on the first connection: the handshake is done */
+    int64_t ws_params_ms;      /* first parameter frame handed to the socket */
+    int64_t ws_first_audio_ms; /* first audio frame handed to the socket */
+    int64_t ws_end_ms;         /* end frame written to the network (the last one, after reconnects) */
+    int64_t ws_final_first_ms; /* first byte of the final frame, 0 when the transport cannot tell */
+    int64_t ws_final_ms;       /* final frame received */
+    int64_t rest_start_ms;     /* request of the last attempt started */
+    int64_t rest_done_ms;      /* its response complete */
+    int64_t parsed_ms;         /* final JSON parsed and the result envelope built */
+    int64_t delivered_ms;      /* result callback returned */
+    /* the REST split of the last attempt, from the transport */
+    long upload_ms;            /* request start to the last byte of the body sent, with connect and TLS */
+    long wait_ms;              /* last byte sent to the first byte of the response */
+    long download_ms;          /* first to last byte of the response */
+    /* bytes */
+    long long audio_bytes;     /* PCM of the round, or the uploaded file */
+    int audio_bytes_per_sec;   /* 32000 for 16 kHz 16 bit mono, 0 when the duration is not known */
+    long long upload_bytes;    /* REST request body */
+    long long queued_at_stop;  /* WebSocket: captured audio not yet written to the network at stop */
+    long long wire_bytes;      /* the result as received, before decompression (REST body, final frame) */
+    long long body_bytes;      /* REST response body after decompression, or the WebSocket final frame */
+    /* the platform's share: Server-Timing header or the "timing" object */
+    long long server_total_ms;
+    long long server_engine_ms;
+    long long server_platform_ms;
+} ygst_timing;
+
+void ygst_timing_init(ygst_timing *t);
+/* 1 when the platform should add its timing object: log level INFO (2) or DEBUG (3). */
+int ygst_timing_wanted(int log_level);
+/* Server-Timing: total;dur=5321, engine;dur=4100, platform;dur=1221 (W3C Server Timing). Metrics in
+ * any order and case, other metrics and parameters ignored, fractions rounded. Returns how many of
+ * total, engine and platform were found; those go to the server times of t. */
+int ygst_server_timing_parse(const char *value, ygst_timing *t);
+/* The top-level "timing" object of a final JSON (REST body or WebSocket final frame):
+ * {"receivedAt":..,"totalMs":..,"engineMs":..,"platformMs":..,"engineStages":{..},"audioBytes":..,
+ * "wsFirstAudioAt":..}, unknown keys ignored. 1 found: its times go to t (when numeric) and timing
+ * receives the object; 0 absent or not an object (timing.p NULL), -1 root is not an object. */
+int ygst_timing_member(ygst_span root, ygst_timing *t, ygst_span *timing);
+/* Records why the WebSocket failed before end (ws>rest), shortened, quotes replaced. */
+void ygst_timing_set_fallback(ygst_timing *t, const char *reason);
+/* The INFO line, the format of the Android drop-in, without a trailing newline:
+ *   timing tokenId=<t> mode=ws audio=31.20s afterStop=5650ms upload=120ms wait=5480ms download=-
+ *   parse=40ms deliver=3ms handshake=85ms queued=6400B final=1532118B wire=- deflate
+ *   server.total=5321ms server.engine=4100ms server.platform=1221ms
+ * mode rest|ws|ws>rest; afterStop: stop to the result callback; upload: stop to the last byte sent
+ * (end frame, or the request body of the last attempt); wait: from there to the first byte of the
+ * result (WebSocket without first-byte time: to the whole final); download: first to last byte;
+ * parse; deliver: to the callback. WebSocket: handshake, queued, final, wire, deflate,
+ * connections=N when more than one. REST: attempts=N sent=<request>B body=<decoded>B
+ * wire=<received>B and the Content-Encoding. Then the server.* times present, replayed, errId=N of an
+ * error, fallback="<reason>" of ws>rest. Unknown values print as "-". */
+int ygst_timing_summary(const ygst_timing *t, const char *token_id, ygst_buf *out);
+/* DEBUG: every phase that happened, in ms after the first one:
+ *   timing tokenId=<t> phases start=+0ms connect=+5ms ... delivered=+36843ms */
+int ygst_timing_phases(const ygst_timing *t, const char *token_id, ygst_buf *out);
+/* DEBUG: the engine stages of the platform timing object as name=value, then its receivedAt,
+ * wsFirstAudioAt and audioBytes:
+ *   timing tokenId=<t> engineStages text_frontend_ms=1909.3 asr_ms=595.0 receivedAt=.. audioBytes=..
+ * Nothing (0, out unchanged) when timing is empty or has none of them. */
+int ygst_timing_stages(ygst_span timing, const char *token_id, ygst_buf *out);
 
 #ifdef __cplusplus
 }

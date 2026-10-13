@@ -24,6 +24,8 @@ typedef void (^dispatch_block_t)(void);
 typedef long dispatch_once_t;
 typedef uint64_t dispatch_time_t;
 #define DISPATCH_QUEUE_SERIAL ((dispatch_queue_attr_t)0)
+typedef unsigned int qos_class_t;
+#define QOS_CLASS_UTILITY ((qos_class_t)0x11)
 #define DISPATCH_TIME_NOW (0ull)
 #define DISPATCH_TIME_FOREVER (~0ull)
 #define NSEC_PER_SEC 1000000000ull

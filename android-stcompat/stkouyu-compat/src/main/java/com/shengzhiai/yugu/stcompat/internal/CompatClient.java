@@ -31,6 +31,8 @@ public final class CompatClient {
         public int readTimeoutMs = 120000;
         public long totalTimeoutMs = 300000;
         public RetryPolicy policy = RetryPolicy.DEFAULT;
+        /** Phase marks of the evaluation (attempt starts and answers), null for none. */
+        public EvalTiming phases;
 
         public String url() {
             String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
@@ -99,10 +101,16 @@ public final class CompatClient {
                 YLog.d("POST " + req.url() + " attempt " + attempt + "/" + maxAttempts + " key=" + req.idempotencyKey
                         + " appKey=" + YLog.maskKey(req.appKey) + " fields=" + req.fields.keySet());
             }
+            if (req.phases != null) {
+                req.phases.restAttempt(attempt);
+            }
             try {
                 HttpTransport.Response r = transport.execute(http, token);
                 if (token.isCancelled()) {
                     throw cancelled(attempt);
+                }
+                if (req.phases != null) {
+                    req.phases.restResponse(r);
                 }
                 if (r.status >= 200 && r.status < 300) {
                     CompatError bad = checkSuccessBody(r);

@@ -8,11 +8,17 @@
  * With --realtime it runs a realtime_feedback round instead: the PCM of --audio is captured in
  * steps of --chunk-bytes every --pace-ms, the round controller (ygst_rt) streams it over a
  * WebSocket client standing in for NSURLSessionWebSocketTask, progress frames become eof 0
- * envelopes, a failure before end falls back to the REST call at stop. Prints one JSON line:
+ * envelopes, a failure before end falls back to the REST call at stop. --stream runs the same round
+ * without realtime_feedback, the 2.1.1 default for recordings: no progress is asked for. --timing
+ * stands for log level INFO (2.1.1): the REST request carries timing=1 and the parameter frame
+ * "timing":1. Every evaluation that reached the platform reports the summary and detail lines of
+ * ygst_timing (Server-Timing header, the platform timing object, phases). Prints one JSON line:
  *
  *   {"tokenId":"..","outcome":"result|error","attempts":N,"replayed":0|1,"elapsedMs":N,
  *    ["mode":"ws|rest|local","connections":N,"held":N,"restReason":"..","paramFrame":{..},
- *     "progress":[eof 0 envelopes],] "json":{..}}
+ *     "progress":[eof 0 envelopes],] ["timing":"<INFO line>","timingPhases":"<DEBUG line>",
+ *     "timingStages":"<DEBUG line or empty>",]
+ *    "json":{..}}
  *
  * Usage: it_driver (--port N [--host 127.0.0.1] | --base-url URL)
  *        [--app-key K | --app-key-env VAR] [--secret S | --secret-env VAR] [--core-type T]
@@ -20,8 +26,8 @@
  *        [--auto-retry] [--err-id N]... [--max-retries N] [--read-timeout-ms N]
  *        [--connect-timeout-ms N] [--ca-file PEM] [--get-param] [--attach-audio-url] [--user-id U]
  *        [--fault F] [--scale X] [--custom K=V]...
- *        [--realtime [--chunk-bytes N] [--pace-ms N] [--feed-after-start] [--ws-fault F]
- *         [--ping-interval-ms N] [--pong-timeout-ms N] [--attempt-timeout-ms N]]
+ *        [--timing] [(--realtime | --stream) [--chunk-bytes N] [--pace-ms N] [--feed-after-start]
+ *         [--ws-fault F] [--ping-interval-ms N] [--pong-timeout-ms N] [--attempt-timeout-ms N]]
  *
  * --base-url goes through the same resolution as KYStartEngineConfig.server. https needs a build
  * with -DYGST_IT_TLS and -lssl -lcrypto: OpenSSL with SNI, TLS 1.2 or later and certificate plus
@@ -119,6 +125,12 @@ typedef struct {
     int replayed;
     ygst_buf body;
     char message[256];
+    char server_timing[256]; /* Server-Timing header, "" when absent (2.1.1) */
+    int64_t t_start;         /* monotonic: request started, body written, head complete, response complete */
+    int64_t t_uploaded;
+    int64_t t_headers;
+    int64_t t_done;
+    long long upload_bytes;  /* request head and body */
 } http_result;
 
 /* scheme://authority[/prefix] of a resolved base URL */
@@ -601,25 +613,38 @@ static void http_post(const target *t, const char *ca_file, int connect_timeout_
     r->retry_after_ms = -1;
     r->replayed = 0;
     r->message[0] = 0;
+    r->server_timing[0] = 0;
+    r->t_start = mono_ms();
+    r->t_uploaded = 0;
+    r->t_headers = 0;
+    r->t_done = 0;
+    r->upload_bytes = (long long)(strlen(request_head) + body->len);
     ygst_buf_reset(&r->body);
     if (conn_open(t, ca_file, connect_timeout_ms, read_timeout_ms, &c, r) != 0 ||
         conn_write_all(&c, (const unsigned char *)request_head, strlen(request_head), read_timeout_ms, r) != 0 ||
         conn_write_all(&c, body->data, body->len, read_timeout_ms, r) != 0) {
         conn_close(&c);
+        r->t_done = mono_ms();
         return;
     }
+    r->t_uploaded = mono_ms();
     ygst_buf_init(&raw);
     for (;;) {
         unsigned char chunk[8192];
         long got = conn_read(&c, chunk, sizeof chunk, read_timeout_ms, r);
         if (got <= 0) break;
         ygst_buf_append(&raw, chunk, (size_t)got);
+        if (!r->t_headers) {
+            size_t s0, h0;
+            if (locate_final(raw.data, raw.len, &s0, &h0)) r->t_headers = mono_ms();
+        }
         if (response_complete(&raw)) {
             c.clean = 1;
             break;
         }
     }
     conn_close(&c);
+    r->t_done = mono_ms();
     if (r->local_code) {
         ygst_buf_free(&raw);
         return;
@@ -646,6 +671,7 @@ static void http_post(const target *t, const char *ca_file, int connect_timeout_
             if (ygst_parse_retry_after(tmp, now_ms(), &ms) == 0) r->retry_after_ms = ms;
         }
         if (find_header(head, "Idempotency-Replayed", tmp, sizeof tmp) && strcmp(tmp, "true") == 0) r->replayed = 1;
+        find_header(head, "Server-Timing", r->server_timing, sizeof r->server_timing);
         if (find_header(head, "Transfer-Encoding", tmp, sizeof tmp) && strstr(tmp, "chunked")) {
             if (dechunk(b, bl, &r->body) != 0) {
                 r->status = 0;
@@ -965,8 +991,10 @@ typedef struct {
     const char *fixed_nonce; /* test only: reuse one nonce on every attempt */
     double scale;
     ygst_fields custom;
-    /* realtime_feedback */
-    int realtime;
+    int timing;             /* 2.1.1: log level INFO, timing=1 and "timing":1 */
+    /* the compat WebSocket round: realtime_feedback (--realtime) or the 2.1.1 default stream (--stream) */
+    int realtime;           /* stream the round over the WebSocket */
+    int progress;           /* realtime_feedback: ask the platform for progress frames */
     int chunk_bytes;        /* captured audio per step */
     int pace_ms;            /* between steps, 0: everything at once */
     int feed_after_start;   /* capture only once the platform has started */
@@ -1015,15 +1043,42 @@ static ygst_retry_policy policy_of(const options *o) {
     return policy;
 }
 
-/* The final result envelope: the same code for the REST body and the realtime final frame. */
+/* 2.1.1: an evaluation that reached the platform ends with the INFO line and the two DEBUG lines
+ * of ygst_timing, as the "timing", "timingPhases" and "timingStages" members. Parsed and delivered
+ * are now: the driver has no app callback. */
+static void timing_members(ygst_timing *tm, const char *token, ygst_span timing_obj, ygst_buf *ex) {
+    ygst_buf line;
+    if (!tm || tm->mode == YGST_TM_NONE) return;
+    if (!tm->parsed_ms) tm->parsed_ms = mono_ms();
+    tm->delivered_ms = mono_ms();
+    ygst_buf_init(&line);
+    ygst_timing_summary(tm, token, &line);
+    ygst_buf_append_str(ex, "\"timing\":");
+    ygst_json_escape(ex, ygst_buf_cstr(&line));
+    ygst_buf_reset(&line);
+    ygst_timing_phases(tm, token, &line);
+    ygst_buf_append_str(ex, ",\"timingPhases\":");
+    ygst_json_escape(ex, ygst_buf_cstr(&line));
+    ygst_buf_reset(&line);
+    ygst_timing_stages(timing_obj, token, &line);
+    ygst_buf_append_str(ex, ",\"timingStages\":");
+    ygst_json_escape(ex, ygst_buf_cstr(&line));
+    ygst_buf_append_char(ex, ',');
+    ygst_buf_free(&line);
+}
+
+/* The final result envelope: the same code for the REST body and the realtime final frame. The
+ * envelope takes result, recordId and audioUrl only: the platform timing object stays out. */
 static void emit_result(const options *o, const char *token, const char *core_type, const ygst_fields *fields,
                         const ygst_classification *cls, int attempts, int replayed, int64_t started,
-                        const char *extra) {
+                        const char *extra, ygst_timing *tm) {
     char dt[32];
     char rid[256];
-    ygst_buf env, params;
+    ygst_buf env, params, ex;
+    ygst_span timing_obj;
     ygst_buf_init(&env);
     ygst_buf_init(&params);
+    ygst_buf_init(&ex);
     ygst_format_dt(now_ms(), 480, dt);
     if (o->get_param) {
         ygst_params_json(&params, o->app_key, o->user_id, now_ms() / 1000, "wav", 16000, 1, 2, core_type, token, fields);
@@ -1032,15 +1087,40 @@ static void emit_result(const options *o, const char *token, const char *core_ty
     ygst_envelope_result(&env, token, cls->has_record_id ? rid : NULL, o->app_key, o->user_id,
                          o->ref_text ? o->ref_text : "", dt, cls->result, o->get_param ? ygst_buf_cstr(&params) : NULL,
                          cls->has_audio_url ? (const char *)cls->audio_url.data : NULL);
-    emit_full(token, "result", attempts, replayed, (long)(mono_ms() - started), extra, ygst_buf_cstr(&env));
+    if (extra) ygst_buf_append_str(&ex, extra);
+    if (tm) {
+        tm->ok = 1;
+        tm->parsed_ms = mono_ms();
+        ygst_timing_member(cls->root, tm, &timing_obj);
+        timing_members(tm, token, timing_obj, &ex);
+    }
+    emit_full(token, "result", attempts, replayed, (long)(mono_ms() - started), ygst_buf_cstr(&ex), ygst_buf_cstr(&env));
     ygst_buf_free(&env);
     ygst_buf_free(&params);
+    ygst_buf_free(&ex);
 }
 
-/* POST /{coreType} under the call controller, exactly as YGSTUploader does; prints the outcome. */
+/* An error after the platform was reached: emit_error with the timing members. */
+static void emit_timed_error(const options *o, const char *token, int err_id, const char *message, int attempts,
+                             int64_t started, const char *extra, ygst_timing *tm) {
+    ygst_buf ex;
+    ygst_span none;
+    none.p = NULL;
+    none.n = 0;
+    ygst_buf_init(&ex);
+    if (extra) ygst_buf_append_str(&ex, extra);
+    tm->ok = 0;
+    tm->err_id = err_id;
+    timing_members(tm, token, none, &ex);
+    emit_error(o, token, err_id, message, attempts, started, ygst_buf_cstr(&ex));
+    ygst_buf_free(&ex);
+}
+
+/* POST /{coreType} under the call controller, exactly as YGSTUploader does; prints the outcome.
+ * tm: the timing of this evaluation (REST, or the WebSocket round that fell back). */
 static void rest_evaluate(const options *o, const char *token, const char *core_type, const ygst_fields *fields,
                           const unsigned char *audio, size_t audio_len, const char *ext, const char *base,
-                          const target *tgt, int64_t started, const char *extra) {
+                          const target *tgt, int64_t started, const char *extra, ygst_timing *tm) {
     char signature[45];
     char boundary[64];
     char content_type[128];
@@ -1052,7 +1132,11 @@ static void rest_evaluate(const options *o, const char *token, const char *core_
     ygst_call call;
     http_result hr;
     int last_replayed = 0;
-    ygst_sign(fields, o->secret, signature);
+    ygst_fields sent; /* 2.1.1: timing=1 goes into the signed request only, never into params */
+    ygst_fields_init(&sent);
+    ygst_fields_copy(fields, &sent);
+    if (o->timing) ygst_fields_set(&sent, "timing", "1");
+    ygst_sign(&sent, o->secret, signature);
     ygst_buf_init(&body);
     for (;;) {
         unsigned char rnd[16];
@@ -1061,7 +1145,7 @@ static void rest_evaluate(const options *o, const char *token, const char *core_
         ygst_multipart_boundary(rnd, boundary);
         snprintf(filename, sizeof filename, "audio.%s", ext);
         ygst_buf_reset(&body);
-        if (ygst_multipart_build(fields, boundary, "audio", filename, ygst_audio_content_type(ext), audio, audio_len,
+        if (ygst_multipart_build(&sent, boundary, "audio", filename, ygst_audio_content_type(ext), audio, audio_len,
                                  &body) != -2)
             break;
     }
@@ -1103,8 +1187,21 @@ static void rest_evaluate(const options *o, const char *token, const char *core_
         fprintf(stderr, "attempt %d: status=%d local=%d biz=%d retryable=%d -> action=%d delay=%ld err=%d %s\n",
                 call.total_attempts, hr.status, hr.local_code, cls.biz_code, cls.retryable, act.kind, act.delay_ms,
                 act.err_id, ygst_buf_cstr(&cls.message));
+        /* the phases of this attempt, as NSURLSessionTaskMetrics gives them on iOS */
+        tm->attempts = call.total_attempts;
+        tm->rest_start_ms = hr.t_start;
+        tm->rest_done_ms = hr.t_done;
+        tm->upload_ms = hr.t_uploaded ? (long)(hr.t_uploaded - hr.t_start) : -1;
+        tm->wait_ms = hr.t_uploaded && hr.t_headers ? (long)(hr.t_headers - hr.t_uploaded) : -1;
+        tm->download_ms = hr.t_headers ? (long)(hr.t_done - hr.t_headers) : -1;
+        tm->upload_bytes = hr.upload_bytes;
+        tm->wire_bytes = hr.status ? (long long)hr.body.len : -1; /* the driver asks for no compression */
+        tm->body_bytes = hr.status ? (long long)hr.body.len : -1;
+        tm->server_total_ms = tm->server_engine_ms = tm->server_platform_ms = -1;
+        tm->replayed = hr.replayed;
+        if (hr.server_timing[0]) ygst_server_timing_parse(hr.server_timing, tm);
         if (act.kind == YGST_ACT_SUCCESS) {
-            emit_result(o, token, core_type, fields, &cls, call.total_attempts, last_replayed, started, extra);
+            emit_result(o, token, core_type, fields, &cls, call.total_attempts, last_replayed, started, extra, tm);
             ygst_classification_free(&cls);
             break;
         }
@@ -1112,7 +1209,7 @@ static void rest_evaluate(const options *o, const char *token, const char *core_
             ygst_buf msg;
             ygst_buf_init(&msg);
             ygst_error_message(&cls, act.err_id, call.attempt, &msg);
-            emit_error(o, token, act.err_id, ygst_buf_cstr(&msg), call.total_attempts, started, extra);
+            emit_timed_error(o, token, act.err_id, ygst_buf_cstr(&msg), call.total_attempts, started, extra, tm);
             ygst_buf_free(&msg);
             ygst_classification_free(&cls);
             break;
@@ -1123,6 +1220,7 @@ static void rest_evaluate(const options *o, const char *token, const char *core_
     }
     ygst_buf_free(&hr.body);
     ygst_buf_free(&body);
+    ygst_fields_free(&sent);
 }
 
 /* ------------------------------------------------------------------ realtime round */
@@ -1153,6 +1251,9 @@ typedef struct {
     ygst_buf progress;    /* the eof 0 envelopes as a JSON array */
     ygst_buf param_frame; /* the first parameter frame */
     ygst_buf rest_reason; /* why the round went to REST */
+    ygst_timing tm;       /* 2.1.1 phases, as YGSTRealtime.m records them */
+    int64_t text_ms;      /* when the text frame being handled arrived */
+    size_t text_len;
 } rt_run;
 
 static void rt_apply(rt_run *x, ygst_rt_actions a);
@@ -1185,8 +1286,10 @@ static void rt_rest(rt_run *x) {
         memcpy(wav, hdr, 44);
         memcpy(wav + 44, x->pcm, x->fed);
         fprintf(stderr, "realtime: evaluating over REST (%s)\n", ygst_buf_cstr(&x->rest_reason));
+        x->tm.mode = YGST_TM_WS_REST;
+        ygst_timing_set_fallback(&x->tm, ygst_buf_cstr(&x->rest_reason));
         rest_evaluate(x->o, x->token, x->core_type, x->fields, wav, x->fed + 44, "wav", x->base, x->tgt, x->started,
-                      ygst_buf_cstr(&extra));
+                      ygst_buf_cstr(&extra), &x->tm);
         free(wav);
     }
     ygst_buf_free(&extra);
@@ -1238,12 +1341,20 @@ static void rt_apply(rt_run *x, ygst_rt_actions a) {
     memset(&r, 0, sizeof r);
     if (x->done) return;
     if (a.close) ws_close(&x->ws);
-    if (a.connect) rt_connect(x);
+    if (a.connect) {
+        if (!x->tm.ws_connect_ms) x->tm.ws_connect_ms = mono_ms();
+        rt_connect(x);
+    }
     if (x->done) return;
     if (a.send_params) {
         ygst_buf frame;
+        int flags = (x->o->progress ? YGST_WSP_REALTIME_FEEDBACK : 0) | (x->o->timing ? YGST_WSP_TIMING : 0);
+        if (!x->tm.ws_params_ms) {
+            x->tm.ws_handshake_ms = x->text_ms ? x->text_ms : mono_ms(); /* "connected" */
+            x->tm.ws_params_ms = mono_ms();
+        }
         ygst_buf_init(&frame);
-        ygst_ws_param_frame(x->fields, x->token, &frame);
+        ygst_ws_param_frame(x->fields, x->token, flags, &frame);
         if (!x->param_frame.len) ygst_buf_append(&x->param_frame, frame.data, frame.len);
         if (ws_send(&x->ws, 0x1, frame.data, frame.len, &r) != 0) {
             ygst_buf_free(&frame);
@@ -1254,6 +1365,7 @@ static void rt_apply(rt_run *x, ygst_rt_actions a) {
     }
     if (a.audio_to > a.audio_from) {
         size_t from = a.audio_from;
+        if (!x->tm.ws_first_audio_ms) x->tm.ws_first_audio_ms = mono_ms();
         while (from < a.audio_to) {
             size_t n = a.audio_to - from < x->rt.max_frame_bytes ? a.audio_to - from : x->rt.max_frame_bytes;
             if (ws_send(&x->ws, 0x2, x->pcm + from, n, &r) != 0) {
@@ -1263,9 +1375,12 @@ static void rt_apply(rt_run *x, ygst_rt_actions a) {
             from += n;
         }
     }
-    if (a.send_end && ws_send(&x->ws, 0x1, (const unsigned char *)"{\"cmd\":\"end\"}", 13, &r) != 0) {
-        rt_send_failed(x, &r);
-        return;
+    if (a.send_end) {
+        if (ws_send(&x->ws, 0x1, (const unsigned char *)"{\"cmd\":\"end\"}", 13, &r) != 0) {
+            rt_send_failed(x, &r);
+            return;
+        }
+        x->tm.ws_end_ms = mono_ms(); /* the writes are synchronous: written to the network */
     }
     if (a.send_ping && ws_send(&x->ws, 0x9, (const unsigned char *)"hb", 2, &r) != 0) {
         rt_send_failed(x, &r);
@@ -1288,15 +1403,20 @@ static void rt_apply(rt_run *x, ygst_rt_actions a) {
         ygst_buf extra;
         ygst_buf_init(&extra);
         rt_extra(x, "ws", &extra);
+        x->tm.attempts = x->rt.connections;
         if (a.final) {
+            x->tm.ws_final_ms = x->text_ms;
+            x->tm.body_bytes = (long long)x->text_len;
+            x->tm.wire_bytes = (long long)x->text_len; /* the driver offers no compression */
+            x->tm.replayed = x->rt.frame.replayed;
             emit_result(x->o, x->token, x->core_type, x->fields, &x->rt.cls, x->rt.call.total_attempts,
-                        x->rt.frame.replayed, x->started, ygst_buf_cstr(&extra));
+                        x->rt.frame.replayed, x->started, ygst_buf_cstr(&extra), &x->tm);
         } else {
             ygst_buf msg;
             ygst_buf_init(&msg);
             ygst_rt_error_message(&x->rt, a.err_id, &msg);
-            emit_error(x->o, x->token, a.err_id, ygst_buf_cstr(&msg), x->rt.call.total_attempts, x->started,
-                       ygst_buf_cstr(&extra));
+            emit_timed_error(x->o, x->token, a.err_id, ygst_buf_cstr(&msg), x->rt.call.total_attempts, x->started,
+                             ygst_buf_cstr(&extra), &x->tm);
             ygst_buf_free(&msg);
         }
         ygst_buf_free(&extra);
@@ -1309,7 +1429,9 @@ static void rt_apply(rt_run *x, ygst_rt_actions a) {
 static void rt_on_message(void *ctx, ws_event ev, const char *text, size_t n, int close_code) {
     rt_run *x = (rt_run *)ctx;
     if (ev == WS_EV_TEXT) {
-        rt_apply(x, ygst_rt_on_text(&x->rt, text, n, mono_ms()));
+        x->text_ms = mono_ms();
+        x->text_len = n;
+        rt_apply(x, ygst_rt_on_text(&x->rt, text, n, x->text_ms));
     } else if (ev == WS_EV_PONG) {
         rt_apply(x, ygst_rt_on_pong(&x->rt, mono_ms()));
     } else if (ev == WS_EV_CLOSED) {
@@ -1340,6 +1462,10 @@ static void run_realtime(const options *o, const char *token, const char *core_t
     ygst_buf_init(&x.param_frame);
     ygst_buf_init(&x.rest_reason);
     ygst_rt_init(&x.rt);
+    ygst_timing_init(&x.tm);
+    x.tm.mode = YGST_TM_WS;
+    x.tm.start_ms = started;
+    x.tm.audio_bytes_per_sec = 32000;
     x.rt.policy = policy_of(o);
     x.rt.seed = (uint64_t)now_ms();
     x.rt.connect_timeout_ms = o->connect_timeout_ms;
@@ -1365,6 +1491,9 @@ static void run_realtime(const options *o, const char *token, const char *core_t
                 /* stopEngine: the local check of the recording first, like finalizeCapture */
                 int check = ygst_audio_check_pcm(x.fed, 16000, 1, 16);
                 x.stopped = 1;
+                x.tm.stop_ms = mono_ms();
+                x.tm.audio_bytes = (long long)x.fed;
+                x.tm.queued_at_stop = (long long)(x.fed - x.rt.sent); /* the sends before were synchronous */
                 if (check) {
                     ygst_buf extra;
                     ygst_buf_init(&extra);
@@ -1488,7 +1617,9 @@ int main(int argc, char **argv) {
         } else if (strcmp(a, "--auto-retry") == 0) o.auto_retry = 1;
         else if (strcmp(a, "--get-param") == 0) o.get_param = 1;
         else if (strcmp(a, "--attach-audio-url") == 0) o.attach_audio_url = 1;
-        else if (strcmp(a, "--realtime") == 0) o.realtime = 1;
+        else if (strcmp(a, "--realtime") == 0) o.realtime = o.progress = 1;
+        else if (strcmp(a, "--stream") == 0) o.realtime = 1;
+        else if (strcmp(a, "--timing") == 0) o.timing = 1;
         else if (strcmp(a, "--feed-after-start") == 0) o.feed_after_start = 1;
         else {
             fprintf(stderr, "unknown or incomplete option %s\n", a);
@@ -1595,7 +1726,18 @@ int main(int argc, char **argv) {
         run_realtime(&o, token, core_type, &fields, audio + info.data_offset, info.data_len, base, &tgt, started);
     } else {
         /* 5b. one request under the controller */
-        rest_evaluate(&o, token, core_type, &fields, audio, audio_len, ext, base, &tgt, started, NULL);
+        ygst_timing tm;
+        ygst_wav_info info;
+        ygst_timing_init(&tm);
+        tm.mode = YGST_TM_REST;
+        tm.start_ms = started;
+        tm.stop_ms = started; /* an audioPath evaluation: the start call stands for stop */
+        tm.audio_bytes = (long long)audio_len;
+        if (ygst_wav_parse(audio, audio_len, &info) == 0 && info.format == 1 && info.bits > 0) {
+            tm.audio_bytes = (long long)info.data_len;
+            tm.audio_bytes_per_sec = info.sample_rate * info.channels * info.bits / 8;
+        }
+        rest_evaluate(&o, token, core_type, &fields, audio, audio_len, ext, base, &tgt, started, NULL, &tm);
     }
     ygst_fields_free(&fields);
     ygst_fields_free(&o.custom);

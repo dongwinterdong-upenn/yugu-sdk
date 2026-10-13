@@ -293,6 +293,8 @@ int ygst_classify(const ygst_outcome *o, ygst_classification *c) {
     c->has_record_id = 0;
     c->record_id_raw.p = NULL;
     c->record_id_raw.n = 0;
+    c->root.p = NULL;
+    c->root.n = 0;
     c->result.p = NULL;
     c->result.n = 0;
     ygst_buf_reset(&c->record_id);
@@ -317,6 +319,7 @@ int ygst_classify(const ygst_outcome *o, ygst_classification *c) {
         if (parsed && ygst_json_member(root, "result", &result) == 1) {
             ygst_span inner;
             c->success = 1;
+            c->root = root;
             c->result = result;
             if (ygst_json_member(root, "recordId", &v) == 1) {
                 c->has_record_id = 1;

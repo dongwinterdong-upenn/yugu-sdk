@@ -30,13 +30,41 @@ public interface HttpTransport {
         }
     }
 
+    /**
+     * Phase times of one attempt on the {@link System#nanoTime()} clock, 0 when unknown, and sizes,
+     * -1 when unknown (SDK 2.1.1 timing log).
+     */
+    final class Metrics {
+        public long startNanos;
+        /** The request body was handed to the socket. */
+        public long uploadDoneNanos;
+        /** Status line and headers of the answer were read. */
+        public long headersNanos;
+        /** The body was read and decompressed. */
+        public long bodyDoneNanos;
+        public long uploadBytes = -1;
+        /** Body bytes as received (compressed when {@link #contentEncoding} is set). */
+        public long wireBytes = -1;
+        /** Body bytes after decompression. */
+        public long bodyBytes = -1;
+        /** Content-Encoding of the answer in lower case, null for none. */
+        public String contentEncoding;
+    }
+
     /** Response of one attempt. Header names are lower case. */
     final class Response {
         public final int status;
         public final Map<String, String> headers;
         public final String body;
+        /** Phase times and sizes of the attempt, null when the transport does not measure them. */
+        public final Metrics metrics;
 
         public Response(int status, Map<String, String> headers, String body) {
+            this(status, headers, body, null);
+        }
+
+        public Response(int status, Map<String, String> headers, String body, Metrics metrics) {
+            this.metrics = metrics;
             this.status = status;
             Map<String, String> h = new LinkedHashMap<String, String>();
             if (headers != null) {

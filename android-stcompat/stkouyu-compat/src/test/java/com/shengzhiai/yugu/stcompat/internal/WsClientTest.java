@@ -163,7 +163,7 @@ public class WsClientTest {
         assertEquals("13", p.headers.get("sec-websocket-version"));
         assertEquals(16, Base64.getDecoder().decode(p.key()).length);
         assertEquals("yugu-test/1", p.headers.get("user-agent"));
-        assertFalse(p.headers.containsKey("sec-websocket-extensions"));
+        assertEquals("permessage-deflate; client_max_window_bits", p.headers.get("sec-websocket-extensions"));
         // the answer and the first frame arrive in one write
         byte[] answer = ("HTTP/1.1 101 Switching Protocols\r\nUpgrade: WebSocket\r\nConnection: keep-alive, Upgrade\r\n"
                 + "Sec-WebSocket-Accept: " + TestWsServer.accept(p.key()) + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII);
@@ -174,6 +174,24 @@ public class WsClientTest {
         WsClient c = f.get(5, TimeUnit.SECONDS);
         cleanup.add(c::abort);
         assertEquals("connected", r.nextText());
+        assertEquals("no extension agreed", "", c.extensions());
+        WsConnection.Inbound in = c.inbound();
+        assertFalse(in.compressed);
+        assertEquals(9, in.wireBytes);
+        assertEquals(9, in.dataBytes);
+        assertTrue(in.completeNanos >= in.firstByteNanos);
+    }
+
+    @Test
+    public void withoutTheOfferNoExtensionIsRequested() throws Exception {
+        TestWsServer s = server();
+        WsClient.Options o = options(s, "/x");
+        o.offerDeflate = false;
+        FutureTask<WsClient> f = connectAsync(o, new Recorder());
+        TestWsServer.Peer p = s.next().readRequest();
+        assertFalse(p.headers.containsKey("sec-websocket-extensions"));
+        p.accept101();
+        cleanup.add(f.get(5, TimeUnit.SECONDS)::abort);
     }
 
     @Test
@@ -243,8 +261,6 @@ public class WsClientTest {
             "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
             "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: %s\r\n\r\n",
             "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n"
-                    + "Sec-WebSocket-Extensions: permessage-deflate\r\n\r\n",
-            "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n"
                     + "Sec-WebSocket-Protocol: chat\r\n\r\n",
         };
         TestWsServer s = server();
@@ -254,6 +270,16 @@ public class WsClientTest {
             p.writeAscii(a.contains("%s") ? String.format(a, TestWsServer.accept(p.key())) : a);
             assertTrue(a, connectFailure(f) instanceof WsClient.ProtocolError);
         }
+        // an extension the client did not offer still fails the handshake
+        WsClient.Options o = options(s, "/x");
+        o.offerDeflate = false;
+        FutureTask<WsClient> f = connectAsync(o, new Recorder());
+        TestWsServer.Peer p = s.next().readRequest();
+        p.accept101("Sec-WebSocket-Extensions: permessage-deflate");
+        IOException e = connectFailure(f);
+        assertTrue(e instanceof WsClient.ProtocolError);
+        assertTrue(e.getMessage().contains("not offered"));
+        assertTrue("the client closes the socket", p.eof());
     }
 
     @Test
@@ -666,6 +692,285 @@ public class WsClientTest {
         end.awaitEnd();
         assertEquals(Arrays.asList("boom", "still here"), got);
         assertEquals(1000, end.closeCode);
+    }
+
+    // ================================================================ permessage-deflate (RFC 7692)
+
+    /** Connects with the deflate offer and answers it with {@code answer}. */
+    private Link openDeflate(TestWsServer s, WsConnection.Listener r, String answer) throws Exception {
+        FutureTask<WsClient> f = connectAsync(options(s, "/sent.eval.cn"), r);
+        Link l = new Link();
+        l.peer = s.next().readRequest();
+        assertEquals("permessage-deflate; client_max_window_bits", l.peer.headers.get("sec-websocket-extensions"));
+        l.peer.accept101("Sec-WebSocket-Extensions: " + answer);
+        l.client = f.get(5, TimeUnit.SECONDS);
+        cleanup.add(l.client::abort);
+        return l;
+    }
+
+    /** JSON shaped like a final frame: word items with scores, roughly {@code bytes} long. */
+    static String finalLike(int bytes) {
+        StringBuilder sb = new StringBuilder(bytes + 200).append("{\"recordId\":\"eval_1\",\"eof\":1,\"result\":{\"words\":[");
+        String chars = "我是中国人们都华民族一家今天气很好";
+        for (int i = 0; sb.length() < bytes; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append("{\"word\":\"").append(chars.charAt(i % chars.length())).append("\",\"scores\":{\"overall\":")
+                    .append(60 + (i * 7) % 40).append(",\"pronunciation\":").append(55 + (i * 13) % 45)
+                    .append(",\"tone\":").append(i % 3 == 0 ? 100 : 80).append("},\"charType\":0}");
+        }
+        return sb.append("]}}").toString();
+    }
+
+    /** JSON with random scores: compresses only moderately on its own. */
+    static String randomJson(int bytes) {
+        java.util.Random rnd = new java.util.Random(11);
+        StringBuilder sb = new StringBuilder(bytes + 100).append("{\"scores\":[");
+        for (int i = 0; sb.length() < bytes; i++) {
+            sb.append(i > 0 ? "," : "").append(rnd.nextInt(1000000));
+        }
+        return sb.append("]}").toString();
+    }
+
+    private static String repeat(char c, int n) {
+        char[] a = new char[n];
+        Arrays.fill(a, c);
+        return new String(a);
+    }
+
+    @Test
+    public void compressedMessagesWithContextTakeover() throws Exception {
+        TestWsServer s = server();
+        Recorder r = new Recorder();
+        // the answer of the platform's Tomcat to the offer
+        Link l = openDeflate(s, r, "permessage-deflate;client_max_window_bits=15");
+        assertEquals("permessage-deflate; client_max_window_bits=15", l.client.extensions());
+        l.client.setMaxMessageBytes(RealtimeRound.FINAL_MAX_MESSAGE_BYTES);
+        TestWsServer.Compressor c = new TestWsServer.Compressor(true);
+        // a final frame of a long paragraph: 1.5 MB of JSON
+        String big = finalLike(1500 * 1024);
+        int wire1 = l.peer.compressedText(c, big);
+        assertEquals(big, r.nextText());
+        WsConnection.Inbound in1 = l.client.inbound();
+        assertTrue(in1.compressed);
+        assertEquals(wire1, in1.wireBytes);
+        assertEquals(big.getBytes(StandardCharsets.UTF_8).length, in1.dataBytes);
+        assertTrue("1.5 MB compresses well: " + wire1, wire1 * 8 < in1.dataBytes);
+        assertTrue(in1.completeNanos >= in1.firstByteNanos);
+        // the same message again is a back reference into the window the client kept
+        String small = randomJson(3000);
+        int first = l.peer.compressedText(c, small);
+        assertEquals(small, r.nextText());
+        int again = l.peer.compressedText(c, small);
+        assertEquals(small, r.nextText());
+        assertTrue("context takeover: " + again + " bytes after " + first, again * 10 < first);
+        assertEquals(again, l.client.inbound().wireBytes);
+        // uncompressed messages may come between compressed ones
+        l.peer.text("plain");
+        assertEquals("plain", r.nextText());
+        assertFalse(l.client.inbound().compressed);
+        // fragmented: the compression bit on the first frame only, a ping in between
+        String zh = "我是中国人，我是中国人。我们都是中国人。中华民族是一家人。";
+        byte[] p = c.compress(zh);
+        l.peer.sendCompressed(false, WsClient.OP_TEXT, Arrays.copyOfRange(p, 0, 3));
+        l.peer.send(true, WsClient.OP_PING, "p".getBytes(StandardCharsets.US_ASCII));
+        l.peer.send(false, WsClient.OP_CONTINUATION, Arrays.copyOfRange(p, 3, 7));
+        l.peer.send(true, WsClient.OP_CONTINUATION, Arrays.copyOfRange(p, 7, p.length));
+        assertEquals(WsClient.OP_PONG, l.peer.readFrame().opcode);
+        assertEquals(zh, r.nextText());
+        assertEquals(p.length, l.client.inbound().wireBytes);
+        byte[] bin = new byte[5000];
+        for (int i = 0; i < bin.length; i++) {
+            bin[i] = (byte) (i % 7);
+        }
+        l.peer.sendCompressed(true, WsClient.OP_BINARY, c.compress(bin));
+        assertArrayEquals(bin, r.binaries.poll(5, TimeUnit.SECONDS));
+        // client frames stay uncompressed
+        l.client.sendText("{\"cmd\":\"end\"}");
+        TestWsServer.Frame out = l.peer.readFrame();
+        assertEquals(0, out.rsv);
+        assertEquals("{\"cmd\":\"end\"}", out.text());
+        assertEquals(0, r.terminal.get());
+        c.end();
+    }
+
+    @Test
+    public void serverNoContextTakeoverStartsEveryMessageWithAnEmptyWindow() throws Exception {
+        TestWsServer s = server();
+        Recorder r = new Recorder();
+        Link l = openDeflate(s, r, "permessage-deflate; server_no_context_takeover; client_max_window_bits=15");
+        assertTrue(l.client.extensions().contains("server_no_context_takeover"));
+        TestWsServer.Compressor fresh = new TestWsServer.Compressor(false);
+        String text = finalLike(4000);
+        for (int i = 0; i < 3; i++) {
+            int wire = l.peer.compressedText(fresh, text);
+            assertEquals(text, r.nextText());
+            assertTrue("each message on its own: " + wire, wire > 100);
+        }
+        // a server that breaks its word and refers to the previous message cannot be decoded,
+        // which shows the client really started from an empty window
+        TestWsServer.Compressor shared = new TestWsServer.Compressor(true);
+        l.peer.compressedText(shared, text);
+        assertEquals(text, r.nextText());
+        l.peer.compressedText(shared, text);
+        assertEquals(1007, l.peer.readFrame().closeCode());
+        r.awaitEnd();
+        assertEquals(1007, r.failureCode());
+        fresh.end();
+        shared.end();
+    }
+
+    /**
+     * RFC 7692 7.2.3.4: a sender may end each message with a final block (BFINAL set) instead of
+     * a sync flush; the next message is then a new DEFLATE stream and the client starts over.
+     */
+    @Test
+    public void messagesEndingInAFinalBlock() throws Exception {
+        TestWsServer s = server();
+        Recorder r = new Recorder();
+        Link l = openDeflate(s, r, "permessage-deflate");
+        for (String text : new String[] {finalLike(5000), randomJson(2000), "短"}) {
+            java.util.zip.Deflater d = new java.util.zip.Deflater(java.util.zip.Deflater.BEST_SPEED, true);
+            d.setInput(text.getBytes(StandardCharsets.UTF_8));
+            d.finish();
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            while (!d.finished()) {
+                out.write(buf, 0, d.deflate(buf));
+            }
+            d.end();
+            l.peer.sendCompressed(true, WsClient.OP_TEXT, out.toByteArray());
+            assertEquals(text, r.nextText());
+        }
+        assertEquals(0, r.terminal.get());
+    }
+
+    @Test
+    public void deflateAnswersAreChecked() throws Exception {
+        String[] good = {
+            "permessage-deflate",
+            "permessage-deflate; client_max_window_bits=8",
+            "PerMessage-Deflate ; server_no_context_takeover ; client_no_context_takeover; server_max_window_bits=10;"
+                    + " client_max_window_bits=15",
+            "permessage-deflate; server_max_window_bits=\"12\"",
+            "permessage-deflate; server_max_window_bits=\"1\\3\"",
+        };
+        String[] described = {
+            "permessage-deflate",
+            "permessage-deflate; client_max_window_bits=8",
+            "permessage-deflate; server_no_context_takeover; client_no_context_takeover; server_max_window_bits=10;"
+                    + " client_max_window_bits=15",
+            "permessage-deflate; server_max_window_bits=12",
+            "permessage-deflate; server_max_window_bits=13",
+        };
+        TestWsServer s = server();
+        for (int i = 0; i < good.length; i++) {
+            Link l = openDeflate(s, new Recorder(), good[i]);
+            assertEquals(described[i], l.client.extensions());
+        }
+        String[] bad = {
+            "x-webkit-deflate-frame",
+            "permessage-deflate, permessage-deflate",
+            "permessage-deflate; client_max_window_bits",
+            "permessage-deflate; server_max_window_bits=7",
+            "permessage-deflate; server_max_window_bits=16",
+            "permessage-deflate; server_max_window_bits=08",
+            "permessage-deflate; server_max_window_bits=1x",
+            "permessage-deflate; server_no_context_takeover=1",
+            "permessage-deflate; client_no_context_takeover; client_no_context_takeover",
+            "permessage-deflate; mystery=1",
+            "permessage-deflate;",
+            "permessage-deflate; server_max_window_bits=\"12",
+            "permessage-deflate; server_max_window_bits=1\"2\"",
+            "",
+        };
+        for (String b : bad) {
+            FutureTask<WsClient> f = connectAsync(options(s, "/x"), new Recorder());
+            TestWsServer.Peer p = s.next().readRequest();
+            p.accept101("Sec-WebSocket-Extensions: " + b);
+            IOException e = connectFailure(f);
+            assertTrue(b + ": " + e, e instanceof WsClient.ProtocolError);
+            assertTrue("the client closes the socket", p.eof());
+        }
+        // two header lines are one list: two extensions
+        FutureTask<WsClient> f = connectAsync(options(s, "/x"), new Recorder());
+        TestWsServer.Peer p = s.next().readRequest();
+        p.accept101("Sec-WebSocket-Extensions: permessage-deflate", "Sec-WebSocket-Extensions: permessage-deflate");
+        assertTrue(connectFailure(f) instanceof WsClient.ProtocolError);
+    }
+
+    @Test
+    public void compressionViolationsCloseWith1002Or1007() throws Exception {
+        TestWsServer.Compressor c = new TestWsServer.Compressor(false);
+        byte[][] violations = {
+            TestWsServer.frame(0xC9, 0, null, new byte[0]),                                 // compressed ping
+            TestWsServer.frame(0xA1, 1, null, new byte[] {'x'}),                            // RSV2
+            TestWsServer.frame(0x91, 1, null, new byte[] {'x'}),                            // RSV3
+            TestWsServer.frame(0xC1, 4, null, new byte[] {(byte) 0xFF, 1, 2, 3}),           // reserved block type
+            TestWsServer.frame(0xC1, 1, null, new byte[] {0}),                              // empty message (RFC 7692 7.2.3.6) ...
+        };
+        // ... is fine, so the last one is followed by text that inflates to invalid UTF-8
+        byte[] badUtf8 = c.compress(new byte[] {(byte) 0xC3, 0x28});
+        int[] codes = {1002, 1002, 1002, 1007, 1007};
+        TestWsServer s = server();
+        for (int i = 0; i < violations.length; i++) {
+            Recorder r = new Recorder();
+            Link l = openDeflate(s, r, "permessage-deflate");
+            l.peer.write(violations[i]);
+            if (i == violations.length - 1) {
+                assertEquals("an empty compressed message is an empty text", "", r.nextText());
+                l.peer.sendCompressed(true, WsClient.OP_TEXT, badUtf8);
+            }
+            TestWsServer.Frame close = l.peer.readFrame();
+            assertEquals("violation " + i, WsClient.OP_CLOSE, close.opcode);
+            assertEquals("violation " + i, codes[i], close.closeCode());
+            r.awaitEnd();
+            assertEquals("violation " + i, codes[i], r.failureCode());
+        }
+        // the compression bit on a continuation frame
+        Recorder r = new Recorder();
+        Link l = openDeflate(s, r, "permessage-deflate");
+        byte[] p = c.compress("continued");
+        l.peer.sendCompressed(false, WsClient.OP_TEXT, Arrays.copyOfRange(p, 0, 2));
+        l.peer.sendCompressed(true, WsClient.OP_CONTINUATION, Arrays.copyOfRange(p, 2, p.length));
+        assertEquals(1002, l.peer.readFrame().closeCode());
+        r.awaitEnd();
+        assertEquals(1002, r.failureCode());
+        c.end();
+    }
+
+    @Test
+    public void capsApplyToTheInflatedSizeAndStopInflationBombsEarly() throws Exception {
+        TestWsServer s = server();
+        TestWsServer.Compressor c = new TestWsServer.Compressor(false);
+        Recorder r = new Recorder();
+        Link l = openDeflate(s, r, "permessage-deflate");
+        l.client.setMaxMessageBytes(1000);
+        String exact = repeat('a', 1000);
+        l.peer.compressedText(c, exact);
+        assertEquals("exactly the cap passes", exact, r.nextText());
+        int wire = l.peer.compressedText(c, repeat('a', 1001));
+        assertTrue("small on the wire: " + wire, wire < 50);
+        assertEquals(1009, l.peer.readFrame().closeCode());
+        r.awaitEnd();
+        assertEquals(1009, r.failureCode());
+        assertTrue(r.failure.getMessage().contains("inflated"));
+
+        // 64 MB of zeros are about 64 KB on the wire, below the 128 KB cap of the streaming phase:
+        // inflation stops at the cap instead of filling the memory
+        Recorder r2 = new Recorder();
+        Link l2 = openDeflate(s, r2, "permessage-deflate");
+        byte[] bomb = c.compress(new byte[64 * 1024 * 1024]);
+        assertTrue(bomb.length < WsClient.DEFAULT_MAX_MESSAGE_BYTES);
+        long t0 = System.nanoTime();
+        l2.peer.sendCompressed(true, WsClient.OP_BINARY, bomb);
+        assertEquals(1009, l2.peer.readFrame().closeCode());
+        r2.awaitEnd();
+        assertEquals(1009, r2.failureCode());
+        assertTrue(r2.binaries.isEmpty());
+        assertTrue("stopped early", (System.nanoTime() - t0) / 1000000L < 3000);
+        c.end();
     }
 
     // ================================================================ helpers

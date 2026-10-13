@@ -152,6 +152,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 + (instancetype)string;
 + (instancetype)stringWithUTF8String:(const char *)nullTerminatedCString;
 + (instancetype)stringWithFormat:(NSString *)format, ... NS_FORMAT_FUNCTION(1, 2);
++ (instancetype)stringWithContentsOfFile:(NSString *)path encoding:(NSStringEncoding)enc error:(NSError **)error;
 - (instancetype)initWithFormat:(NSString *)format arguments:(va_list)argList NS_FORMAT_FUNCTION(1, 0);
 - (instancetype)initWithBytes:(const void *)bytes length:(NSUInteger)len encoding:(NSStringEncoding)encoding;
 - (instancetype)initWithData:(NSData *)data encoding:(NSStringEncoding)encoding;
@@ -171,6 +172,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 - (BOOL)containsString:(NSString *)str;
 - (NSString *)substringToIndex:(NSUInteger)to;
 - (NSRange)rangeOfString:(NSString *)searchString options:(NSStringCompareOptions)mask range:(NSRange)rangeOfReceiverToSearch;
+- (NSRange)rangeOfCharacterFromSet:(NSCharacterSet *)searchSet;
 @property (readonly) double doubleValue;
 @property (readonly) NSInteger integerValue;
 @property (readonly) long long longLongValue;
@@ -183,6 +185,8 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 
 @interface NSCharacterSet : NSObject <NSCopying>
 @property (class, readonly, copy) NSCharacterSet *whitespaceAndNewlineCharacterSet;
+@property (class, readonly, copy) NSCharacterSet *decimalDigitCharacterSet;
+@property (readonly, copy) NSCharacterSet *invertedSet;
 @end
 
 // ------------------------------------------------------------------ numbers and values
@@ -244,7 +248,9 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 @end
 
 @interface NSMutableDictionary<KeyType, ObjectType> : NSDictionary <KeyType, ObjectType>
++ (instancetype)dictionary;
 - (void)setObject:(ObjectType)obj forKeyedSubscript:(KeyType<NSCopying>)key;
+- (void)removeObjectForKey:(KeyType)aKey;
 @end
 
 // ------------------------------------------------------------------ attributed strings
@@ -331,6 +337,7 @@ enum {
 + (instancetype)dateWithTimeIntervalSinceNow:(NSTimeInterval)secs;
 @property (readonly) NSTimeInterval timeIntervalSince1970;
 @property (readonly) NSTimeInterval timeIntervalSinceNow;
+- (NSTimeInterval)timeIntervalSinceDate:(NSDate *)anotherDate;
 @end
 
 @interface NSTimeZone : NSObject <NSCopying>
@@ -389,6 +396,7 @@ typedef NSString *NSFileAttributeKey;
                      attributes:(NSDictionary<NSFileAttributeKey, id> *)attributes
                           error:(NSError **)error;
 - (BOOL)createFileAtPath:(NSString *)path contents:(NSData *)data attributes:(NSDictionary<NSFileAttributeKey, id> *)attr;
+- (BOOL)removeItemAtPath:(NSString *)path error:(NSError **)error;
 @end
 
 @interface NSFileHandle : NSObject
@@ -482,6 +490,7 @@ typedef NS_ENUM(NSUInteger, NSHTTPCookieAcceptPolicy) {
 @end
 
 @interface NSURLSessionTask : NSObject <NSCopying>
+@property (readonly) NSUInteger taskIdentifier;
 @property (readonly, copy) NSURLResponse *response;
 - (void)resume;
 - (void)cancel;
@@ -548,9 +557,50 @@ API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0))
 @property (readonly, copy) NSData *closeReason;
 @end
 
+/* Task metrics, iOS 10 and macOS 10.12; the byte counts iOS 13 and macOS 10.15 (Foundation/NSURLSession.h) */
+
+API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0))
+@interface NSURLSessionTaskTransactionMetrics : NSObject
+@property (copy, readonly) NSURLRequest *request;
+@property (copy, readonly) NSURLResponse *response;
+@property (copy, readonly) NSDate *fetchStartDate;
+@property (copy, readonly) NSDate *requestStartDate;
+@property (copy, readonly) NSDate *requestEndDate;
+@property (copy, readonly) NSDate *responseStartDate;
+@property (copy, readonly) NSDate *responseEndDate;
+@property (readonly) int64_t countOfRequestBodyBytesSent API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0));
+@property (readonly) int64_t countOfResponseBodyBytesReceived API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0));
+@property (readonly) int64_t countOfResponseBodyBytesAfterDecoding
+    API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0));
+@end
+
+API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0))
+@interface NSURLSessionTaskMetrics : NSObject
+@property (copy, readonly) NSArray<NSURLSessionTaskTransactionMetrics *> *transactionMetrics;
+@property (assign, readonly) NSUInteger redirectCount;
+@end
+
+@class NSURLSession;
+
+@protocol NSURLSessionDelegate <NSObject>
+@optional
+- (void)URLSession:(NSURLSession *)session didBecomeInvalidWithError:(NSError *)error;
+@end
+
+@protocol NSURLSessionTaskDelegate <NSURLSessionDelegate>
+@optional
+- (void)URLSession:(NSURLSession *)session
+                          task:(NSURLSessionTask *)task
+    didFinishCollectingMetrics:(NSURLSessionTaskMetrics *)metrics
+    API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
+@end
+
 @interface NSURLSession : NSObject
 @property (class, readonly, strong) NSURLSession *sharedSession;
 + (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration;
++ (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration
+                                  delegate:(id<NSURLSessionDelegate>)delegate
+                             delegateQueue:(NSOperationQueue *)queue;
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
                             completionHandler:(void (^)(NSData *data, NSURLResponse *response,
                                                         NSError *error))completionHandler;

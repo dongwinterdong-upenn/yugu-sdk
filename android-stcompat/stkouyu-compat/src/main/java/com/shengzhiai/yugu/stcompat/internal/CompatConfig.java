@@ -5,11 +5,11 @@ import java.util.Random;
 
 /**
  * Process-wide configuration of the compat layer, set through {@code com.stkouyu.YuguCompat}
- * (base URL, log level, retry policy, timeouts) and by tests (transport, WebSocket connector,
- * audio input, sleeper).
+ * (base URL, log level, retry policy, timeouts, streaming upload) and by tests (transport,
+ * WebSocket connector, audio input, sleeper).
  */
 public final class CompatConfig {
-    public static final String VERSION = "2.1.0";
+    public static final String VERSION = "2.1.1";
     public static final String API_VERSION = "1.0.62";
     public static final String SDK_VERSION = "yugu-stkouyu-compat/" + VERSION + " (api " + API_VERSION + ")";
     public static final String USER_AGENT = "yugu-stkouyu-compat/" + VERSION;
@@ -28,6 +28,7 @@ public final class CompatConfig {
     private static volatile int connectTimeoutMs = -1;
     private static volatile int readTimeoutMs = -1;
     private static volatile long totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS;
+    private static volatile boolean streamUpload = true;
     private static volatile HttpTransport transport = new UrlConnectionTransport();
     private static volatile WsConnection.Connector wsConnector = WsClient.CONNECTOR;
     private static volatile AudioInput.Factory audioInputFactory = AudioRecordInput.FACTORY;
@@ -75,6 +76,18 @@ public final class CompatConfig {
         connectTimeoutMs = connectMs > 0 ? connectMs : -1;
         readTimeoutMs = readMs > 0 ? readMs : -1;
         totalTimeoutMs = totalMs > 0 ? totalMs : DEFAULT_TOTAL_TIMEOUT_MS;
+    }
+
+    /**
+     * Recordings and stream sessions stream over the realtime channel while recording (default
+     * true, SDK 2.1.1); false uploads them after stop as in 2.1.0, realtime_feedback still streams.
+     */
+    public static boolean streamUpload() {
+        return streamUpload;
+    }
+
+    public static void setStreamUpload(boolean enabled) {
+        streamUpload = enabled;
     }
 
     public static HttpTransport transport() {
@@ -125,6 +138,7 @@ public final class CompatConfig {
         connectTimeoutMs = -1;
         readTimeoutMs = -1;
         totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS;
+        streamUpload = true;
         transport = new UrlConnectionTransport();
         wsConnector = WsClient.CONNECTOR;
         audioInputFactory = AudioRecordInput.FACTORY;

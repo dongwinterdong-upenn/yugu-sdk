@@ -40,8 +40,30 @@ FOUNDATION_EXTERN void YGSTLogf(NSInteger level, NSString *format, ...) NS_FORMA
 @property (atomic, copy, nullable) void (^logHandler)(NSInteger level, NSString *message);
 @property (atomic) NSInteger maxRetries;
 @property (atomic) NSTimeInterval totalTimeout;
+/// 2.1.1: recordings and 16 kHz mono PCM feeds stream over the compat WebSocket, default YES.
+@property (atomic) BOOL streamUpload;
 /// Base URL derived from the last initEngine (KYStartEngineConfig.server).
 @property (atomic, copy) NSString *configuredBaseURL;
+@end
+
+// ------------------------------------------------------------------ per-phase timing (2.1.1)
+
+/// YES at log level INFO or DEBUG: the request asks the platform for its timing object
+/// (form field timing=1, "timing":1 in the parameter frame).
+FOUNDATION_EXTERN BOOL YGSTTimingWanted(void);
+
+/// The phases of one evaluation (core/ygst_timing.c). The engine queue of the session writes the
+/// struct directly; the summary is logged once, after the result callback.
+@interface YGSTTiming : NSObject {
+@public
+    ygst_timing _t;
+}
+/// The platform timing object of the final JSON, for the DEBUG line.
+@property (nonatomic, copy, nullable) NSData *timingObject;
+/// The server times and the timing object of a final JSON (REST body or WebSocket final frame).
+- (void)takeTimingFromRoot:(ygst_span)root;
+/// INFO summary line and, at DEBUG, the detail line; once, and only when the platform was reached.
+- (void)logForToken:(NSString *)tokenId;
 @end
 
 // ------------------------------------------------------------------ helpers
@@ -87,6 +109,9 @@ FOUNDATION_EXTERN NSData *YGSTWavFromPCM(NSData *pcm, int sampleRate, int channe
 /// One logical evaluation call: attempts, backoff and autoRetry decided by the C controller.
 @interface YGSTUploader : NSObject
 - (instancetype)initWithURLSession:(NSURLSession *)session queue:(dispatch_queue_t)queue;
+/// 2.1.1: receives the phases of the last attempt (NSURLSessionTaskMetrics), the Server-Timing
+/// header and the timing object of the body.
+@property (nonatomic, strong, nullable) YGSTTiming *timing;
 - (void)startWithURL:(NSURL *)url
               appKey:(NSString *)appKey
            signature:(NSString *)signature
@@ -106,16 +131,21 @@ FOUNDATION_EXTERN NSData *YGSTWavFromPCM(NSData *pcm, int sampleRate, int channe
 @property (nonatomic, strong) NSData *body;
 @property (nonatomic, copy) NSString *contentType;
 @property (nonatomic, copy) NSString *signature;
+/// timing: add the form field timing=1 (2.1.1, log level INFO or DEBUG) to the signed request; the
+/// fields themselves, which also make the params of the result JSON, stay as they are.
 + (nullable instancetype)requestWithBaseURL:(NSString *)baseURL
                                    coreType:(NSString *)coreType
                                      fields:(const ygst_fields *)fields
+                                     timing:(BOOL)timing
                                      secret:(NSString *)secret
                                       audio:(NSData *)audio
                                   extension:(NSString *)extension
                                       error:(NSString *_Nullable *_Nullable)error;
 @end
 
-/// Shared NSURLSession for all engines; ephemeral, no cookies, no cache.
+/// Shared NSURLSession for all engines; ephemeral, no cookies, no cache. Its delegate collects the
+/// task metrics of the REST attempts (2.1.1). NSURLSession asks for gzip by itself
+/// (Accept-Encoding) and decodes the body before the completion handler sees it.
 FOUNDATION_EXTERN NSURLSession *YGSTSharedURLSession(void);
 
 /// YGST_LOCAL_TIMEOUT, YGST_LOCAL_TLS or YGST_LOCAL_NETWORK for a URL loading error.
@@ -136,13 +166,17 @@ FOUNDATION_EXTERN NSString *_Nullable YGSTResultJSON(YGSTUploadResult *result, N
 
 // ------------------------------------------------------------------ realtime feedback (2.1.0)
 
-/// One evaluation over the compat WebSocket with reading progress (KYTestConfig.realtime_feedback).
-/// The C controller ygst_rt decides everything; this class carries its actions out with
-/// NSURLSessionWebSocketTask (iOS 13, macOS 10.15) on the engine queue, which every method must
-/// be called on and every handler runs on.
+/// One evaluation streamed over the compat WebSocket: since 2.1.1 every recording and 16 kHz mono
+/// PCM feed by default (YuguCompat.streamUpload), with reading progress only when
+/// KYTestConfig.realtime_feedback asks for it (2.1.0). The C controller ygst_rt decides
+/// everything; this class carries its actions out with NSURLSessionWebSocketTask (iOS 13, macOS
+/// 10.15) on the engine queue, which every method must be called on and every handler runs on.
+/// NSURLSessionWebSocketTask negotiates permessage-deflate by itself where the system supports it.
 @interface YGSTRealtimeRound : NSObject
 /// NO before iOS 13: no NSURLSessionWebSocketTask, the evaluation goes over REST.
 + (BOOL)isAvailable;
+/// realtimeFeedback: "realtime_feedback":true in the parameter frame, the platform sends progress.
+/// timing: the phases of the round, written on the queue.
 - (instancetype)initWithQueue:(dispatch_queue_t)queue
                       baseURL:(NSString *)baseURL
                      coreType:(NSString *)coreType
@@ -154,7 +188,9 @@ FOUNDATION_EXTERN NSString *_Nullable YGSTResultJSON(YGSTUploadResult *result, N
                        fields:(const ygst_fields *)fields
                        policy:(const ygst_retry_policy *)policy
                connectTimeout:(NSTimeInterval)connectTimeout
-               attemptTimeout:(NSTimeInterval)attemptTimeout;
+               attemptTimeout:(NSTimeInterval)attemptTimeout
+             realtimeFeedback:(BOOL)realtimeFeedback
+                       timing:(YGSTTiming *)timing;
 /// An eof 0 JSON with the words read since the last one.
 @property (nonatomic, copy, nullable) void (^progressHandler)(NSString *json);
 /// The final result or the error, built like the REST uploader's.

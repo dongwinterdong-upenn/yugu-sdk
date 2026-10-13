@@ -81,7 +81,8 @@ AAR="$PROJECT/stkouyu-compat/build/outputs/aar/stkouyu-compat-release.aar"
 if [ -d "$WORK/repo" ]; then
     ( cd "$WORK/repo" && find . -type f | sort ) > "$CI_OUT/published-files.txt"
     echo "published $(wc -l < "$CI_OUT/published-files.txt") files"
-    [ -f "$WORK/repo/com/shengzhiai/yugu/stkouyu-compat/2.1.0/stkouyu-compat-2.1.0.aar" ] || fail "published AAR missing"
+    VER=$(sed -nE "s/.*yuguVersion *= *['\"]([^'\"]+)['\"].*/\1/p" "$PROJECT/build.gradle" | head -1)
+    [ -n "$VER" ] && [ -f "$WORK/repo/com/shengzhiai/yugu/stkouyu-compat/$VER/stkouyu-compat-$VER.aar" ] || fail "published AAR $VER missing"
 fi
 [ -f "$AAR" ] && cp "$AAR" "$CI_OUT/"
 

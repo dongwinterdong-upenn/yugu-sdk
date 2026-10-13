@@ -50,6 +50,13 @@ public final class YLog {
         }
     }
 
+    /** EngineSetting switched SDK logs off: back to the default WARN unless a pinned level is set. */
+    public static void clearLevelFromSettings() {
+        if (!levelPinned) {
+            level = WARN;
+        }
+    }
+
     public static void resetLevel() {
         level = WARN;
         levelPinned = false;

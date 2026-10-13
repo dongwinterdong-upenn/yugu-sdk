@@ -41,4 +41,34 @@ FOUNDATION_EXPORT NSString *_Nullable YGSTCheckRealtimeProgressOff(NSString *bas
 FOUNDATION_EXPORT NSString *_Nullable YGSTCheckRealtimeCancel(NSString *baseURL, NSString *specDir,
                                                               NSTimeInterval timeout);
 
+/// 2.1.1 stream upload against the mock platform, without realtime_feedback: the stream session goes
+/// over the compat WebSocket while it is fed, only the final arrives, one evaluation billed.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckStreamUploadDefault(NSString *baseURL, NSString *specDir,
+                                                                   NSTimeInterval timeout);
+/// YuguCompat.streamUpload NO: one request after stopEngine, as in 2.1.0.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckStreamUploadOff(NSString *baseURL, NSString *specDir,
+                                                               NSTimeInterval timeout);
+/// mockFault ws-refuse without realtime_feedback: one request after stopEngine with the same tokenId.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckStreamRefusedFallsBack(NSString *baseURL, NSString *specDir,
+                                                                      NSTimeInterval timeout);
+/// realtime_feedback with YuguCompat.streamUpload NO: streamed with progress, as in 2.1.0.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckRealtimeWithStreamUploadOff(NSString *baseURL, NSString *specDir,
+                                                                           NSTimeInterval timeout);
+/// KYStartEngineConfig sdkLogEnable YES with logLevel 2: INFO in sdkLogPath with one timing line per
+/// evaluation and timing=1 in the request; logLevel 1, the default: neither.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckLogLevelInfoTiming(NSString *baseURL, NSString *specDir,
+                                                                  NSTimeInterval timeout);
+/// Against core-tests/integration/timing_server.py: a streamed paragraph with a 1 MB final, the
+/// server accepting or declining permessage-deflate; the final arrives whole, without its timing
+/// object, the timing line carries the server timing. report: what URLSessionWebSocketTask offered
+/// and how the final went over the wire.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckTimingServerWebSocket(NSString *baseURL, NSString *specDir, BOOL deflate,
+                                                                     NSTimeInterval timeout,
+                                                                     NSString *_Nullable *_Nullable report);
+/// Against timing_server.py over REST: gzip body, Server-Timing header, timing=1, the split of
+/// NSURLSessionTaskMetrics in the timing line. report: what went over the wire.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckTimingServerRest(NSString *baseURL, NSString *specDir,
+                                                                NSTimeInterval timeout,
+                                                                NSString *_Nullable *_Nullable report);
+
 NS_ASSUME_NONNULL_END

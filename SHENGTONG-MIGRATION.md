@@ -6,7 +6,7 @@
 
 | 端 | 平替层 | 对齐的声通接口 | 说明 |
 |---|---|---|---|
-| 安卓 | `com.shengzhiai.yugu:stkouyu-compat:2.1.0`，包名 `com.stkouyu` | `17kouyu_1.0.0.jar` | 接入说明见 `android-stcompat/README.md` |
+| 安卓 | `com.shengzhiai.yugu:stkouyu-compat:2.1.1`，包名 `com.stkouyu` | `17kouyu_1.0.0.jar` | 接入说明见 `android-stcompat/README.md` |
 | iOS | SwiftPM `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`，模块名 `STKouyuEngine` | `STKouyuEngine.framework` 公开头文件 | 接入说明见 `ios-stcompat/README.md` |
 | 网页与小程序 | 不提供 | 声通网页与小程序 SDK 的接口资料暂缺 | 用 `@shengzhiai/yugu-web-sdk` 与 `@shengzhiai/yugu-miniprogram-sdk` 接入 |
 | 服务端 | 不提供 | 声通 HTTP 接口 | 用兼容整段评测接口 `POST /{coreType}` 或 Java SDK |
@@ -14,14 +14,14 @@
 ## 安卓切换步骤
 
 1. 在 `build.gradle` 里删掉 `api files('libs/17kouyu_1.0.0.jar')` 与 jniLibs 下的 `libskegn.so`，`libmp3lamest.so`。
-2. 加仓库 `maven { url "https://open.shengzhiai.com/maven/" }` 与依赖 `api "com.shengzhiai.yugu:stkouyu-compat:2.1.0"`。
+2. 加仓库 `maven { url "https://open.shengzhiai.com/maven/" }` 与依赖 `api "com.shengzhiai.yugu:stkouyu-compat:2.1.1"`。
 3. `initEngine` 传入的 appKey 与 secretKey 换成优谷雅言的密钥，联调期间用沙箱密钥。
 4. 代码里显式设置过声通服务器地址的，删掉该行或改为 `https://open.shengzhiai.com`，指向声通域名的地址会被自动改指优谷雅言。
 
 ## iOS 切换步骤
 
 1. 从工程里移除 `STKouyuEngine.framework` 与 `libskegn.a`。
-2. Xcode 添加 Swift Package，地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`，规则 Up to Next Major，起始版本 `2.1.0`。
+2. Xcode 添加 Swift Package，地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`，规则 Up to Next Major，起始版本 `2.1.1`。
 3. `#import <STKouyuEngine/KYTestEngine.h>` 与 `import STKouyuEngine` 写法不变，只换 appKey 与 secretKey。
 
 ## 与声通 SDK 的差异
@@ -38,7 +38,7 @@
 
 ## 实时朗读反馈
 
-`realtime_feedback` 打开后，平替层边录边传，录音过程中回调 `eof` 为 0 的中间结果，结束后回调一次 `eof` 为 1 的终评。中间结果沿用声通的结构：
+`2.1.1` 起平替层默认边录边传，停录后只剩最后一小段音频要传。`realtime_feedback` 打开后，录音过程中另外回调 `eof` 为 0 的中间结果，结束后回调一次 `eof` 为 1 的终评。中间结果沿用声通的结构：
 
 ```json
 {"tokenId": "...", "recordId": "", "eof": 0, "result": {"kernel_version": "1.0.0", "resource_version": "1.0.0",

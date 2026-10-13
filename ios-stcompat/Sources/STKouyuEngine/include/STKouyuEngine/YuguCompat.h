@@ -26,10 +26,10 @@ typedef NS_ENUM(NSInteger, YuguCompatLogLevel) {
 /// 平替层的扩展配置与版本信息。所有方法线程安全，设置在下一次评测生效。
 @interface YuguCompat : NSObject
 
-/// "2.1.0"
+/// "2.1.1"
 @property (class, nonatomic, readonly, copy) NSString *sdkVersion;
 
-/// User-Agent，"yugu-ios-stcompat-sdk/2.1.0"
+/// User-Agent，"yugu-ios-stcompat-sdk/2.1.1"
 @property (class, nonatomic, readonly, copy) NSString *userAgent;
 
 /// 默认平台地址 https://open.shengzhiai.com
@@ -55,6 +55,11 @@ typedef NS_ENUM(NSInteger, YuguCompatLogLevel) {
 
 /// 一次评测含重试与等待的总时限，单位秒，默认 300。
 @property (class, nonatomic) NSTimeInterval totalTimeout;
+
+/// 边录边传，默认 YES。录音与 16 kHz 16 位单声道 PCM 的 feed 在录音过程中经声通兼容实时评测接口上传，
+/// stopEngine 之后只剩最后一小段音频。设为 NO 时与 2.1.0 相同，录音结束后整段上传。
+/// audioPath 模式总是整段上传。realtime_feedback 只决定是否回调朗读进度。需要 iOS 13，iOS 12 上整段上传。
+@property (class, nonatomic) BOOL streamUpload;
 
 @end
 

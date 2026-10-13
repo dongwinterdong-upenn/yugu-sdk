@@ -117,7 +117,25 @@ expected = A+6uVB/D7khxQEt8tzgCNjMUC1QtQQd1UF+NCYVYZqE=
 
 `POST /{coreType}`，路径取声通命名，已注册 `word.eval`，`word.eval.pro`，`sent.eval`，`sent.eval.pro`，`para.eval`，`alpha.eval`，`word.eval.cn`，`sent.eval.cn`，`para.eval.cn`，`pinyin`。`multipart/form-data`，`audio` 为文件段，业务参数为文本段，使用声通参数名：`refText`，`language`，`refPinyin`，`agegroup`，`scale`，`precision`，`slack`，`paragraph_need_word_score`，`phoneme_output`，`attachAudioUrl`，`dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron`，`output_rawtext`，`readtype_diagnosis` 等。另可带文本段 `request`，内容为 JSON，其顶层标量字段并入业务参数。兼容接口必须带 `X-App-Key`。
 
-成功时返回声通风格结果 `{"recordId": ..., "eof": 1, "result": {...}}`，`result` 内的字段与 3.1 节一致，段落题按 `paragraph_need_word_score` 决定是否带逐词详情。请求带 `attachAudioUrl=1` 时顶层另有 `audioUrl`，为录音下载地址，保留 7 天，同一个幂等键重放时地址不变。
+成功时返回声通风格结果 `{"recordId": ..., "eof": 1, "result": {...}}`，`result` 内的字段与 3.1 节一致，段落题按 `paragraph_need_word_score` 决定是否带逐词详情。请求带 `attachAudioUrl=1` 时顶层另有 `audioUrl`，为录音下载地址，保留 7 天，同一个幂等键重放时地址不变。兼容接口不返回示范音，服务端也不合成。
+
+### 3.3 分段耗时
+
+兼容接口的 REST 响应头带 `Server-Timing: total;dur=5321, engine;dur=4100, platform;dur=1221`，单位毫秒。`total` 从服务端开始处理已收到的请求算起，到结果备好为止，`engine` 是评测引擎这一段，`platform` 是其余部分。
+
+请求带 `timing=1` 时，结果顶层另有 `timing` 对象，REST 用文本段，实时评测写在参数帧里，见 5.2 节：
+
+```json
+"timing": {"receivedAt": 1791800000123, "totalMs": 5321, "engineMs": 4100, "platformMs": 1221,
+           "engineStages": {"text_frontend_ms": 1909.3, "asr_ms": 595.0}, "audioBytes": 528000,
+           "wsFirstAudioAt": 1791799990000}
+```
+
+- `receivedAt` 是服务端开始处理的时刻，毫秒时间戳。REST 为请求体收完时，实时评测为收到结束帧时。
+- `engineStages` 是引擎各环节的耗时，键名随引擎版本变化，可能缺省。
+- `audioBytes` 是服务端收到的音频字节数。
+- `wsFirstAudioAt` 只在实时评测出现，是这一轮第一个音频帧到达服务端的时刻。
+- 不带 `timing=1` 时结果不变。错误帧不带 `timing`，重放结果带首次评测的 `timing`。客户端应忽略不认识的键。
 
 ## 4 语音合成与报告
 
@@ -153,9 +171,11 @@ voice 英文取 `female` 或 `male`，中文取 `xiaoyan` 女声或 `xiaofeng` �
 `wss://open.shengzhiai.com/{coreType}`，coreType 同 3.2 节。
 
 1. 服务端发 `{"event": "connected", "coreType": "sent.eval.cn"}`。
-2. 客户端发参数帧 `{"refText": "北京你好", "language": "zh-CN", "realtime_feedback": true, "idempotencyKey": "..."}`，也接受 `text` 代替 `refText`。服务端回 `{"event": "started", "coreType": "sent.eval.cn"}`。参数帧会清空这一轮已收的音频，一轮只发一次。
+2. 客户端发参数帧 `{"refText": "北京你好", "language": "zh-CN", "realtime_feedback": true, "idempotencyKey": "..."}`，也接受 `text` 代替 `refText`。不要朗读进度时不带 `realtime_feedback`。服务端回 `{"event": "started", "coreType": "sent.eval.cn"}`。参数帧会清空这一轮已收的音频，一轮只发一次。
 3. 客户端发音频，规则同 5.1 节。`realtime_feedback` 为 true 时服务端在收音过程中下发朗读进度帧，见 5.5 节。
 4. 客户端发 `{"cmd": "end"}` 或 `{"end": true}`，服务端回 `{"recordId": ..., "eof": 1, "result": {...}}`，重放结果带 `"replayed": true`。
+
+参数帧带 `"timing": 1` 时终评帧另有 `timing` 对象，见 3.3 节。握手可协商 `permessage-deflate`，服务端下发的帧随之压缩，段落题终评帧可小到原来的十分之一左右。
 
 ### 5.3 心跳
 
@@ -299,7 +319,7 @@ SDK 在上传前对 WAV 与 PCM 做预检，模式 OFF，WARN，REJECT，默认 
 
 ## 10 声通平替层
 
-安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个平替层的接口与声通 SDK 一致，内部走 3.2 节的兼容整段评测。回调里的结果 JSON 在兼容接口返回的基础上补齐声通外层字段：
+安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个平替层的接口与声通 SDK 一致。`2.1.1` 起麦克风录音与送流默认走 5.2 节的兼容实时评测边录边传，结束帧之前连接失败时改用 3.2 节的兼容整段评测，音频文件评测走 3.2 节。日志级别为 INFO 或 DEBUG 时请求带 `timing=1`，回调前去掉 `timing`，交给应用的结果 JSON 与不带时相同。回调里的结果 JSON 在兼容接口返回的基础上补齐声通外层字段：
 
 ```json
 {"tokenId": "3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c", "recordId": "eval_xxx", "applicationId": "<appKey>",

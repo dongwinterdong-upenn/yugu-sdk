@@ -8,11 +8,14 @@
 //
 // Runs only when YUGU_SANDBOX_APPKEY and YUGU_SANDBOX_SECRET are set (YUGU_SANDBOX_BASE defaults to
 // https://open.shengzhiai.com); otherwise it is skipped, so push builds never call the platform.
-// One test method runs the four cases in sequence, so `swift test --parallel` never runs two
-// sandbox evaluations at once: two evaluations, then two error paths the platform answers without
-// evaluating. One retry per call, non-retryable errors and no autoRetry keep a run at 6 platform
-// calls or fewer. Key values are never printed: messages carry errId, error and recordId only,
-// never the envelope (it contains applicationId), and applicationId is compared without
+// One test method runs the five cases in sequence, so `swift test --parallel` never runs two
+// sandbox evaluations at once: two evaluations, two error paths the platform answers without
+// evaluating, then (2.1.1) a paragraph streamed in real time over the compat WebSocket, the default
+// for recordings, which is where NSURLSessionWebSocketTask meets the platform's permessage-deflate.
+// One retry per call, non-retryable errors and no autoRetry keep a run at 8 platform calls or
+// fewer. The cases run at log level INFO and print the timing lines, which carry the tokenId,
+// times and sizes only. Key values are never printed: messages carry errId, error and recordId
+// only, never the envelope (it contains applicationId), and applicationId is compared without
 // XCTAssertEqual so a failure cannot print the appKey.
 
 import Foundation
@@ -121,11 +124,75 @@ final class SandboxTests: XCTestCase {
         XCTAssertNotNil(r["result"] as? [String: Any], "result", file: file, line: line)
     }
 
+    /// The PCM of a WAV fixture: the bytes of its data chunk.
+    private func pcm(_ path: String) -> Data? {
+        guard let wav = try? Data(contentsOf: URL(fileURLWithPath: path)), wav.count > 12 else { return nil }
+        let b = [UInt8](wav)
+        var pos = 12
+        while pos + 8 <= b.count {
+            let size = Int(b[pos + 4]) | Int(b[pos + 5]) << 8 | Int(b[pos + 6]) << 16 | Int(b[pos + 7]) << 24
+            if b[pos] == 0x64, b[pos + 1] == 0x61, b[pos + 2] == 0x74, b[pos + 3] == 0x61 { // "data"
+                return Data(b[(pos + 8)..<min(b.count, pos + 8 + size)])
+            }
+            pos += 8 + size + (size & 1)
+        }
+        return nil
+    }
+
+    /// A stream session fed in real time, 100 ms of audio every 100 ms, then stopEngine.
+    private func stream(_ engine: KYTestEngine, coreType: String, refText: String, pcm: Data) -> [String: Any] {
+        let done = expectation(description: coreType + " streamed")
+        var out: [String: Any] = [:]
+        let config = KYTestConfig()
+        config.coreTypeNS = coreType
+        config.refText = refText
+        config.isStream = true
+        config.autoRetry = false
+        let token = engine.start(with: config, result: { r in
+            let j = self.json(r)
+            if (j["eof"] as? Int ?? 1) != 0 {
+                out = j
+                done.fulfill()
+            }
+        }) { _, _ in }
+        var bytes = [UInt8](pcm)
+        var offset = 0
+        while offset < bytes.count {
+            let n = min(3200, bytes.count - offset)
+            bytes.withUnsafeMutableBytes { buf in
+                engine.feedAudioData(buf.baseAddress! + offset, audioLength: Int32(n))
+            }
+            offset += n
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+        }
+        engine.stop()
+        wait(for: [done], timeout: 400)
+        XCTAssertEqual(out["tokenId"] as? String, token)
+        return out
+    }
+
     func testSandboxEndToEnd() throws {
         guard let sb = try sandbox() else { return }
         let retries = YuguCompat.maxRetries
         YuguCompat.maxRetries = 1
-        defer { YuguCompat.maxRetries = retries }
+        // 2.1.1: INFO, so that the platform adds its timing and every evaluation logs one timing line
+        let lock = NSLock()
+        var timingLines: [String] = []
+        YuguCompat.setLogLevel(.info)
+        YuguCompat.setLogHandler { _, message in
+            guard message.hasPrefix("timing tokenId=") else { return }
+            lock.lock()
+            timingLines.append(message)
+            lock.unlock()
+        }
+        defer {
+            YuguCompat.maxRetries = retries
+            YuguCompat.setLogHandler(nil)
+            YuguCompat.resetLogLevel()
+            lock.lock()
+            for line in timingLines { print("sandbox " + line) }
+            lock.unlock()
+        }
         let short = sb.spec + "/fixtures/audio/zh_short.wav"
 
         // 1. sent.eval.cn, zh_short.wav, refText 今天天气很好: no errId, numeric result.overall
@@ -181,6 +248,26 @@ final class SandboxTests: XCTestCase {
             XCTAssertTrue((r["error"] as? String ?? "").contains("refPinyin"), describe(r))
             print("sandbox pinyin without refPinyin: " + describe(r))
             engine.delete()
+        }
+
+        // 5. 2.1.1: para.eval.cn streamed in real time over the compat WebSocket, the default for
+        // recordings and feeds: the final arrives whole and without the platform's timing object
+        if let engine = makeEngine(sb), let audio = pcm(sb.spec + "/fixtures/audio/zh_para.wav") {
+            let text = "今天天气很好。我们一起去公园散步。"
+            XCTAssertTrue(YuguCompat.streamUpload)
+            let r = stream(engine, coreType: "para.eval.cn", refText: text, pcm: audio)
+            assertSuccess(r, sb, refText: text)
+            XCTAssertNil(r["timing"], "the platform timing object reached the app")
+            let sentences = (r["result"] as? [String: Any])?["sentences"] as? [[String: Any]] ?? []
+            XCTAssertFalse(sentences.isEmpty, "no sentences in the streamed paragraph: " + describe(r))
+            engine.delete()
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5)) // the timing line follows the callback
+            lock.lock()
+            let line = timingLines.first { $0.hasPrefix("timing tokenId=\(r["tokenId"] as? String ?? "-") mode=") }
+            lock.unlock()
+            XCTAssertTrue(line?.contains(" mode=ws audio=") ?? false, "streamed: " + (line ?? "no timing line"))
+            XCTAssertTrue(line?.contains(" server.total=") ?? false, "the platform timing: " + (line ?? "-"))
+            print("sandbox streamed para.eval.cn: recordId=\(r["recordId"] ?? "-")")
         }
     }
 }

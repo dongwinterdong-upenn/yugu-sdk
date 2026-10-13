@@ -33,6 +33,26 @@ public final class LogFileSink implements YLog.Sink {
         return file;
     }
 
+    /**
+     * Keeps a sink that already writes to {@code file} while the file is below {@link #MAX_BYTES},
+     * otherwise installs a new one (which starts the file over beyond that size).
+     */
+    public static synchronized boolean ensure(File file) {
+        YLog.Sink s = YLog.getSink();
+        if (s instanceof LogFileSink) {
+            LogFileSink current = (LogFileSink) s;
+            if (current.file.getAbsoluteFile().equals(file.getAbsoluteFile()) && current.isOpen()
+                    && file.length() < MAX_BYTES) {
+                return true;
+            }
+        }
+        return install(file);
+    }
+
+    private synchronized boolean isOpen() {
+        return out != null;
+    }
+
     /** Installs a sink writing to {@code file}; returns false when the file cannot be opened. */
     public static synchronized boolean install(File file) {
         uninstall();

@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -162,6 +164,45 @@ public class RealtimeMockIntegrationTest extends CompatTestBase {
         assertEquals(1, billing.getInt("billed"));
         assertEquals("ws-compat", billing.getJSONArray("records").getJSONObject(0).getString("op"));
         assertEquals(PCM_BYTES, billing.getJSONArray("records").getJSONObject(0).getInt("bytes"));
+    }
+
+    /**
+     * SDK 2.1.1 default: without realtime_feedback the recording still streams over the real socket
+     * client, without progress; the mock agrees no extension, so the final frame comes uncompressed.
+     */
+    @Test
+    public void streamingByDefaultWithoutRealtimeFeedback() throws Exception {
+        YuguCompat.setLogLevel(YuguCompat.LOG_INFO);
+        final List<String> lines = Collections.synchronizedList(new ArrayList<String>());
+        com.shengzhiai.yugu.stcompat.internal.YLog.setSink((level, tag, msg, err) -> lines.add(msg));
+        SkEgnManager m = init();
+        RecordSetting s = new RecordSetting(CoreType.CN_SENT_EVAL, CUSTOMER);
+        s.setIsStream(true);
+        JSONObject fin = stream(m, s, ev, 3200);
+        String token = fin.getString("tokenId");
+        assertTrue(ev.intermediate().isEmpty());
+        assertEquals(fixtureOverall(), fin.getJSONObject("result").getDouble("overall"), 1e-9);
+        List<JSONObject> ws = entries("WS");
+        assertEquals(1, ws.size());
+        assertEquals(token, ws.get(0).getString("idempotencyKey"));
+        assertTrue(entries("POST").isEmpty());
+        JSONObject billing = server.billing();
+        assertEquals(1, billing.getInt("billed"));
+        assertEquals("ws-compat", billing.getJSONArray("records").getJSONObject(0).getString("op"));
+        assertEquals(PCM_BYTES, billing.getJSONArray("records").getJSONObject(0).getInt("bytes"));
+        String summary = null;
+        synchronized (lines) {
+            for (String l : lines) {
+                if (l.startsWith("timing tokenId=" + token + " ")) {
+                    summary = l;
+                }
+            }
+        }
+        assertTrue(String.valueOf(lines), summary != null && summary.contains(" mode=ws "));
+        assertFalse("the mock agrees no permessage-deflate: " + summary, summary.contains("deflate"));
+        Matcher sizes = Pattern.compile(".* final=(\\d+)B wire=(\\d+)B.*").matcher(summary);
+        assertTrue(summary, sizes.matches());
+        assertEquals(sizes.group(1), sizes.group(2));
     }
 
     @Test

@@ -220,6 +220,89 @@ public class RealtimeRoundTest {
         assertEquals("{\"realtime_feedback\":true,\"idempotencyKey\":\"k\"}", RealtimeRound.paramFrame(null, "k"));
     }
 
+    /** SDK 2.1.1: realtime_feedback only with progress, timing as the number 1 when asked for. */
+    @Test
+    public void parameterFrameWithoutProgressAndWithTiming() throws Exception {
+        Map<String, String> f = new LinkedHashMap<>();
+        f.put("refText", "x");
+        f.put("timing", "0");
+        String plain = RealtimeRound.paramFrame(f, TOKEN, false, false);
+        JSONObject p = new JSONObject(plain);
+        assertFalse(p.has("realtime_feedback"));
+        assertEquals("a caller's own field passes as before", "0", p.get("timing"));
+        String timed = RealtimeRound.paramFrame(f, TOKEN, false, true);
+        JSONObject t = new JSONObject(timed);
+        assertEquals(1, t.get("timing"));
+        assertEquals("one timing key", timed.indexOf("\"timing\""), timed.lastIndexOf("\"timing\""));
+        assertFalse(t.has("realtime_feedback"));
+        assertEquals(TOKEN, t.getString("idempotencyKey"));
+        assertEquals("{\"realtime_feedback\":true,\"timing\":1,\"idempotencyKey\":\"k\"}",
+                RealtimeRound.paramFrame(null, "k", true, true));
+        assertEquals("{\"idempotencyKey\":\"k\"}", RealtimeRound.paramFrame(null, "k", false, false));
+    }
+
+    @Test
+    public void withoutRealtimeFeedbackProgressIsNeitherAskedForNorDelivered() throws Exception {
+        Platform platform = new Platform();
+        platform.beforeFinal.add(progressFrame(0, 5, -1));
+        ws.script(platform);
+        RealtimeRound.Config cfg = config();
+        cfg.realtimeFeedback = false;
+        RealtimeRound r = round(cfg, new CancelToken());
+        r.start();
+        r.audio(new byte[6400], 0, 6400);
+        await("connected", () -> ws.count() == 1 && ws.get(0).texts.size() == 1);
+        ws.get(0).serverText(progressFrame(0, 3, -1));
+        RealtimeRound.Outcome o = r.finish();
+        assertEquals(RealtimeRound.Outcome.RESULT, o.kind);
+        assertEquals(FINAL, o.body);
+        assertTrue("no progress for the app: " + progress, progress.isEmpty());
+        JSONObject param = new JSONObject(ws.get(0).paramFrame());
+        assertFalse(param.has("realtime_feedback"));
+        assertFalse(param.has("timing"));
+        assertEquals("1", param.getString("attachAudioUrl"));
+    }
+
+    @Test
+    public void phasesOfTheRoundAreMarked() throws Exception {
+        final long wire = 1234;
+        ws.script(new FakeWs.Script() {
+            @Override
+            public void onText(FakeWs.Conn c, String text) {
+                if (FakeWs.END.equals(text)) {
+                    // as if the final frame came compressed
+                    c.nextWireBytes = wire;
+                    c.serverText(FINAL);
+                }
+            }
+
+            @Override
+            public void onBinary(FakeWs.Conn c, byte[] data) {
+            }
+        });
+        RealtimeRound.Config cfg = config();
+        cfg.timing = true;
+        cfg.phases = new EvalTiming(TOKEN);
+        cfg.phases.streaming();
+        RealtimeRound r = round(cfg, new CancelToken());
+        r.start();
+        await("connected", () -> ws.count() == 1 && ws.get(0).texts.size() == 1);
+        assertEquals(1, new JSONObject(ws.get(0).paramFrame()).getInt("timing"));
+        r.audio(new byte[64000], 0, 64000);
+        cfg.phases.stop();
+        RealtimeRound.Outcome o = r.finish();
+        assertEquals(RealtimeRound.Outcome.RESULT, o.kind);
+        cfg.phases.parsed();
+        cfg.phases.delivered();
+        String line = cfg.phases.summary();
+        assertTrue(line, line.startsWith("timing tokenId=" + TOKEN + " mode=ws "));
+        int bytes = FINAL.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        assertTrue(line, line.contains(" final=" + bytes + "B wire=" + wire + "B deflate"));
+        assertTrue(line, line.matches(".* afterStop=\\d+ms upload=\\d+ms wait=\\d+ms download=\\d+ms parse=\\d+ms deliver=\\d+ms"
+                + " handshake=\\d+ms queued=\\d+B .*"));
+        assertFalse("one connection", line.contains("connections="));
+    }
+
     @Test
     public void wsBaseFollowsTheRestBase() {
         assertEquals("wss://open.shengzhiai.com", RealtimeRound.wsBase("https://open.shengzhiai.com"));

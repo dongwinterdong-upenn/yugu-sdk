@@ -61,6 +61,73 @@ public final class RawJson {
         return out;
     }
 
+    /**
+     * {@code json} without every top-level member named {@code key}. The kept members, the text
+     * between them and the closing brace stay byte for byte; {@code json} itself is returned when
+     * there is no such member.
+     *
+     * @throws IllegalArgumentException when the text is not a JSON object
+     */
+    public static String removeMember(String json, String key) {
+        if (json == null) {
+            throw new IllegalArgumentException("null JSON");
+        }
+        RawJson p = new RawJson(json);
+        p.ws();
+        p.expect('{');
+        p.ws();
+        // {keyStart, valueEnd} of every member, in document order
+        java.util.List<int[]> spans = new java.util.ArrayList<int[]>();
+        java.util.List<Boolean> drop = new java.util.ArrayList<Boolean>();
+        if (p.peek() == '}') {
+            p.i++;
+        } else {
+            while (true) {
+                p.ws();
+                int ks = p.i;
+                p.skipString();
+                String k = unquote(json.substring(ks, p.i));
+                p.ws();
+                p.expect(':');
+                p.ws();
+                p.skipValue();
+                spans.add(new int[] {ks, p.i});
+                drop.add(key.equals(k));
+                p.ws();
+                char c = p.next();
+                if (c == '}') {
+                    break;
+                }
+                if (c != ',') {
+                    throw p.error("expected , or }");
+                }
+            }
+        }
+        p.ws();
+        if (p.i != json.length()) {
+            throw p.error("trailing characters");
+        }
+        if (!drop.contains(Boolean.TRUE)) {
+            return json;
+        }
+        int n = spans.size();
+        StringBuilder sb = new StringBuilder(json.length());
+        sb.append(json, 0, spans.get(0)[0]);
+        int lastKept = -1;
+        for (int m = 0; m < n; m++) {
+            if (drop.get(m)) {
+                continue;
+            }
+            if (lastKept >= 0) {
+                // the separator that followed the previous kept member in the original text
+                sb.append(json, spans.get(lastKept)[1], spans.get(lastKept + 1)[0]);
+            }
+            sb.append(json, spans.get(m)[0], spans.get(m)[1]);
+            lastKept = m;
+        }
+        return sb.append(json, spans.get(n - 1)[1], json.length()).toString();
+    }
+
     /** True when the raw value is a JSON string literal. */
     public static boolean isString(String raw) {
         return raw != null && raw.length() >= 2 && raw.charAt(0) == '"';

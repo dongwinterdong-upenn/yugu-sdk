@@ -102,6 +102,11 @@ public final class FakeWs implements WsConnection.Connector {
         public volatile int maxMessageBytes;
         /** When set, sends fail with this exception. */
         public volatile IOException failSends;
+        /** Answer of {@link #extensions()}, "" like a server that agreed no extension. */
+        public volatile String extensions = "";
+        /** Wire size of the next server message, compressed when it differs from the text size; -1 for none. */
+        public volatile long nextWireBytes = -1;
+        private volatile WsConnection.Inbound inbound;
 
         Conn(String url, Map<String, String> headers, int connectTimeoutMs, int readTimeoutMs, WsConnection.Listener listener) {
             this.url = url;
@@ -148,6 +153,23 @@ public final class FakeWs implements WsConnection.Connector {
         }
 
         @Override
+        public WsConnection.Inbound inbound() {
+            return inbound;
+        }
+
+        @Override
+        public String extensions() {
+            return extensions;
+        }
+
+        private void arrived(long dataBytes) {
+            long now = System.nanoTime();
+            long wire = nextWireBytes;
+            nextWireBytes = -1;
+            inbound = new WsConnection.Inbound(now, now, wire >= 0 ? wire : dataBytes, dataBytes, wire >= 0 && wire != dataBytes);
+        }
+
+        @Override
         public void close(int code, String reason) {
             closeCode = code;
             closed = true;
@@ -175,10 +197,12 @@ public final class FakeWs implements WsConnection.Connector {
         // ------------------------------------------------------------ platform side
 
         public void serverText(String text) {
+            arrived(text.getBytes(StandardCharsets.UTF_8).length);
             listener.onText(text);
         }
 
         public void serverBinary(byte[] data) {
+            arrived(data.length);
             listener.onBinary(data);
         }
 

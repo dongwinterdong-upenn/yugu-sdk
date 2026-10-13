@@ -6,6 +6,8 @@
  * evaluation. Handshake URL and its signature, parameter frame, classification of platform
  * frames, the words dedupe of the reconnect rule and the round controller that decides
  * connecting, streaming, ending, falling back to REST before end and reconnecting after end.
+ * 2.1.1: the same round streams every recording by default; the parameter frame asks for reading
+ * progress only with realtime_feedback.
  */
 #include "ygst_core.h"
 
@@ -134,20 +136,21 @@ done:
 
 /* ------------------------------------------------------------------ parameter frame */
 
-/* The platform reads these names as commands (cmd, end, data) or sets them from its own fields. */
-static int reserved_frame_name(const char *n) {
+/* The platform reads these names as commands (cmd, end, data) or the frame sets them itself. */
+static int reserved_frame_name(const char *n, int flags) {
     return strcmp(n, "cmd") == 0 || strcmp(n, "end") == 0 || strcmp(n, "data") == 0 ||
-           strcmp(n, "realtime_feedback") == 0 || strcmp(n, "idempotencyKey") == 0;
+           strcmp(n, "realtime_feedback") == 0 || strcmp(n, "idempotencyKey") == 0 ||
+           ((flags & YGST_WSP_TIMING) && strcmp(n, "timing") == 0);
 }
 
-int ygst_ws_param_frame(const ygst_fields *fields, const char *idempotency_key, ygst_buf *out) {
+int ygst_ws_param_frame(const ygst_fields *fields, const char *idempotency_key, int flags, ygst_buf *out) {
     size_t i;
     int skipped = 0;
     if (!fields || !out || fields->oom || !ygst_idempotency_key_ok(idempotency_key)) return -1;
     ygst_buf_append_char(out, '{');
     for (i = 0; i < fields->count; i++) {
         const ygst_field *f = &fields->items[i];
-        if (!f->name || reserved_frame_name(f->name)) {
+        if (!f->name || reserved_frame_name(f->name, flags)) {
             skipped++;
             continue;
         }
@@ -156,7 +159,10 @@ int ygst_ws_param_frame(const ygst_fields *fields, const char *idempotency_key, 
         ygst_json_escape(out, f->value ? f->value : "");
         ygst_buf_append_char(out, ',');
     }
-    ygst_buf_append_str(out, "\"realtime_feedback\":true,\"idempotencyKey\":");
+    /* 2.1.1: progress frames only when the app asked for them, the timing object only for the log */
+    if (flags & YGST_WSP_REALTIME_FEEDBACK) ygst_buf_append_str(out, "\"realtime_feedback\":true,");
+    if (flags & YGST_WSP_TIMING) ygst_buf_append_str(out, "\"timing\":1,");
+    ygst_buf_append_str(out, "\"idempotencyKey\":");
     ygst_json_escape(out, idempotency_key);
     ygst_buf_append_char(out, '}');
     ygst_buf_cstr(out);
@@ -312,6 +318,8 @@ int ygst_ws_classify_error(ygst_span frame, ygst_classification *c) {
     c->has_record_id = 0;
     c->record_id_raw.p = NULL;
     c->record_id_raw.n = 0;
+    c->root.p = NULL;
+    c->root.n = 0;
     c->result.p = NULL;
     c->result.n = 0;
     ygst_buf_reset(&c->record_id);

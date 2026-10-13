@@ -20,12 +20,18 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.DataFormatException;
+import java.util.zip.Inflater;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -49,10 +55,21 @@ import javax.net.ssl.SSLSocketFactory;
  * handshake checks the name instead (endpoint identification HTTPS)</li>
  * <li>opening handshake with the Sec-WebSocket-Accept check; an extension or subprotocol that was
  * not offered fails the handshake</li>
+ * <li>permessage-deflate (RFC 7692, SDK 2.1.1): offered as
+ * {@code permessage-deflate; client_max_window_bits} unless {@link Options#offerDeflate} is false.
+ * The answer may carry server_no_context_takeover, client_no_context_takeover,
+ * server_max_window_bits and client_max_window_bits; any other parameter, value or extension fails
+ * the handshake. Inbound messages with RSV1 are inflated with a raw {@link Inflater} plus the
+ * {@code 00 00 ff ff} tail; the inflater keeps its window from message to message unless the
+ * server_no_context_takeover parameter was agreed. Client messages stay uncompressed (RSV1 0),
+ * which every agreed parameter allows</li>
  * <li>client frames masked with a fresh random key; text, binary and continuation frames, ping
  * answered with pong, close handshake</li>
  * <li>an inbound frame or message larger than {@link #setMaxMessageBytes} (128 KB by default) closes
- * the connection with 1009, invalid UTF-8 text with 1007, any other protocol violation with 1002</li>
+ * the connection with 1009, compressed on the wire as well as inflated: inflation stops as soon as
+ * the output passes the cap, so a small message that would inflate to gigabytes (an inflation bomb)
+ * costs at most the cap in memory. Invalid UTF-8 text and undecodable compressed data close with
+ * 1007, any other protocol violation with 1002</li>
  * </ul>
  *
  * Listener callbacks run on one reader thread. A connection ends with exactly one onClosed or
@@ -75,6 +92,13 @@ public final class WsClient implements WsConnection {
     static final String ACCEPT_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     /** Class of the JDK's default HostnameVerifier, which answers false for every name. */
     static final String JDK_DEFAULT_VERIFIER = "javax.net.ssl.HttpsURLConnection$DefaultHostnameVerifier";
+    /** Extension offer: the server may answer with a client_max_window_bits value, which an uncompressed sender meets. */
+    static final String DEFLATE_OFFER = "permessage-deflate; client_max_window_bits";
+    static final String DEFLATE = "permessage-deflate";
+    /** Appended to a compressed message before inflating it (RFC 7692 7.2.2). */
+    static final byte[] DEFLATE_TAIL = {0x00, 0x00, (byte) 0xFF, (byte) 0xFF};
+    /** Inflater output step; the cap check runs after every step. */
+    static final int INFLATE_STEP = 16 * 1024;
 
     /**
      * {@link Options#hostnameVerifier} value that leaves the name check to the TLS handshake
@@ -141,6 +165,36 @@ public final class WsClient implements WsConnection {
         /** null: {@link #SYSTEM_RESOLVER}. */
         public Resolver resolver;
         public int maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES;
+        /** Offer permessage-deflate in the handshake (default); false sends no extension offer. */
+        public boolean offerDeflate = true;
+    }
+
+    /** permessage-deflate parameters agreed in the handshake (RFC 7692 7.1). */
+    static final class Deflate {
+        boolean serverNoContextTakeover;
+        boolean clientNoContextTakeover;
+        /** -1 when the answer has no server_max_window_bits. */
+        int serverMaxWindowBits = -1;
+        /** -1 when the answer has no client_max_window_bits. */
+        int clientMaxWindowBits = -1;
+
+        /** The agreed extension with its parameters, as the server answered them. */
+        String describe() {
+            StringBuilder sb = new StringBuilder(DEFLATE);
+            if (serverNoContextTakeover) {
+                sb.append("; server_no_context_takeover");
+            }
+            if (clientNoContextTakeover) {
+                sb.append("; client_no_context_takeover");
+            }
+            if (serverMaxWindowBits > 0) {
+                sb.append("; server_max_window_bits=").append(serverMaxWindowBits);
+            }
+            if (clientMaxWindowBits > 0) {
+                sb.append("; client_max_window_bits=").append(clientMaxWindowBits);
+            }
+            return sb.toString();
+        }
     }
 
     /** Connector of {@link CompatConfig#wsConnector()} by default. */
@@ -164,11 +218,15 @@ public final class WsClient implements WsConnection {
     private final InputStream in;
     private final OutputStream out;
     private final Listener listener;
+    /** Agreed permessage-deflate parameters, null when no extension was agreed. */
+    private final Deflate deflate;
     private final Object writeLock = new Object();
     private final CountDownLatch readerDone = new CountDownLatch(1);
     private volatile int maxMessageBytes;
     /** close or abort was called: no further callbacks. */
     private volatile boolean silenced;
+    /** The data message being delivered (reader thread writes, {@link #inbound()} reads). */
+    private volatile Inbound inbound;
     /** Guarded by writeLock. */
     private boolean closeSent;
     private Thread reader;
@@ -177,14 +235,22 @@ public final class WsClient implements WsConnection {
     private int fragmentsOpcode;
     private int serverCloseCode;
     private String serverCloseReason;
+    /** The current message started with RSV1 set. */
+    private boolean messageCompressed;
+    private long messageStartNanos;
+    /** Created with the first compressed message, ended when the reader stops. */
+    private Inflater inflater;
+    private byte[] inflateBuffer;
 
-    private WsClient(Socket raw, Socket socket, InputStream in, OutputStream out, Listener listener, int maxMessageBytes) {
+    private WsClient(Socket raw, Socket socket, InputStream in, OutputStream out, Listener listener, int maxMessageBytes,
+                     Deflate deflate) {
         this.raw = raw;
         this.socket = socket;
         this.in = in;
         this.out = out;
         this.listener = listener;
         this.maxMessageBytes = maxMessageBytes;
+        this.deflate = deflate;
     }
 
     // ================================================================ connect
@@ -212,12 +278,12 @@ public final class WsClient implements WsConnection {
             InputStream in = new BufferedInputStream(s.getInputStream(), 16 * 1024);
             OutputStream out = s.getOutputStream();
             String key = Codec.base64(randomBytes(16));
-            out.write(requestHead(t, key, o.headers).getBytes(Codec.UTF_8));
+            out.write(requestHead(t, key, o.headers, o.offerDeflate).getBytes(Codec.UTF_8));
             out.flush();
-            readHandshakeAnswer(in, key);
+            Deflate deflate = readHandshakeAnswer(in, key, o.offerDeflate);
             s.setSoTimeout(Math.max(1, o.readTimeoutMs));
             WsClient c = new WsClient(raw, s, in, out, listener, o.maxMessageBytes > 0 ? o.maxMessageBytes
-                    : DEFAULT_MAX_MESSAGE_BYTES);
+                    : DEFAULT_MAX_MESSAGE_BYTES, deflate);
             c.startReader();
             ok = true;
             return c;
@@ -375,6 +441,10 @@ public final class WsClient implements WsConnection {
     }
 
     static String requestHead(Target t, String key, Map<String, String> headers) throws IOException {
+        return requestHead(t, key, headers, false);
+    }
+
+    static String requestHead(Target t, String key, Map<String, String> headers, boolean offerDeflate) throws IOException {
         StringBuilder sb = new StringBuilder(512);
         sb.append("GET ").append(t.resource).append(" HTTP/1.1\r\n");
         sb.append("Host: ").append(t.hostHeader).append("\r\n");
@@ -382,6 +452,9 @@ public final class WsClient implements WsConnection {
         sb.append("Connection: Upgrade\r\n");
         sb.append("Sec-WebSocket-Key: ").append(key).append("\r\n");
         sb.append("Sec-WebSocket-Version: 13\r\n");
+        if (offerDeflate) {
+            sb.append("Sec-WebSocket-Extensions: ").append(DEFLATE_OFFER).append("\r\n");
+        }
         if (headers != null) {
             for (Map.Entry<String, String> h : headers.entrySet()) {
                 String name = h.getKey();
@@ -399,8 +472,11 @@ public final class WsClient implements WsConnection {
         return s.indexOf('\r') >= 0 || s.indexOf('\n') >= 0;
     }
 
-    /** Reads the status line and headers of the answer and checks them. Frames that follow stay in {@code in}. */
-    static void readHandshakeAnswer(InputStream in, String key) throws IOException {
+    /**
+     * Reads the status line and headers of the answer and checks them. Frames that follow stay in
+     * {@code in}. Returns the agreed permessage-deflate parameters, null when no extension was agreed.
+     */
+    static Deflate readHandshakeAnswer(InputStream in, String key, boolean offeredDeflate) throws IOException {
         int[] budget = {MAX_HANDSHAKE_BYTES};
         String status = readLine(in, budget);
         String[] parts = status.split(" ", 3);
@@ -442,12 +518,129 @@ public final class WsClient implements WsConnection {
         if (!acceptFor(key).equals(h.get("sec-websocket-accept"))) {
             throw new ProtocolError(1002, "Sec-WebSocket-Accept does not match the key");
         }
-        if (h.containsKey("sec-websocket-extensions")) {
-            throw new ProtocolError(1002, "the server selected an extension that was not offered");
-        }
         if (h.containsKey("sec-websocket-protocol")) {
             throw new ProtocolError(1002, "the server selected a subprotocol that was not offered");
         }
+        String extensions = h.get("sec-websocket-extensions");
+        if (extensions == null) {
+            return null;
+        }
+        if (!offeredDeflate) {
+            throw new ProtocolError(1002, "the server selected an extension that was not offered");
+        }
+        return negotiateDeflate(extensions);
+    }
+
+    /**
+     * Checks the Sec-WebSocket-Extensions answer to {@link #DEFLATE_OFFER} (RFC 7692 7.1): exactly one
+     * permessage-deflate element, each parameter at most once, the context takeover parameters
+     * without value, the window bits with a value from 8 to 15 without leading zeros.
+     */
+    static Deflate negotiateDeflate(String header) throws ProtocolError {
+        List<String> elements = splitOutsideQuotes(header, ',');
+        if (elements.size() != 1) {
+            throw new ProtocolError(1002, elements.isEmpty() ? "empty Sec-WebSocket-Extensions answer"
+                    : "the server selected more than one extension");
+        }
+        List<String> parts = splitOutsideQuotes(elements.get(0), ';');
+        if (parts.isEmpty() || !DEFLATE.equalsIgnoreCase(parts.get(0))) {
+            throw new ProtocolError(1002, "the server selected an extension that was not offered");
+        }
+        Deflate d = new Deflate();
+        Set<String> seen = new HashSet<String>();
+        for (int i = 1; i < parts.size(); i++) {
+            String p = parts.get(i);
+            int eq = p.indexOf('=');
+            String name = (eq < 0 ? p : p.substring(0, eq)).trim().toLowerCase(Locale.ROOT);
+            String value = eq < 0 ? null : unquoteParam(p.substring(eq + 1).trim());
+            if (!seen.add(name)) {
+                throw new ProtocolError(1002, "permessage-deflate parameter " + name + " appears twice");
+            }
+            if ("server_no_context_takeover".equals(name) || "client_no_context_takeover".equals(name)) {
+                if (value != null) {
+                    throw new ProtocolError(1002, "permessage-deflate parameter " + name + " takes no value");
+                }
+                if (name.startsWith("server")) {
+                    d.serverNoContextTakeover = true;
+                } else {
+                    d.clientNoContextTakeover = true;
+                }
+            } else if ("server_max_window_bits".equals(name)) {
+                d.serverMaxWindowBits = windowBits(name, value);
+            } else if ("client_max_window_bits".equals(name)) {
+                // offered without a value: any value from 8 to 15 is acceptable to an uncompressed sender
+                d.clientMaxWindowBits = windowBits(name, value);
+            } else {
+                throw new ProtocolError(1002, "unknown permessage-deflate parameter " + name);
+            }
+        }
+        return d;
+    }
+
+    private static int windowBits(String name, String value) throws ProtocolError {
+        if (value == null || !value.matches("[1-9][0-9]?")) {
+            throw new ProtocolError(1002, "invalid value of permessage-deflate parameter " + name);
+        }
+        int bits = Integer.parseInt(value);
+        if (bits < 8 || bits > 15) {
+            throw new ProtocolError(1002, "invalid value of permessage-deflate parameter " + name);
+        }
+        return bits;
+    }
+
+    /** Value of an extension parameter: a token, or a quoted string whose content is used. */
+    private static String unquoteParam(String v) throws ProtocolError {
+        if (v.length() >= 2 && v.charAt(0) == '"' && v.charAt(v.length() - 1) == '"') {
+            StringBuilder sb = new StringBuilder(v.length());
+            for (int i = 1; i < v.length() - 1; i++) {
+                char c = v.charAt(i);
+                if (c == '\\' && i + 1 < v.length() - 1) {
+                    c = v.charAt(++i);
+                }
+                sb.append(c);
+            }
+            return sb.toString();
+        }
+        if (v.indexOf('"') >= 0) {
+            throw new ProtocolError(1002, "malformed Sec-WebSocket-Extensions answer");
+        }
+        return v;
+    }
+
+    /** Trimmed pieces of {@code s} split at {@code sep} outside quoted strings; an empty piece is malformed. */
+    static List<String> splitOutsideQuotes(String s, char sep) throws ProtocolError {
+        List<String> out = new ArrayList<String>();
+        StringBuilder cur = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (quoted && c == '\\' && i + 1 < s.length()) {
+                cur.append(c).append(s.charAt(++i));
+                continue;
+            }
+            if (c == '"') {
+                quoted = !quoted;
+            }
+            if (c == sep && !quoted) {
+                out.add(cur.toString().trim());
+                cur.setLength(0);
+            } else {
+                cur.append(c);
+            }
+        }
+        if (quoted) {
+            throw new ProtocolError(1002, "malformed Sec-WebSocket-Extensions answer");
+        }
+        String last = cur.toString().trim();
+        if (!last.isEmpty() || !out.isEmpty()) {
+            out.add(last);
+        }
+        for (String piece : out) {
+            if (piece.isEmpty()) {
+                throw new ProtocolError(1002, "malformed Sec-WebSocket-Extensions answer");
+            }
+        }
+        return out;
     }
 
     private static String readLine(InputStream in, int[] budget) throws IOException {
@@ -514,6 +707,10 @@ public final class WsClient implements WsConnection {
         } finally {
             closeQuietly(socket);
             closeQuietly(raw);
+            if (inflater != null) {
+                inflater.end();
+                inflater = null;
+            }
             readerDone.countDown();
         }
         if (silenced) {
@@ -534,10 +731,12 @@ public final class WsClient implements WsConnection {
     private void readFrames() throws IOException {
         while (true) {
             int b0 = readByte();
+            long frameStart = System.nanoTime();
             int b1 = readByte();
             boolean fin = (b0 & 0x80) != 0;
+            boolean rsv1 = (b0 & 0x40) != 0;
             int op = b0 & 0x0F;
-            if ((b0 & 0x70) != 0) {
+            if ((b0 & 0x30) != 0 || (rsv1 && deflate == null)) {
                 throw new ProtocolError(1002, "reserved bits set without a negotiated extension");
             }
             if ((b1 & 0x80) != 0) {
@@ -566,6 +765,9 @@ public final class WsClient implements WsConnection {
                 if (len > 125) {
                     throw new ProtocolError(1002, "control frame longer than 125 bytes");
                 }
+                if (rsv1) {
+                    throw new ProtocolError(1002, "compressed control frame");
+                }
             } else {
                 if (op != OP_CONTINUATION && op != OP_TEXT && op != OP_BINARY) {
                     throw new ProtocolError(1002, "unknown opcode " + op);
@@ -576,10 +778,18 @@ public final class WsClient implements WsConnection {
                 if (op != OP_CONTINUATION && fragments != null) {
                     throw new ProtocolError(1002, "new message before the fragmented one ended");
                 }
+                if (op == OP_CONTINUATION && rsv1) {
+                    // RFC 7692 6.1: only the first frame of a message carries the compression bit
+                    throw new ProtocolError(1002, "compression bit on a continuation frame");
+                }
                 long total = len + (op == OP_CONTINUATION ? fragments.size() : 0);
                 int max = maxMessageBytes;
                 if (total > max) {
                     throw new ProtocolError(1009, "inbound message of more than " + max + " bytes");
+                }
+                if (op != OP_CONTINUATION) {
+                    messageStartNanos = frameStart;
+                    messageCompressed = rsv1;
                 }
             }
             byte[] payload = readFully((int) len);
@@ -598,12 +808,12 @@ public final class WsClient implements WsConnection {
                         byte[] message = fragments.toByteArray();
                         int messageOp = fragmentsOpcode;
                         fragments = null;
-                        deliver(messageOp, message);
+                        complete(messageOp, message);
                     }
                     break;
                 default:
                     if (fin) {
-                        deliver(op, payload);
+                        complete(op, payload);
                     } else {
                         fragments = new ByteArrayOutputStream(Math.max(256, payload.length * 2));
                         fragments.write(payload, 0, payload.length);
@@ -636,6 +846,67 @@ public final class WsClient implements WsConnection {
     /** Close codes a peer may send (RFC 6455 7.4, IANA registry). */
     static boolean isValidCloseCode(int code) {
         return (code >= 1000 && code <= 1003) || (code >= 1007 && code <= 1014) || (code >= 3000 && code <= 4999);
+    }
+
+    /** A whole data message arrived: inflate it when it was compressed, then deliver it. */
+    private void complete(int op, byte[] wire) throws IOException {
+        long done = System.nanoTime();
+        byte[] message = messageCompressed ? inflate(wire) : wire;
+        inbound = new Inbound(messageStartNanos, done, wire.length, message.length, messageCompressed);
+        deliver(op, message);
+    }
+
+    /**
+     * Inflates one message (RFC 7692 7.2.2): the payload plus {@link #DEFLATE_TAIL} through a raw
+     * inflater. The inflater keeps its window for the next message unless the server agreed to
+     * server_no_context_takeover; a message ending in a final block starts a new stream next time.
+     * Stops with 1009 as soon as the output passes the inbound cap and with 1007 on data that does
+     * not inflate.
+     */
+    private byte[] inflate(byte[] wire) throws ProtocolError {
+        int max = maxMessageBytes;
+        Inflater inf = inflater;
+        if (inf == null) {
+            inf = new Inflater(true);
+            inflater = inf;
+            inflateBuffer = new byte[INFLATE_STEP];
+        } else if (deflate.serverNoContextTakeover) {
+            inf.reset();
+        }
+        ByteArrayOutputStream outBytes = new ByteArrayOutputStream(
+                (int) Math.min(max, Math.max(256L, wire.length * 4L)));
+        inflateInto(inf, wire, outBytes, max);
+        if (!inf.finished()) {
+            inflateInto(inf, DEFLATE_TAIL, outBytes, max);
+        }
+        if (inf.finished()) {
+            inf.reset();
+        }
+        return outBytes.toByteArray();
+    }
+
+    private void inflateInto(Inflater inf, byte[] input, ByteArrayOutputStream outBytes, int max) throws ProtocolError {
+        inf.setInput(input, 0, input.length);
+        byte[] buf = inflateBuffer;
+        while (!inf.finished()) {
+            int n;
+            try {
+                n = inf.inflate(buf, 0, buf.length);
+            } catch (DataFormatException e) {
+                throw new ProtocolError(1007, "invalid compressed message");
+            }
+            if (n == 0) {
+                if (inf.needsDictionary()) {
+                    throw new ProtocolError(1007, "invalid compressed message");
+                }
+                // needsInput: this part is consumed
+                return;
+            }
+            if (outBytes.size() + n > max) {
+                throw new ProtocolError(1009, "inflated message of more than " + max + " bytes");
+            }
+            outBytes.write(buf, 0, n);
+        }
     }
 
     private void deliver(int op, byte[] message) throws IOException {
@@ -719,6 +990,16 @@ public final class WsClient implements WsConnection {
     @Override
     public void setMaxMessageBytes(int bytes) {
         maxMessageBytes = bytes > 0 ? bytes : DEFAULT_MAX_MESSAGE_BYTES;
+    }
+
+    @Override
+    public Inbound inbound() {
+        return inbound;
+    }
+
+    @Override
+    public String extensions() {
+        return deflate == null ? "" : deflate.describe();
     }
 
     private void sendFrame(int op, byte[] data, int off, int len) throws IOException {

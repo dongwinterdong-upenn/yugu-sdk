@@ -8,8 +8,8 @@ items:
   - { title: iOS, icon: mobile, href: 'page:sdk-ios', desc: 'iOS 13 及以上，Swift `5.9`', meta: 'yugu-ios-sdk.git 2.1.0' }
   - { title: 网页, icon: web, href: 'page:sdk-web', desc: 主流浏览器与 Node.js 18 及以上, meta: '@shengzhiai/yugu-web-sdk@2.1.0' }
   - { title: 微信小程序, icon: apps, href: 'page:sdk-miniprogram', desc: '基础库 `2.20.1` 及以上', meta: '@shengzhiai/yugu-miniprogram-sdk@2.1.0' }
-  - { title: 安卓声通平替, icon: swap_horiz, href: 'page:sdk-android-stcompat', desc: '包名 `com.stkouyu`，Java 8 字节码', meta: 'com.shengzhiai.yugu:stkouyu-compat:2.1.0' }
-  - { title: iOS 声通平替, icon: swap_horiz, href: 'page:sdk-ios-stcompat', desc: '模块 `STKouyuEngine`，iOS 12 及以上', meta: 'stkouyu-ios-compat.git 2.1.0' }
+  - { title: 安卓声通平替, icon: swap_horiz, href: 'page:sdk-android-stcompat', desc: '包名 `com.stkouyu`，Java 8 字节码', meta: 'com.shengzhiai.yugu:stkouyu-compat:2.1.1' }
+  - { title: iOS 声通平替, icon: swap_horiz, href: 'page:sdk-ios-stcompat', desc: '模块 `STKouyuEngine`，iOS 12 及以上', meta: 'stkouyu-ios-compat.git 2.1.1' }
   - { title: 其他语言, icon: data_object, href: 'page:api-openapi', desc: 按 OpenAPI 描述生成客户端, meta: spec/openapi.yaml }
 ```
 

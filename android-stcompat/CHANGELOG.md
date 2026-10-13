@@ -2,6 +2,33 @@
 
 `com.shengzhiai.yugu:stkouyu-compat` 的版本记录。格式参照 Keep a Changelog，版本号遵循语义化版本，破坏性变更只在主版本号升级时出现。
 
+## 版本 `2.1.1` 2026-10-13
+
+边录边传成为默认，最终结果压缩传输，日志给出每次评测的分段耗时。
+
+### 新增
+
+- 录音与 `setIsStream(true)` 的外部音频默认经平台兼容实时评测通道边录边传，与 `realtime_feedback` 的取值无关。停止录音后只需发出剩余的少量音频与结束帧，结果随后经同一通道返回。`realtime_feedback` 设为 1 时才有中间结果，其他取值时只回调最终结果，结果 JSON 与整段上传时相同，录音文件照常写入。
+- `YuguCompat.setStreamUpload(false)` 改回停止录音后整段上传，与 `2.1.0` 相同，`YuguCompat.isStreamUpload()` 返回当前设置，`YuguCompat.reset()` 恢复边录边传。
+- 实时评测通道请求 permessage-deflate 压缩，平台同意后下发的消息压缩传输，由平替层解压。解压后的大小同样受 8 MB 上限约束，超过上限的消息在解压过程中即被拒绝。兼容接口请求 gzip 压缩，同样由平替层解压。
+- 日志级别为 INFO 时每次评测输出一行 `timing`，给出上传方式，音频时长，停止录音之后的上传，等待与下载时间，结果在网络上与解压后的字节数，以及平台给出的总耗时，评测引擎耗时与平台处理耗时。DEBUG 另外逐步输出 `stage` 行与评测引擎各环节的耗时。
+- 日志级别为 INFO 或 DEBUG 时请求带 `timing=1`，平台附带的分段耗时只写入日志，回调前从结果 JSON 中删除。兼容接口响应头 `Server-Timing` 同样写入日志。
+
+### 变更
+
+- `getSDKVersion()` 返回 `yugu-stkouyu-compat/2.1.1 (api 1.0.62)`，请求头 `User-Agent` 为 `yugu-stkouyu-compat/2.1.1`。
+- `EngineSetting` 的 `setSDKLogEnabled`，`setLogLevel` 与 `setEnableSaveLogCatToFile` 在 `initEngine` 之后设置也立即生效，`setSDKLogEnabled(false)` 恢复 WARN。默认级别仍为 WARN，`YuguCompat.setLogLevel` 仍然优先。
+- 实时评测通道在结束帧之前失败而退回整段上传时，`timing` 行的上传方式记为 `ws>rest`，行末给出原因，原因同时写在 WARN 日志中。
+
+### 与声通 SDK 的差异
+
+- 边录边传需要设备能访问平台的 wss 地址，连不上时停止录音后整段上传。
+- `SkEgn` 只在 `request` 带 `realtime_feedback` 1 时边写边传。
+
+### 破坏性变更
+
+- 无。录音的上传方式改为边录边传，回调顺序与结果 JSON 不变。
+
 ## 版本 `2.1.0` 2026-10-12
 
 朗读进度：开启 `realtime_feedback` 后，学生朗读过程中 `onScore` 收到声通结构的中间结果。

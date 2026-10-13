@@ -31,10 +31,10 @@ import com.stkouyu.setting.RecordSetting;
  *
  * Every callback runs on the main thread. {@code onScore} receives the result JSON
  * {@code {tokenId, recordId, applicationId, userId, refText, eof, dtLastResponse, result, ...}} or
- * the error JSON {@code {tokenId, errId, error, eof, applicationId}}. With
- * {@code RecordSetting.setRealtime_feedback(1)} the recording streams over the compat realtime
- * channel and {@code onScore} also receives intermediate results with {@code "eof":0} before the
- * final one.
+ * the error JSON {@code {tokenId, errId, error, eof, applicationId}}. Recordings and stream
+ * sessions send their audio over the compat realtime channel while recording (SDK 2.1.1, switch off
+ * with {@code YuguCompat.setStreamUpload(false)}). With {@code RecordSetting.setRealtime_feedback(1)}
+ * {@code onScore} also receives intermediate results with {@code "eof":0} before the final one.
  */
 public class SkEgnManager {
     public static final String SERVER_TYPE_CLOUD = "cloud";
@@ -238,7 +238,7 @@ public class SkEgnManager {
         core.feed(data, size);
     }
 
-    /** Stops recording, posts onRecordEnd, then evaluates and posts the result. */
+    /** Stops recording, posts onRecordEnd, then finishes the evaluation and posts the result. */
     public void stopRecord() {
         core.stopRecord();
     }
@@ -328,7 +328,7 @@ public class SkEgnManager {
         return SERVER_TYPE_CLOUD;
     }
 
-    /** {@code yugu-stkouyu-compat/2.1.0 (api 1.0.62)}. */
+    /** {@code yugu-stkouyu-compat/2.1.1 (api 1.0.62)}. */
     public String getSDKVersion() {
         return CompatConfig.SDK_VERSION;
     }

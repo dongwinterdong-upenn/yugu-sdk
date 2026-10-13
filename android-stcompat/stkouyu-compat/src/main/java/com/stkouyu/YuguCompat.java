@@ -11,7 +11,7 @@ import com.shengzhiai.yugu.stcompat.internal.YLog;
  */
 public final class YuguCompat {
     /** Version of the compat layer. */
-    public static final String VERSION = "2.1.0";
+    public static final String VERSION = "2.1.1";
 
     public static final int LOG_OFF = 0;
     public static final int LOG_ERROR = 1;
@@ -37,7 +37,10 @@ public final class YuguCompat {
         return CompatConfig.baseUrlOverride();
     }
 
-    /** SDK log level, {@link #LOG_OFF} to {@link #LOG_DEBUG}; wins over the EngineSetting log options. Default WARN. */
+    /**
+     * SDK log level, {@link #LOG_OFF} to {@link #LOG_DEBUG}; wins over the EngineSetting log options.
+     * Default WARN. At INFO every evaluation logs one timing line, at DEBUG every stage.
+     */
     public static void setLogLevel(int level) {
         YLog.setLevelPinned(level);
     }
@@ -66,16 +69,32 @@ public final class YuguCompat {
         CompatConfig.setTimeouts(connectTimeoutMs, readTimeoutMs, totalTimeoutMs);
     }
 
-    /** Version string, {@code yugu-stkouyu-compat/2.1.0 (api 1.0.62)}. */
+    /**
+     * Streaming upload (default true): recordings and {@code setIsStream(true)} sessions send their
+     * audio over the platform's compat WebSocket while recording, whatever realtime_feedback is, and
+     * the result arrives shortly after stop. false uploads the whole recording after stop as in
+     * 2.1.0; realtime_feedback 1 still streams then. existsAudioTrans always uploads the file.
+     * Applies to sessions started afterwards.
+     */
+    public static void setStreamUpload(boolean enabled) {
+        CompatConfig.setStreamUpload(enabled);
+    }
+
+    public static boolean isStreamUpload() {
+        return CompatConfig.streamUpload();
+    }
+
+    /** Version string, {@code yugu-stkouyu-compat/2.1.1 (api 1.0.62)}. */
     public static String getVersion() {
         return CompatConfig.SDK_VERSION;
     }
 
-    /** Restores base URL, log level, retry policy and timeouts to their defaults. */
+    /** Restores base URL, log level, retry policy, timeouts and streaming upload to their defaults. */
     public static void reset() {
         CompatConfig.setBaseUrlOverride(null);
         CompatConfig.setRetryPolicy(null);
         CompatConfig.setTimeouts(0, 0, 0);
+        CompatConfig.setStreamUpload(true);
         YLog.resetLevel();
     }
 }

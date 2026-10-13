@@ -29,6 +29,8 @@ import static org.junit.Assert.assertTrue;
 /**
  * Integration tests against tools/mock-server (same signature and idempotency rules as the
  * platform): real HTTP, real retry back-off, real multipart parsing and signature verification.
+ * The upload after stop of 2.1.0 is chosen with {@code YuguCompat.setStreamUpload(false)}; the
+ * streaming default runs in RealtimeMockIntegrationTest.
  */
 @RunWith(RobolectricTestRunner.class)
 public class MockServerIntegrationTest extends CompatTestBase {
@@ -53,6 +55,7 @@ public class MockServerIntegrationTest extends CompatTestBase {
         CompatConfig.setSleeper(null);
         server.reset();
         YuguCompat.setBaseUrl(server.baseUrl());
+        YuguCompat.setStreamUpload(false);
     }
 
     private SkEgnManager init(String secret) {
@@ -103,7 +106,7 @@ public class MockServerIntegrationTest extends CompatTestBase {
         assertEquals("/sent.eval.cn", req.getString("path"));
         assertEquals(token, req.getString("idempotencyKey"));
         assertEquals("今天天气很好", req.getJSONObject("fields").getString("refText"));
-        assertEquals("yugu-stkouyu-compat/2.1.0", req.getString("userAgent"));
+        assertEquals("yugu-stkouyu-compat/2.1.1", req.getString("userAgent"));
         JSONObject billing = server.billing();
         assertEquals(1, billing.getInt("billed"));
         assertEquals(1, billing.getJSONObject("byKey").getInt(token));

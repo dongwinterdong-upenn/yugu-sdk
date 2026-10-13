@@ -325,7 +325,7 @@ static void test_ws_param_frame(void) {
     p.phoneme_output = 1; /* KYTestConfig default */
     CHECK_INT(ygst_params_to_fields(&p, &f), 0);
     /* exactly the REST form fields of the same config, then the two realtime members */
-    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, &out), 0);
+    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, YGST_WSP_REALTIME_FEEDBACK, &out), 0);
     CHECK_STR(ygst_buf_cstr(&out), "{\"refText\":\"" CUSTOMER_TEXT "\",\"phoneme_output\":\"1\","
                                    "\"realtime_feedback\":true,\"idempotencyKey\":\"" TOKEN "\"}");
     CHECK_INT(ygst_json_parse((const char *)out.data, out.len, &root), 0);
@@ -340,7 +340,7 @@ static void test_ws_param_frame(void) {
     p.attach_audio_url = 1;
     CHECK_INT(ygst_params_to_fields(&p, &f), 0);
     ygst_buf_reset(&out);
-    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, &out), 0);
+    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, YGST_WSP_REALTIME_FEEDBACK, &out), 0);
     CHECK_STR(ygst_buf_cstr(&out), "{\"refText\":\"Say \\\"hi\\\"\\n\",\"paragraph_need_word_score\":\"1\","
                                    "\"phoneme_output\":\"1\",\"attachAudioUrl\":\"1\",\"request\":\"{\\\"slack\\\":0.1}\","
                                    "\"realtime_feedback\":true,\"idempotencyKey\":\"" TOKEN "\"}");
@@ -353,16 +353,64 @@ static void test_ws_param_frame(void) {
     ygst_fields_set(&odd, "realtime_feedback", "0");
     ygst_fields_set(&odd, "idempotencyKey", "other");
     ygst_buf_reset(&out);
-    CHECK_INT(ygst_ws_param_frame(&odd, TOKEN, &out), 5);
+    CHECK_INT(ygst_ws_param_frame(&odd, TOKEN, YGST_WSP_REALTIME_FEEDBACK, &out), 5);
     CHECK_STR(ygst_buf_cstr(&out), "{\"refText\":\"x\",\"realtime_feedback\":true,\"idempotencyKey\":\"" TOKEN "\"}");
     ygst_fields_free(&odd);
     ygst_fields_init(&odd);
     ygst_buf_reset(&out);
-    CHECK_INT(ygst_ws_param_frame(&odd, TOKEN, &out), 0);
+    CHECK_INT(ygst_ws_param_frame(&odd, TOKEN, YGST_WSP_REALTIME_FEEDBACK, &out), 0);
     CHECK_STR(ygst_buf_cstr(&out), "{\"realtime_feedback\":true,\"idempotencyKey\":\"" TOKEN "\"}");
-    CHECK_INT(ygst_ws_param_frame(&odd, "", &out), -1);
-    CHECK_INT(ygst_ws_param_frame(NULL, TOKEN, &out), -1);
+    CHECK_INT(ygst_ws_param_frame(&odd, "", YGST_WSP_REALTIME_FEEDBACK, &out), -1);
+    CHECK_INT(ygst_ws_param_frame(NULL, TOKEN, YGST_WSP_REALTIME_FEEDBACK, &out), -1);
     ygst_fields_free(&odd);
+    ygst_fields_free(&f);
+    ygst_buf_free(&out);
+}
+
+/* 2.1.1: every recording streams; "realtime_feedback" only when the app asked for progress, "timing"
+ * only at log level INFO or DEBUG. */
+static void test_ws_param_frame_flags(void) {
+    ygst_fields f;
+    ygst_buf out;
+    ygst_span root, v;
+    ygst_buf_init(&out);
+    ygst_fields_init(&f);
+    ygst_fields_set(&f, "refText", "x");
+    ygst_fields_set(&f, "phoneme_output", "1");
+    /* streaming without progress: no realtime_feedback key at all, so the platform sends only the final */
+    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, 0, &out), 0);
+    CHECK_STR(ygst_buf_cstr(&out), "{\"refText\":\"x\",\"phoneme_output\":\"1\",\"idempotencyKey\":\"" TOKEN "\"}");
+    CHECK_INT(ygst_json_parse((const char *)out.data, out.len, &root), 0);
+    CHECK_INT(ygst_json_member(root, "realtime_feedback", &v), 0);
+    CHECK_INT(ygst_json_member(root, "timing", &v), 0);
+    /* the timing object for the log: a JSON number 1 */
+    ygst_buf_reset(&out);
+    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, YGST_WSP_TIMING, &out), 0);
+    CHECK_STR(ygst_buf_cstr(&out),
+              "{\"refText\":\"x\",\"phoneme_output\":\"1\",\"timing\":1,\"idempotencyKey\":\"" TOKEN "\"}");
+    CHECK_INT(ygst_json_parse((const char *)out.data, out.len, &root), 0);
+    CHECK_INT(ygst_json_member(root, "timing", &v), 1);
+    CHECK_INT(ygst_json_type(v), 'n');
+    ygst_buf_reset(&out);
+    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, YGST_WSP_REALTIME_FEEDBACK | YGST_WSP_TIMING, &out), 0);
+    CHECK_STR(ygst_buf_cstr(&out), "{\"refText\":\"x\",\"phoneme_output\":\"1\",\"realtime_feedback\":true,"
+                                   "\"timing\":1,\"idempotencyKey\":\"" TOKEN "\"}");
+    /* a customParams timing travels as a field unless the SDK sets timing itself: never two keys */
+    ygst_fields_set(&f, "timing", "0");
+    ygst_buf_reset(&out);
+    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, 0, &out), 0);
+    CHECK_STR(ygst_buf_cstr(&out),
+              "{\"refText\":\"x\",\"phoneme_output\":\"1\",\"timing\":\"0\",\"idempotencyKey\":\"" TOKEN "\"}");
+    ygst_buf_reset(&out);
+    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, YGST_WSP_TIMING, &out), 1);
+    CHECK_STR(ygst_buf_cstr(&out),
+              "{\"refText\":\"x\",\"phoneme_output\":\"1\",\"timing\":1,\"idempotencyKey\":\"" TOKEN "\"}");
+    /* realtime_feedback from customParams never reaches the frame, with or without progress */
+    ygst_fields_set(&f, "realtime_feedback", "1");
+    ygst_buf_reset(&out);
+    CHECK_INT(ygst_ws_param_frame(&f, TOKEN, 0, &out), 1);
+    CHECK_STR(ygst_buf_cstr(&out),
+              "{\"refText\":\"x\",\"phoneme_output\":\"1\",\"timing\":\"0\",\"idempotencyKey\":\"" TOKEN "\"}");
     ygst_fields_free(&f);
     ygst_buf_free(&out);
 }
@@ -1299,6 +1347,7 @@ void suite_realtime(void) {
     RUN("realtime", test_ws_handshake_vector);
     RUN("realtime", test_ws_handshake_extra_and_guards);
     RUN("realtime", test_ws_param_frame);
+    RUN("realtime", test_ws_param_frame_flags);
     RUN("realtime", test_frames_recorded_progress);
     RUN("realtime", test_frames_recorded_2_0);
     RUN("realtime", test_frames_cases);

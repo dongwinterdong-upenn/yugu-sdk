@@ -11,4 +11,4 @@
 
 double STKouyuEngineVersionNumber = 2.1;
 
-const unsigned char STKouyuEngineVersionString[] = "@(#)PROGRAM:STKouyuEngine  PROJECT:yugu-ios-stcompat-2.1.0\n";
+const unsigned char STKouyuEngineVersionString[] = "@(#)PROGRAM:STKouyuEngine  PROJECT:yugu-ios-stcompat-2.1.1\n";

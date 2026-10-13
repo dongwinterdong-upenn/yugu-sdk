@@ -3,6 +3,7 @@ package com.stkouyu.setting;
 
 import android.content.Context;
 
+import com.shengzhiai.yugu.stcompat.internal.CompatEngine;
 import com.stkouyu.AppConfig;
 import com.stkouyu.EngineType;
 import com.stkouyu.listener.OnInitEngineListener;
@@ -18,7 +19,8 @@ import java.io.File;
  * <li>connectTimeout and serverTimeout are seconds (defaults 10 and 120) for the REST calls</li>
  * <li>VADEnabled turns on the local energy VAD; SDKLogEnabled and logLevel (0 error, 1 warn,
  * 2 info, 3 debug) set the SDK log level; enableSaveLogCatToFile writes SDK logs to
- * {@code <externalFilesDir>/log/stkouyu_sdk.log}</li>
+ * {@code <externalFilesDir>/log/stkouyu_sdk.log}. The log options take effect at initEngine and
+ * whenever they are set, also after initEngine</li>
  * <li>native resources, provision files, serverList, sdkCfgAddr and autoDetectNetwork are kept
  * but have no effect (cloud only)</li>
  * </ul>
@@ -191,6 +193,7 @@ public class EngineSetting {
 
     public EngineSetting setSDKLogEnabled(boolean sdkLogEnabled) {
         this.sdkLogEnabled = sdkLogEnabled;
+        CompatEngine.applyLogOptions(this, context, true);
         return this;
     }
 
@@ -253,6 +256,7 @@ public class EngineSetting {
 
     public void setLogLevel(int logLevel) {
         this.logLevel = logLevel;
+        CompatEngine.applyLogOptions(this, context, true);
     }
 
     public void setEnableUploadLog(boolean enableUploadLog) {
@@ -265,6 +269,7 @@ public class EngineSetting {
 
     public void setEnableSaveLogCatToFile(boolean enableSaveLogCatToFile) {
         this.enableSaveLogCatToFile = enableSaveLogCatToFile;
+        CompatEngine.applyLogOptions(this, context, true);
     }
 
     public boolean getEnableSaveLogCatToFile() {

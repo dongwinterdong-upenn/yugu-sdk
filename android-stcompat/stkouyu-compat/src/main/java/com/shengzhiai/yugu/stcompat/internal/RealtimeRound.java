@@ -13,14 +13,17 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * One evaluation round over the compat realtime channel {@code /{coreType}} (DESIGN 14.3), used
- * when RecordSetting.realtime_feedback is 1 and by the SkEgn emulation when the request carries
- * realtime_feedback. The final frame is the same body as the REST answer, so callers build the
- * final envelope exactly as for REST.
+ * One evaluation round over the compat realtime channel {@code /{coreType}} (DESIGN 14.3). Since
+ * SDK 2.1.1 every recording and stream session of SkEgnManager streams this way unless
+ * {@code YuguCompat.setStreamUpload(false)}; progress frames are asked for and delivered only with
+ * realtime_feedback ({@link Config#realtimeFeedback}). The SkEgn emulation uses it when the request
+ * carries realtime_feedback. The final frame is the same body as the REST answer, so callers build
+ * the final envelope exactly as for REST.
  *
  * <pre>
  * start()    worker thread: handshake ws(s)://base/{coreType}?appKey&amp;timestamp&amp;nonce&amp;idempotencyKey&amp;signature,
- *            parameter frame {REST form fields, "realtime_feedback":true, "idempotencyKey":tokenId},
+ *            parameter frame {REST form fields, "realtime_feedback":true only with realtime feedback,
+ *            "timing":1 only when the log level asks for timing, "idempotencyKey":tokenId},
  *            then the PCM of audio() in frames of at most 32000 bytes, a protocol ping when idle
  * progress   {"eof":0,"recordId":"","result":{bytes, readUnits, matchedUnits, totalUnits, progress[],
  *            kernel_version, resource_version, words[]}}: words are Shengtong-shaped items of the units
@@ -91,6 +94,15 @@ public final class RealtimeRound {
         public int readTimeoutMs = CompatConfig.DEFAULT_READ_TIMEOUT_MS;
         /** Deadline after end for the result, reconnects included. */
         public long totalTimeoutMs = CompatConfig.DEFAULT_TOTAL_TIMEOUT_MS;
+        /**
+         * realtime_feedback: {@code "realtime_feedback":true} in the parameter frame and progress
+         * frames to the listener. Without it the frame has no such key and progress is not delivered.
+         */
+        public boolean realtimeFeedback = true;
+        /** {@code "timing":1} in the parameter frame: the final frame carries the platform's timing object. */
+        public boolean timing;
+        /** Phase marks of the evaluation; null for a private one. */
+        public EvalTiming phases;
     }
 
     /** What finish() found. */
@@ -132,12 +144,16 @@ public final class RealtimeRound {
     }
 
     private final Config config;
+    /** null without realtime feedback. */
     private final Listener listener;
     private final CancelToken token;
     private final String paramFrame;
     private final Map<String, String> headers;
+    private final EvalTiming phases;
     private final Object lock = new Object();
     private volatile long lastSendMs = now();
+    /** Worker thread only: the first audio frame was marked. */
+    private boolean audioSent;
 
     // guarded by lock
     private final ArrayDeque<Object> queue = new ArrayDeque<Object>();
@@ -157,11 +173,15 @@ public final class RealtimeRound {
     /** Units whose words were delivered, by absolute index [0, delivered). Kept across reconnects. */
     private long delivered;
 
+    /**
+     * @param listener receives progress; null or {@link Config#realtimeFeedback} false delivers none
+     */
     public RealtimeRound(Config config, Listener listener, CancelToken token) {
         this.config = config;
-        this.listener = listener;
+        this.listener = config.realtimeFeedback ? listener : null;
         this.token = token != null ? token : new CancelToken();
-        this.paramFrame = paramFrame(config.fields, config.tokenId);
+        this.phases = config.phases != null ? config.phases : new EvalTiming(config.tokenId);
+        this.paramFrame = paramFrame(config.fields, config.tokenId, config.realtimeFeedback, config.timing);
         Map<String, String> h = new LinkedHashMap<String, String>();
         h.put("User-Agent", CompatConfig.USER_AGENT);
         h.put("X-Yugu-SDK", CompatConfig.USER_AGENT);
@@ -177,8 +197,16 @@ public final class RealtimeRound {
 
     // ================================================================ wire format
 
-    /** REST form fields as JSON strings, then {@code "realtime_feedback":true} and the idempotency key. */
+    /** {@link #paramFrame(Map, String, boolean, boolean)} with realtime feedback and without timing. */
     static String paramFrame(Map<String, String> fields, String tokenId) {
+        return paramFrame(fields, tokenId, true, false);
+    }
+
+    /**
+     * REST form fields as JSON strings, then {@code "realtime_feedback":true} with realtime feedback,
+     * {@code "timing":1} when timing is asked for, and the idempotency key.
+     */
+    static String paramFrame(Map<String, String> fields, String tokenId, boolean realtimeFeedback, boolean timing) {
         StringBuilder sb = new StringBuilder(256).append('{');
         if (fields != null) {
             for (Map.Entry<String, String> e : fields.entrySet()) {
@@ -186,14 +214,19 @@ public final class RealtimeRound {
                 String v = e.getValue();
                 // the platform reads cmd, end and data as commands and takes its own realtime_feedback and key
                 if (k == null || v == null || v.isEmpty() || "realtime_feedback".equals(k) || "idempotencyKey".equals(k)
-                        || "cmd".equals(k) || "end".equals(k) || "data".equals(k)) {
+                        || "cmd".equals(k) || "end".equals(k) || "data".equals(k) || (timing && ServerTiming.KEY.equals(k))) {
                     continue;
                 }
                 sb.append(RawJson.quote(k)).append(':').append(RawJson.quote(v)).append(',');
             }
         }
-        return sb.append("\"realtime_feedback\":true,\"idempotencyKey\":").append(RawJson.quote(tokenId)).append('}')
-                .toString();
+        if (realtimeFeedback) {
+            sb.append("\"realtime_feedback\":true,");
+        }
+        if (timing) {
+            sb.append("\"timing\":1,");
+        }
+        return sb.append("\"idempotencyKey\":").append(RawJson.quote(tokenId)).append('}').toString();
     }
 
     /** ws or wss base of a REST base: https to wss, http to ws (DESIGN 14.3). */
@@ -453,6 +486,7 @@ public final class RealtimeRound {
         link.ws.setMaxMessageBytes(FINAL_MAX_MESSAGE_BYTES);
         try {
             link.ws.sendText(END_FRAME);
+            phases.wsEndSent();
         } catch (IOException e) {
             recordFailure(link.gen, ErrorMapper.fromWsException(e));
         }
@@ -463,6 +497,10 @@ public final class RealtimeRound {
             int n = Math.min(MAX_FRAME_BYTES, chunk.length - off);
             byte[] frame = n == chunk.length ? chunk : Arrays.copyOfRange(chunk, off, off + n);
             ws.sendBinary(frame, 0, n);
+            if (!audioSent) {
+                audioSent = true;
+                phases.wsAudioSent();
+            }
             synchronized (lock) {
                 if (phase != STREAMING) {
                     return;
@@ -496,8 +534,10 @@ public final class RealtimeRound {
         q.put("nonce", Codec.randomHex(8));
         q.put("idempotencyKey", config.tokenId);
         String url = handshakeUrl(config.baseUrl, config.coreType, q, config.secretKey);
+        phases.wsConnectStart();
         WsConnection ws = CompatConfig.wsConnector().connect(url, headers, config.connectTimeoutMs, config.readTimeoutMs,
                 connectionListener(gen));
+        phases.wsHandshakeDone(ws.extensions());
         ws.setMaxMessageBytes(maxMessageBytes);
         synchronized (lock) {
             if (gen != generation || (phase != STREAMING && phase != ENDING)) {
@@ -507,6 +547,7 @@ public final class RealtimeRound {
             conn = ws;
         }
         ws.sendText(paramFrame);
+        phases.wsParamSent();
         lastSendMs = now();
         return new Link(ws, gen);
     }
@@ -544,6 +585,9 @@ public final class RealtimeRound {
             case Frame.FINAL:
                 synchronized (lock) {
                     if (gen == generation && phase == ENDING && finalBody == null && failure == null) {
+                        WsConnection c = conn;
+                        // on the reader thread inside onText: inbound() describes this frame
+                        phases.wsFinal(c != null ? c.inbound() : null, text.length());
                         finalBody = text;
                         finalReplayed = f.replayed;
                         lock.notifyAll();
@@ -573,7 +617,8 @@ public final class RealtimeRound {
      */
     private void onProgress(int gen, Frame f) {
         int count = f.words.size();
-        if (count == 0) {
+        if (count == 0 || listener == null) {
+            // without realtime feedback the platform sends none; any that come are not for the app
             return;
         }
         int from;
@@ -659,8 +704,13 @@ public final class RealtimeRound {
             }
             if (phase == STREAMING && !endQueued) {
                 endQueued = true;
+                long queued = 0;
+                for (Object item : queue) {
+                    queued += ((byte[]) item).length;
+                }
                 queue.add(END);
                 lock.notifyAll();
+                phases.wsEndQueued(queued);
             }
             while (phase == STREAMING) {
                 try {
@@ -774,6 +824,7 @@ public final class RealtimeRound {
                 link.ws.sendBinary(f, 0, f.length);
             }
             link.ws.sendText(END_FRAME);
+            phases.wsEndSent();
             lastSendMs = now();
         } catch (IOException e) {
             CompatError error = ErrorMapper.fromWsException(e);

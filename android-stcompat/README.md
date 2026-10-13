@@ -1,6 +1,6 @@
 # 声通安卓平替接入说明
 
-`com.shengzhiai.yugu:stkouyu-compat:2.1.0` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
+`com.shengzhiai.yugu:stkouyu-compat:2.1.1` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
 
 各端平替层的概览与切换步骤见仓库根目录 [SHENGTONG-MIGRATION.md](../SHENGTONG-MIGRATION.md)，版本兼容矩阵见 [COMPATIBILITY.md](../COMPATIBILITY.md)。
 
@@ -9,10 +9,10 @@
 | 项目 | 说明 |
 |---|---|
 | 对应的声通版本 | `17kouyu_1.0.0.jar`，`Build.VERSION` 为 `1.0.62` |
-| 平替层版本 | `2.1.0`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.1.0 (api 1.0.62)` |
+| 平替层版本 | `2.1.1`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.1.1 (api 1.0.62)` |
 | 系统要求 | Android 5.0 及更高版本，`minSdk 21` |
 | 字节码版本 | Java 8 |
-| 运行时依赖 | 无，网络请求用 `HttpURLConnection`，朗读进度用 AAR 内置的 WebSocket 客户端，录音用 `AudioRecord`，JSON 用系统自带的 `org.json` |
+| 运行时依赖 | 无，网络请求用 `HttpURLConnection`，边录边传与朗读进度用 AAR 内置的 WebSocket 客户端，录音用 `AudioRecord`，JSON 用系统自带的 `org.json` |
 | 评测方式 | 云端评测，离线引擎与双引擎的调用都转到云端 |
 | 许可 | Apache-2.0，见同目录 `LICENSE` 与 `NOTICE` |
 
@@ -56,11 +56,11 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    api 'com.shengzhiai.yugu:stkouyu-compat:2.1.0'
+    api 'com.shengzhiai.yugu:stkouyu-compat:2.1.1'
 }
 ```
 
-不使用远程仓库时，把 `stkouyu-compat-2.1.0.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.1.0.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
+不使用远程仓库时，把 `stkouyu-compat-2.1.1.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.1.1.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
 
 ### 需要删除的文件与配置
 
@@ -164,7 +164,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | `keywords`，`keypoints`，`keypoints_weight`，`negative_keypoints`，`negativeReftext`，`mode`，`qType` | 同名 | 原样传递，评测引擎可能忽略 |
 | `newParams` | 每个 `CustomParam` 对应一个字段 | 键值原样传递，与前面的字段同名时覆盖前者 |
 | `request` | `request` | 原始 JSON 字符串，平台合并其中的标量字段 |
-| `realtime_feedback` | 不进表单，设为 1 时改走实时评测通道 | 参数帧带同样的表单字段与 `"realtime_feedback": true`，录音过程中 `onScore` 先收到 `eof` 为 0 的中间结果，见“朗读进度”一节 |
+| `realtime_feedback` | 不进表单，设为 1 时实时评测通道的参数帧带 `"realtime_feedback": true` | 录音过程中 `onScore` 先收到 `eof` 为 0 的中间结果，见“朗读进度”一节。其他取值时录音同样边录边传，只回调最终结果，见“边录边传”一节 |
 
 只在本地起作用的字段：`duration`，`durationInterval`，`seek`，`ref_length`，`VADEnabled`，`needSoundIntensity`，`forceRecord`，`muteMusic`，`autoRetry`，`errIds`，`serverTimeout`，`isStream`，`audioPath`，`recordFilePath`，`recordName`，`audioSource`，`audioType`，`sampleRate`，`channel`，`needRequestParamsInResult`。
 
@@ -307,6 +307,22 @@ manager.startRecord(rs, new OnRecorderListener() {
 
 英文参考文本按词对应，`progress` 中的词已去掉首尾标点。
 
+## 边录边传
+
+`2.1.1` 起，录音与 `setIsStream(true)` 的外部音频默认经平台的兼容实时评测通道边录边传，与声通 SDK 的做法一致，与 `realtime_feedback` 的取值无关。停止录音时只剩尚未发出的少量音频与结束帧，评测结果随后经同一通道返回，不再等整段录音上传。
+
+- 中间结果：只有 `realtime_feedback` 设为 1 时参数帧才带 `"realtime_feedback": true`，平台才下发朗读进度。其他取值时 `onScore` 只收到一次最终结果，结果 JSON 与整段上传时相同。
+- 录音文件：照常写入，`getLastRecordPath()` 与 `playback()` 不受影响。上传的音频仍为 16000 Hz 单声道 16 位 PCM，每帧最多 32000 字节，不做编码。
+- 网络：录音开始时连接平台地址对应的 wss 地址，路径为 `/{coreType}`，端口 443，握手与 REST 请求使用同一对 appKey 与 secretKey 签名，设备所在网络需要放行 WebSocket。
+- 退回整段上传：通道连不上或在结束帧发出之前断开时，平替层关闭通道，记录一条写明原因的 WARN 日志，停止录音后照常经兼容接口上传整段录音，`tokenId` 不变，不重复计费。结束帧发出之后断开时用同一个 `tokenId` 重连，规则见“朗读进度”一节。
+- 关闭：调用 `YuguCompat.setStreamUpload(false)` 之后开始的录音改回停止录音后整段上传，与 `2.1.0` 相同，`realtime_feedback` 设为 1 时仍然边录边传。`YuguCompat.reset()` 恢复边录边传。
+- 其他接口：`existsAudioTrans` 照常上传整个文件。`SkEgn` 只在 `request` 带 `realtime_feedback` 1 时边写边传，其他情况在 `skegn_stop` 之后上传，与 `2.1.0` 相同。
+
+### 结果压缩
+
+- 实时评测通道：握手时请求 WebSocket 压缩扩展 permessage-deflate，平台同意后下发的消息经过压缩，平替层解压后再回调。JSON 结果压缩后一般只有原来的十分之一左右。平台未同意时照常不压缩传输。解压后的大小同样受 8 MB 上限约束，超过上限的消息在解压过程中即被拒绝。
+- 兼容接口：请求带 `Accept-Encoding: gzip`，平台返回 gzip 压缩的结果，由平替层解压，日志因此能同时给出网络上的字节数与解压后的字节数。
+
 ## 结果 JSON
 
 ```json
@@ -397,7 +413,7 @@ manager.startRecord(rs, new OnRecorderListener() {
 - 一次提交含重试的总时长上限为 300 秒，`autoRetry` 的每次重新提交另计。
 - `RecordSetting.setAutoRetry(true)` 时，错误 JSON 的 errId 若在 `errIds` 中，默认值为 `["20009"]`，同一段音频用同一个 `tokenId` 重新提交，最多再提交 2 次。
 - 连接超时取 `EngineSetting.setConnectTimeout`，默认 10 秒。读取超时依次取 `RecordSetting.setServerTimeout` 与 `EngineSetting.setServerTimeout`，默认 120 秒。实时评测通道使用同样的连接超时与读取超时。
-- 开启朗读进度时，实时评测通道同样以 `tokenId` 为幂等键。结束帧发出之前断开时退回整段上传，之后断开时在通道上重连，规则见“朗读进度”一节。
+- 边录边传时，实时评测通道同样以 `tokenId` 为幂等键。结束帧发出之前断开时退回整段上传，之后断开时在通道上重连，规则见“朗读进度”一节。
 
 ## 平替层配置
 
@@ -406,17 +422,67 @@ manager.startRecord(rs, new OnRecorderListener() {
 | 方法 | 作用 |
 |---|---|
 | `setBaseUrl(String)` | 指定平台地址，例如测试环境或私有部署，优先于 `EngineSetting.setServerAddress` |
-| `setLogLevel(int)` | 日志级别 `LOG_OFF` 到 `LOG_DEBUG`，默认 `LOG_WARN` |
+| `setLogLevel(int)` | 日志级别 `LOG_OFF` 到 `LOG_DEBUG`，默认 `LOG_WARN`，优先于 `EngineSetting` 的日志设置 |
 | `setRetryPolicy(int, long, double, long, double)` | 重试次数，初始间隔，倍数，最大间隔，浮动比例 |
 | `setTimeouts(int, int, long)` | 连接超时，读取超时，总时长，单位为毫秒 |
+| `setStreamUpload(boolean)` | 录音与外部音频是否边录边传，默认 true，见“边录边传”一节 |
+| `isStreamUpload()` | 当前是否边录边传 |
 | `getVersion()` | 版本字符串 |
 | `reset()` | 恢复默认值 |
 
-日志不记录 secretKey，签名与音频内容，appKey 只记录前 4 位。`EngineSetting.setSDKLogEnabled(true)` 时 `setLogLevel` 的 0 到 3 对应 error，warn，info，debug。`setEnableSaveLogCatToFile(true)` 把日志写入 `<externalFilesDir>/log/stkouyu_sdk.log`。
+日志不记录 secretKey，签名与音频内容，appKey 只记录前 4 位。`EngineSetting.setSDKLogEnabled(true)` 时 `setLogLevel` 的 0 到 3 对应 error，warn，info，debug。`setEnableSaveLogCatToFile(true)` 把日志写入 `<externalFilesDir>/log/stkouyu_sdk.log`。打开方法与每次评测的分段耗时见“日志与分段耗时”一节。
+
+### 日志与分段耗时
+
+默认日志级别为 WARN，评测顺利时不输出日志。按声通的写法打开 SDK 日志，把级别设为 2，对应 INFO，每次评测在回调结果之前输出一行 `timing`：
+
+```java
+EngineSetting setting = EngineSetting.getInstance(context);
+setting.setSDKLogEnabled(true);
+setting.setLogLevel(2);                  // 0 error，1 warn，2 info，3 debug
+setting.setEnableSaveLogCatToFile(true); // 同时写入日志文件
+manager.initEngine(appKey, secretKey, userId, setting);
+```
+
+- 生效时间：`initEngine` 时生效，`2.1.1` 起在 `initEngine` 之后设置也立即生效。`setSDKLogEnabled(false)` 恢复 WARN。`YuguCompat.setLogLevel` 优先于这些设置。
+- 输出位置：logcat，标签为 `YuguStCompat`。`setEnableSaveLogCatToFile(true)` 时同时写入 `<externalFilesDir>/log/stkouyu_sdk.log`，一般即 `/sdcard/Android/data/<应用包名>/files/log/stkouyu_sdk.log`，可以用 `adb pull` 取出。打开日志文件时文件已超过 2 MB 则从头写。`LogCat.initLogCat(context, dir)` 可以改写到指定目录。
+- 日志内容：不含 secretKey，签名与音频，appKey 只记录前 4 位，`tokenId` 用于对应评测。
+
+一行 `timing` 的示例：
+
+```text
+timing tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c mode=ws audio=4.48s afterStop=1650ms upload=60ms wait=1420ms download=150ms parse=15ms deliver=5ms handshake=210ms queued=3200B final=41210B wire=6120B deflate server.total=1380ms server.engine=1205ms server.platform=175ms
+```
+
+| 字段 | 含义 |
+|---|---|
+| `mode` | `ws` 为边录边传，`rest` 为停止录音后整段上传或文件评测，`ws>rest` 为通道在结束帧之前失败，已退回整段上传，行末的 `fallback` 给出原因 |
+| `audio` | 音频时长 |
+| `afterStop` | 从停止录音到结果回调开始执行，即接入方感受到的等待时间。停止录音包括调用 `stopRecord`，VAD 判定说话结束，到达 `duration` 与录音达到 300 秒，`existsAudioTrans` 与 `skegn_stop` 从调用时算起 |
+| `upload` | 从停止录音到最后一个字节发出，边录边传时为结束帧，整段上传时为最后一次请求的请求体 |
+| `wait` | 从发完到收到结果的第一个字节，主要是平台评测的时间 |
+| `download` | 从结果的第一个字节到最后一个字节，含解压 |
+| `parse` | 生成结果 JSON |
+| `deliver` | 切换到主线程 |
+| `handshake` | 实时评测通道的连接与握手，发生在录音开始时 |
+| `queued` | 停止录音时尚未发出的音频字节数 |
+| `final`，`body` | 结果的字节数，按解压后计 |
+| `wire` | 结果在网络上的字节数，其后的 `deflate` 或 `gzip` 表示经过压缩 |
+| `attempts`，`sent` | 整段上传的尝试次数与最后一次请求的字节数 |
+| `connections` | 结束帧之后断线重连时的连接数 |
+| `server.total` | 平台从收到结束帧或整个请求到结果备好的时间 |
+| `server.engine`，`server.platform` | `server.total` 中评测引擎的时间与平台其余处理的时间 |
+| `replayed` | 平台按同一个 `tokenId` 重放了首次结果 |
+| `errId` | 以错误 JSON 结束时的 errId |
+
+- 查找慢的环节：`upload` 长说明上行慢，边录边传时可以对照 `queued`。`wait` 明显大于 `server.total` 时，差值主要是网络往返与平台接收前的排队。`download` 长说明下行慢，可以对照 `wire` 与压缩标记。
+- 值未知时记为 `-`，平台没有给出耗时时不输出 `server` 开头的字段。
+- 级别为 DEBUG，即 `setLogLevel(3)` 时，另外按发生顺序输出 `stage` 行，记录每一步距评测开始的毫秒数。平台给出评测引擎各环节的耗时时再输出一行 `engineStages`，环节名称由引擎决定，可能变化。
+- 级别为 INFO 或 DEBUG 时，请求带 `timing=1`，平台在结果中附带分段耗时，平替层读取后从结果中删除，回调给应用的 JSON 与 `2.1.0` 相同。级别低于 INFO 时不发送这一字段。
 
 ## 外部音频与文件评测
 
-- 外部音频：`setIsStream(true)` 后调用 `startRecord`，平替层不打开麦克风，用 `feed(byte[])` 写入 16000 Hz 单声道 16 位 PCM，`stopRecord` 后评测。开头带 WAV 文件头时自动跳过文件头。`realtime_feedback` 设为 1 时边写入边发送，同样有朗读进度。
+- 外部音频：`setIsStream(true)` 后调用 `startRecord`，平替层不打开麦克风，用 `feed(byte[])` 写入 16000 Hz 单声道 16 位 PCM，写入的音频默认边写入边发送，`stopRecord` 后完成评测。开头带 WAV 文件头时自动跳过文件头。`realtime_feedback` 设为 1 时同样有朗读进度。
 - 文件评测：`existsAudioTrans` 评测 `RecordSetting.setAudioPath` 指定的文件。平替层按文件内容识别 WAV，MP3，OGG，AMR，AAC，M4A，FLAC，然后带上对应的 `Content-Type` 上传，不带文件头的 PCM 先补上 WAV 文件头。其他格式原样上传，能否评测以平台为准。参数 `bufSize` 不起作用，参数 `timeout` 不大于 1000 时按秒计，大于 1000 时按毫秒计。
 - 录音文件保存为 `recordFilePath` 目录中的 `recordName`，未设置时保存为 `<externalFilesDir>/record/<tokenId>.wav`，`getLastRecordPath()` 返回该路径，`playback()` 播放该文件。录音内容一律为 WAV，显式设置的 `recordName` 以 `.mp3` 结尾时沿用该文件名。
 - 上传前的本地检查：文件不存在或不可读给 60001，音频为空给 60002，WAV 与 PCM 短于 1 秒给 60005，大于 50 MB 或 WAV 与 PCM 长于 300 秒给 60009。50 MB 是平台整段上传接口的上限。录音与外部音频达到 300 秒时自动停止，随后照常评测。
@@ -430,6 +496,7 @@ manager.startRecord(rs, new OnRecorderListener() {
 | MP3 录音 | 内置 Lame 编码器 | 不带 MP3 编码器，录音一律为 WAV。默认文件名为 `<tokenId>.wav`，显式设置的 `recordName` 以 `.mp3` 结尾时沿用该文件名，文件内容仍为 WAV。`SimpleLame` 的方法保留，返回 -1 |
 | 音频地址 | `attachAudioUrl` 开启时结果带音频下载地址 | 同样返回，`setNeedAttachAudioUrlInResult(true)` 时结果 JSON 带平台返回的 `audioUrl`，地址保留 7 天，到期删除。录音同时保存在本地，`getLastRecordPath()` 返回路径 |
 | 实时反馈 | `realtime_feedback` 开启时有中间结果 | 同样有中间结果，`onScore` 收到 `eof` 为 0 的 JSON，`result.words` 为新读到的字或词，结构同声通，分数只表示是否与参考文本一致。另有 `result.progress` 逐字给出朗读状态。需要访问平台的 wss 地址，连不上时退回整段上传，只有最终结果。`OnRecordListener` 没有中间结果 |
+| 上传方式 | 录音过程中上传 | 默认同样边录边传，需要访问平台的 wss 地址，连不上时停止录音后整段上传。`YuguCompat.setStreamUpload(false)` 改为停止录音后整段上传 |
 | 授权文件 | 需要 provision 文件 | 不需要，`updateProvision` 返回 true，`inquireProvision` 回调 `{"provision":"cloud","message":"cloud mode, no provision file needed"}` |
 | VAD | 引擎内置 | 本地能量 VAD，状态取值相同 |
 | 日志上传 | `LogCat` 定时上传 | 只写本地文件，`pushLog` 与 `pushLogManually` 不上传 |
@@ -445,14 +512,14 @@ manager.startRecord(rs, new OnRecorderListener() {
 `tools/api-diff/run.sh` 核对平替 AAR 与接入方手中的声通 jar 接口是否一致，接入方可以用自己的 jar 运行：
 
 ```bash
-tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.1.0.aar --report-dir api-diff-report
+tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.1.1.aar --report-dir api-diff-report
 ```
 
 核对分两步。第一步用 japicmp `0.23.1` 检查公共与受保护元素的二进制兼容与源码兼容，japicmp 在首次运行时从 Maven Central 下载，校验 SHA-1 与 SHA-256 后存入 `tools/api-diff/lib`。随后严格检查 japicmp 的报告，注解与修饰符的变化也算差异，只容许类文件版本从 Java 7 升到 Java 8。第二步用 javap 逐条比对类声明，成员签名，泛型签名，异常声明与常量值，`native` 修饰符除外。发现缺失或改变的元素时退出码为 1，报告写入 `--report-dir` 指定的目录。
 
 运行条件为 JDK 11 或更高版本，bash，首次运行还需要 curl 或 wget。环境变量 `JAPICMP_JAR` 可以指定已下载的 japicmp，`ANDROID_JAR` 可以指定 `android.jar`。
 
-`2.1.0` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`。
+`2.1.1` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`。
 
 ## 构建与测试
 
@@ -464,9 +531,9 @@ api-compat-test/run.sh
 ../ci/android-stcompat.sh
 ```
 
-单元测试与 Robolectric 测试覆盖参数映射，结果与错误 JSON，errId 映射，WAV 读写，VAD，状态机，autoRetry，生命周期，回调线程与 `SkEgn` 接口，以及朗读进度的中间结果，实时评测通道的退回与重连，WebSocket 客户端的握手，掩码，分片，心跳，关闭与帧大小上限。集成测试启动仓库中 `tools/mock-server` 的平台模拟服务，需要 Node 20 与 `tools/mock-server/node_modules`。`api-compat-test` 中的代码按声通接口编写，分别对声通 jar 与平替 AAR 用 javac 编译，两次都要通过。声通 jar 不随仓库分发，路径由环境变量 `ST_ORIGINAL_JAR` 指定，文件不存在时跳过这一项，同时给出提示。
+单元测试与 Robolectric 测试覆盖参数映射，结果与错误 JSON，errId 映射，WAV 读写，VAD，状态机，autoRetry，生命周期，回调线程与 `SkEgn` 接口，以及朗读进度的中间结果，实时评测通道的退回与重连，WebSocket 客户端的握手，掩码，分片，心跳，关闭与帧大小上限。`2.1.1` 增加的测试覆盖边录边传的默认与关闭，permessage-deflate 的协商，压缩消息的解压与解压后的大小上限，gzip 结果的解压，`timing=1` 的发送条件与从结果中删除，分段耗时日志的内容与日志中没有密钥。压缩测试使用测试内的 WebSocket 服务端，分别在保留与不保留压缩上下文时压缩消息。集成测试启动仓库中 `tools/mock-server` 的平台模拟服务，需要 Node 20 与 `tools/mock-server/node_modules`。`api-compat-test` 中的代码按声通接口编写，分别对声通 jar 与平替 AAR 用 javac 编译，两次都要通过。声通 jar 不随仓库分发，路径由环境变量 `ST_ORIGINAL_JAR` 指定，文件不存在时跳过这一项，同时给出提示。
 
-沙箱集成测试 `SandboxIntegrationTest` 按声通接入方的写法调用真实平台，覆盖句子评测，段落逐字得分，未知 appKey 的鉴权错误，录音下载地址与朗读进度，每次运行最多 7 次平台调用，实时评测连接也计入。朗读进度一项按实时速度送入 `spec/fixtures/audio/zh_progress.wav`。设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后运行，`YUGU_SANDBOX_BASE` 默认为 `https://open.shengzhiai.com`，平台地址经 `EngineSetting.setServerAddress` 设置。未设置密钥时这些测试跳过，`./gradlew test` 照常通过。
+沙箱集成测试 `SandboxIntegrationTest` 按声通接入方的写法调用真实平台，覆盖句子评测，段落逐字得分，未知 appKey 的鉴权错误，录音下载地址，朗读进度，边录边传时最终结果的压缩与平台耗时，以及整段上传时的 `Server-Timing`，每次运行最多 9 次平台调用，实时评测连接也计入。朗读进度一项按实时速度送入 `spec/fixtures/audio/zh_progress.wav`。设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后运行，`YUGU_SANDBOX_BASE` 默认为 `https://open.shengzhiai.com`，平台地址经 `EngineSetting.setServerAddress` 设置。未设置密钥时这些测试跳过，`./gradlew test` 照常通过。
 
 示例应用 `compat-demo` 只使用 `com.stkouyu` 接口，appKey 与 secretKey 由 Gradle 属性传入：
 
@@ -507,3 +574,7 @@ api-compat-test/run.sh
 ### 收不到朗读进度
 
 先确认已设置 `setRealtime_feedback(1)`，回调使用的是 `OnRecorderListener`。日志中有 `realtime channel failed before end` 一行时，实时评测通道没有连上或中途断开，评测已退回整段上传，常见原因是网络拦截了 WebSocket，需要放行平台地址的 wss 连接，端口 443。外部音频须为 16000 Hz 单声道 16 位 PCM，参考文本为空时没有朗读进度。以上情况最终结果都照常返回。
+
+### 评测结果返回慢
+
+按“日志与分段耗时”一节打开 INFO 日志，从 `timing` 行判断慢在上传，平台评测还是下载。录音的 `mode` 为 `rest` 时，说明调用过 `YuguCompat.setStreamUpload(false)`，录音在停止后才整段上传。`mode` 为 `ws>rest` 时，实时评测通道没有连上或中途断开，同时有一行 `realtime channel failed before end` 的 WARN 日志给出原因，需要放行平台地址的 wss 连接。

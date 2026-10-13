@@ -141,6 +141,51 @@ public final class TestWsServer implements AutoCloseable {
         return f.toByteArray();
     }
 
+    /**
+     * Server side of permessage-deflate (RFC 7692 7.2.1), written independently of the client: raw
+     * DEFLATE with a sync flush per message and the {@code 00 00 ff ff} tail removed. With context
+     * takeover the compressor keeps its window from message to message, so a repeated message
+     * becomes a short back reference; without it every message is compressed on its own.
+     */
+    public static final class Compressor {
+        private final java.util.zip.Deflater deflater = new java.util.zip.Deflater(java.util.zip.Deflater.DEFAULT_COMPRESSION, true);
+        private final boolean contextTakeover;
+
+        public Compressor(boolean contextTakeover) {
+            this.contextTakeover = contextTakeover;
+        }
+
+        public byte[] compress(byte[] data) {
+            if (!contextTakeover) {
+                deflater.reset();
+            }
+            deflater.setInput(data);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            while (true) {
+                int n = deflater.deflate(buf, 0, buf.length, java.util.zip.Deflater.SYNC_FLUSH);
+                out.write(buf, 0, n);
+                if (n < buf.length) {
+                    break;
+                }
+            }
+            byte[] c = out.toByteArray();
+            int len = c.length;
+            if (len < 4 || c[len - 4] != 0 || c[len - 3] != 0 || c[len - 2] != (byte) 0xFF || c[len - 1] != (byte) 0xFF) {
+                throw new IllegalStateException("a sync flush ends with 00 00 ff ff");
+            }
+            return java.util.Arrays.copyOf(c, len - 4);
+        }
+
+        public byte[] compress(String text) {
+            return compress(text.getBytes(StandardCharsets.UTF_8));
+        }
+
+        public void end() {
+            deflater.end();
+        }
+    }
+
     /** A frame read from the client. */
     public static final class Frame {
         public boolean fin;
@@ -226,6 +271,18 @@ public final class TestWsServer implements AutoCloseable {
 
         public void send(boolean fin, int opcode, byte[] payload) throws IOException {
             write(frame((fin ? 0x80 : 0) | opcode, payload.length, null, payload));
+        }
+
+        /** One frame with RSV1 set (a compressed message or the first frame of one). */
+        public void sendCompressed(boolean fin, int opcode, byte[] payload) throws IOException {
+            write(frame((fin ? 0x80 : 0) | 0x40 | opcode, payload.length, null, payload));
+        }
+
+        /** A text message compressed by {@code c} in one frame; returns the payload size on the wire. */
+        public int compressedText(Compressor c, String text) throws IOException {
+            byte[] p = c.compress(text);
+            sendCompressed(true, 0x1, p);
+            return p.length;
         }
 
         public void close(int code, String reason) throws IOException {

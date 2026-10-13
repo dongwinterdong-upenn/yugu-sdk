@@ -2,6 +2,21 @@
 
 格式参照 Keep a Changelog，版本号规则见 `COMPATIBILITY.md`。各端的详细变更见各端目录下的 CHANGELOG.md。
 
+## 版本 `2.1.1`，2026-10-13
+
+只发了安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个声通平替，其余五端仍为 `2.1.0`。
+
+### 变更
+- 两个平替层默认边录边传：麦克风录音与送流走兼容实时评测，不再等录音结束才整段上传。安卓 `YuguCompat.setStreamUpload(false)`，iOS `YuguCompat.streamUpload = NO` 时恢复录完整段上传。`realtime_feedback` 只决定有没有朗读进度回调。
+- 安卓平替层的实时连接协商 `permessage-deflate`，终评结果压缩传输。iOS 由系统网络库协商。
+- 日志级别为 INFO 时每次评测记一行分段耗时，含上传，等待，下载，解析与服务端各环节耗时，DEBUG 时另记引擎各环节。安卓的日志设置在 `initEngine` 之后修改也立即生效。
+
+### 新增
+- 平台侧：兼容接口的 REST 响应头带 `Server-Timing`，请求带 `timing=1` 时结果顶层附 `timing`，格式见 `CONTRACT.md` 3.3 节。兼容接口不再合成示范音。
+
+### 兼容性
+- 与 `2.1.0` 源码兼容，二进制兼容，替换版本号即可升级。交给应用的结果 JSON 不变。
+
 ## 版本 `2.1.0`，2026-10-12
 
 ### 新增

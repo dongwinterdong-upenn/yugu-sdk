@@ -41,6 +41,28 @@ public interface WsConnection {
                              Listener listener) throws IOException;
     }
 
+    /** Arrival facts of one inbound data message, for the timing log (SDK 2.1.1). */
+    final class Inbound {
+        /** {@link System#nanoTime()} when the first frame header of the message arrived. */
+        public final long firstByteNanos;
+        /** {@link System#nanoTime()} when the last payload byte had been read, before inflation. */
+        public final long completeNanos;
+        /** Payload bytes as received: compressed when {@link #compressed}. */
+        public final long wireBytes;
+        /** Bytes of the message delivered to the listener, after inflation. */
+        public final long dataBytes;
+        /** The message was compressed with permessage-deflate (RFC 7692). */
+        public final boolean compressed;
+
+        public Inbound(long firstByteNanos, long completeNanos, long wireBytes, long dataBytes, boolean compressed) {
+            this.firstByteNanos = firstByteNanos;
+            this.completeNanos = completeNanos;
+            this.wireBytes = wireBytes;
+            this.dataBytes = dataBytes;
+            this.compressed = compressed;
+        }
+    }
+
     void sendText(String text) throws IOException;
 
     void sendBinary(byte[] data, int offset, int length) throws IOException;
@@ -48,8 +70,20 @@ public interface WsConnection {
     /** Sends a protocol ping; the peer answers with a pong. */
     void ping() throws IOException;
 
-    /** Largest inbound frame and message accepted from now on; larger ones close the connection with 1009. */
+    /**
+     * Largest inbound frame and message accepted from now on, compressed and inflated; larger ones
+     * close the connection with 1009.
+     */
     void setMaxMessageBytes(int bytes);
+
+    /**
+     * The data message being delivered: valid inside {@link Listener#onText} and
+     * {@link Listener#onBinary} on the reader thread, null when the implementation does not track it.
+     */
+    Inbound inbound();
+
+    /** Extension agreed in the opening handshake, for example {@code permessage-deflate}; "" for none. */
+    String extensions();
 
     /** Close handshake with {@code code}, bounded wait for the answer. No listener callbacks afterwards. Idempotent. */
     void close(int code, String reason);

@@ -467,17 +467,36 @@ public class RealtimeFeedbackTest extends CompatTestBase {
         assertEquals(1, transport.count());
     }
 
+    /**
+     * 2.1.1: other values of realtime_feedback stream as well, without the realtime_feedback key and
+     * without intermediate results, even when the platform sends progress frames; with streaming
+     * upload switched off they go over REST after stop as in 2.1.0.
+     */
     @Test
-    public void otherValuesOfRealtimeFeedbackStayOnRest() throws Exception {
+    public void otherValuesOfRealtimeFeedbackStreamWithoutProgress() throws Exception {
         SkEgnManager m = initManager(null);
         RecordSetting s = new RecordSetting(CoreType.CN_SENT_EVAL, CUSTOMER);
         s.setRealtime_feedback(0);
         s.setIsStream(true);
         m.startRecord(s, ev.recorder);
-        m.feed(Fixtures.bytes("spec/fixtures/audio/zh_short.wav"));
+        feedInChunks(m, progressPcm(), 16000);
         m.stopRecord();
         awaitFinal();
-        assertEquals(0, ws.count());
+        Main.settle(50);
+        assertEquals(1, ws.count());
+        assertEquals(0, transport.count());
+        assertFalse(new JSONObject(ws.get(0).paramFrame()).has("realtime_feedback"));
+        assertFalse("the scripted platform sent progress frames", platform.sentProgress.isEmpty());
+        assertEquals(Collections.emptyList(), ev.intermediate());
+        assertEquals(1, ev.scores.size());
+
+        YuguCompat.setStreamUpload(false);
+        Events e2 = new Events();
+        m.startRecord(s, e2.recorder);
+        m.feed(Fixtures.bytes("spec/fixtures/audio/zh_short.wav"));
+        m.stopRecord();
+        Main.await("final over REST", 10000, () -> e2.json != null);
+        assertEquals(1, ws.count());
         assertEquals(1, transport.count());
     }
 

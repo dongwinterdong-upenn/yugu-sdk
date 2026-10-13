@@ -73,4 +73,12 @@
     [YGSTSettings shared].totalTimeout = totalTimeout > 1 ? totalTimeout : 1;
 }
 
++ (BOOL)streamUpload {
+    return [YGSTSettings shared].streamUpload;
+}
+
++ (void)setStreamUpload:(BOOL)streamUpload {
+    [YGSTSettings shared].streamUpload = streamUpload;
+}
+
 @end

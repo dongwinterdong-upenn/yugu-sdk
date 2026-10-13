@@ -75,8 +75,8 @@ NSString *YGSTCheckConstantsAndLog(void) {
     EXPECT([KYEngineCloud isEqualToString:@"cloud"] && [KYEngineNative isEqualToString:@"native"], @"engine names");
     EXPECT(STKouyuEngineVersionNumber == 2.1, @"version number");
     EXPECT(strstr((const char *)STKouyuEngineVersionString, "STKouyuEngine") != NULL, @"version string");
-    EXPECT([YuguCompat.sdkVersion isEqualToString:@"2.1.0"], @"YuguCompat.sdkVersion");
-    EXPECT([YuguCompat.userAgent isEqualToString:@"yugu-ios-stcompat-sdk/2.1.0"], @"YuguCompat.userAgent");
+    EXPECT([YuguCompat.sdkVersion isEqualToString:@"2.1.1"], @"YuguCompat.sdkVersion");
+    EXPECT([YuguCompat.userAgent isEqualToString:@"yugu-ios-stcompat-sdk/2.1.1"], @"YuguCompat.userAgent");
     EXPECT(KY_CloudEngine == 0 && KY_MultiEngine == 2 && KYTestType_Wordspell == 22, @"enum values");
     KYLog(KYLOG_INFO, @"KYLog from the Objective-C checks %d", 1);
     return nil;
@@ -264,11 +264,11 @@ static KYTestEngine *YGSTMockEngine(NSString *baseURL, NSTimeInterval timeout) {
 @implementation YGSTRealtimeRun
 @end
 
-/// A stream session with realtime_feedback over the mock: zh_progress.wav fed in steps of 6400 bytes,
-/// fault queued for the first WebSocket handshake, stopEngine half a second after the last step,
-/// cancelEngine instead after 32000 bytes when cancel is YES.
-static YGSTRealtimeRun *YGSTRunRealtime(NSString *base, NSString *specDir, NSString *fault, BOOL cancel,
-                                        NSTimeInterval timeout, NSString **failure) {
+/// A stream session over the mock: zh_progress.wav fed in steps of 6400 bytes, fault queued for the
+/// first WebSocket handshake, stopEngine half a second after the last step, cancelEngine instead
+/// after 32000 bytes when cancel is YES. realtimeFeedback NO is the 2.1.1 default stream upload.
+static YGSTRealtimeRun *YGSTRunRound(NSString *base, NSString *specDir, NSString *fault, BOOL realtimeFeedback,
+                                     BOOL cancel, NSTimeInterval timeout, NSString **failure) {
     YGSTRealtimeRun *run = [[YGSTRealtimeRun alloc] init];
     YGSTSupportDelegate *d = [[YGSTSupportDelegate alloc] init];
     NSData *pcm = YGSTFixturePCM(specDir, @"zh_progress.wav");
@@ -298,7 +298,7 @@ static YGSTRealtimeRun *YGSTRunRealtime(NSString *base, NSString *specDir, NSStr
     test.coreTypeNS = @"sent.eval.cn";
     test.refText = kYGSTCustomerText;
     test.isStream = YES;
-    test.realtime_feedback = YES;
+    test.realtime_feedback = realtimeFeedback;
     run.tokenId = [engine startEngineWithTestConfig:test
                                              result:^(NSString *testResult) {
                                                  NSDictionary *j = YGSTParse(testResult.UTF8String);
@@ -357,6 +357,12 @@ static YGSTRealtimeRun *YGSTRunRealtime(NSString *base, NSString *specDir, NSStr
     run.billing = YGSTMockCall(base, @"GET", @"/__mock/billing", nil, timeout);
     [engine deleteEngine];
     return run;
+}
+
+/// realtime_feedback (2.1.0): the round with reading progress.
+static YGSTRealtimeRun *YGSTRunRealtime(NSString *base, NSString *specDir, NSString *fault, BOOL cancel,
+                                        NSTimeInterval timeout, NSString **failure) {
+    return YGSTRunRound(base, specDir, fault, YES, cancel, timeout, failure);
 }
 
 /// Checks every eof 0 JSON (envelope keys, recordId "", words) and that the words of all of them are
@@ -532,5 +538,352 @@ NSString *YGSTCheckSkegnAgainstMock(NSString *baseURL, NSString *specDir, NSTime
     EXPECT(j[@"result"] != nil, [NSString stringWithUTF8String:box->json]);
     skegn_delete(engine);
     free(box);
+    return nil;
+}
+
+// ------------------------------------------------------------------ stream upload and timing (2.1.1)
+
+NSString *YGSTCheckStreamUploadDefault(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run = YGSTRunRound(baseURL, specDir, nil, NO, NO, timeout, &failure);
+    NSString *why;
+    NSString *want;
+    if (!run) return failure;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    EXPECT(run.progress.count == 0 && run.results.count == 1, @"without realtime_feedback only the final arrives");
+    want = [NSString stringWithFormat:@"WS %@ -;", run.tokenId];
+    EXPECT([YGSTLogLine(run.log) isEqualToString:want], YGSTLogLine(run.log));
+    EXPECT([run.billing[@"records"][0][@"op"] isEqualToString:@"ws-compat"], @"streamed over the WebSocket");
+    EXPECT([run.billing[@"records"][0][@"bytes"] unsignedIntegerValue] == YGSTFixturePCM(specDir, @"zh_progress.wav").length,
+           @"every PCM byte reached the platform");
+    return nil;
+}
+
+NSString *YGSTCheckStreamUploadOff(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run;
+    NSString *why;
+    NSString *want;
+    YuguCompat.streamUpload = NO;
+    run = YGSTRunRound(baseURL, specDir, nil, NO, NO, timeout, &failure);
+    YuguCompat.streamUpload = YES;
+    if (!run) return failure;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    want = [NSString stringWithFormat:@"POST %@ -;", run.tokenId];
+    EXPECT([YGSTLogLine(run.log) isEqualToString:want], YGSTLogLine(run.log));
+    EXPECT([run.billing[@"records"][0][@"op"] isEqualToString:@"compat"], @"one request after stopEngine, as in 2.1.0");
+    return nil;
+}
+
+NSString *YGSTCheckStreamRefusedFallsBack(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run = YGSTRunRound(baseURL, specDir, @"ws-refuse", NO, NO, timeout, &failure);
+    NSString *why;
+    NSString *want;
+    if (!run) return failure;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    EXPECT(run.results.count == 1, @"only the final");
+    want = [NSString stringWithFormat:@"WS %@ 503;POST %@ -;", run.tokenId, run.tokenId];
+    EXPECT([YGSTLogLine(run.log) isEqualToString:want], YGSTLogLine(run.log));
+    EXPECT([run.billing[@"records"][0][@"op"] isEqualToString:@"compat"], @"REST after stopEngine with the same tokenId");
+    return nil;
+}
+
+NSString *YGSTCheckRealtimeWithStreamUploadOff(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTRealtimeRun *run;
+    NSString *why;
+    NSString *want;
+    YuguCompat.streamUpload = NO;
+    run = YGSTRunRound(baseURL, specDir, nil, YES, NO, timeout, &failure);
+    YuguCompat.streamUpload = YES;
+    if (!run) return failure;
+    if ((why = YGSTCheckProgressOf(run))) return why;
+    if ((why = YGSTCheckFinalOf(run))) return why;
+    EXPECT(run.progress.count >= 3, @"realtime_feedback streams with progress whatever streamUpload is");
+    want = [NSString stringWithFormat:@"WS %@ -;", run.tokenId];
+    EXPECT([YGSTLogLine(run.log) isEqualToString:want], YGSTLogLine(run.log));
+    return nil;
+}
+
+/// Runs one evaluation and waits for its final JSON. feed: PCM fed as a stream session in steps of
+/// 6400 bytes before stopEngine; nil for audioPath sessions.
+static NSDictionary *YGSTEvaluateOnce(KYTestEngine *engine, KYTestConfig *test, NSData *feed, NSTimeInterval timeout,
+                                      NSString **tokenId) {
+    __block NSDictionary *final = nil;
+    NSUInteger off;
+    *tokenId = [engine startEngineWithTestConfig:test
+                                          result:^(NSString *testResult) {
+                                              NSDictionary *j = YGSTParse(testResult.UTF8String);
+                                              if ([j[@"eof"] integerValue] != 0) final = j;
+                                          }
+                                     finishBlock:nil];
+    for (off = 0; feed && off < feed.length; off += 6400) {
+        NSUInteger n = MIN((NSUInteger)6400, feed.length - off);
+        [engine feedAudioData:(void *)((const unsigned char *)feed.bytes + off) audioLength:(int)n];
+        YGSTSpin(^BOOL {
+            return NO;
+        },
+                 0.01);
+    }
+    if (feed) [engine stopEngine];
+    YGSTSpin(^BOOL {
+        return final != nil;
+    },
+             timeout);
+    // the timing line follows the callback on the engine queue, the log file on the log queue
+    YGSTSpin(^BOOL {
+        return NO;
+    },
+             0.5);
+    return final;
+}
+
+static KYTestEngine *YGSTEngineWithLog(NSString *baseURL, BOOL fileLog, CGFloat level, NSString *path,
+                                       NSTimeInterval timeout) {
+    KYTestEngine *engine = [[KYTestEngine alloc] init];
+    KYStartEngineConfig *cfg = [[KYStartEngineConfig alloc] init];
+    __block BOOL done = NO;
+    __block BOOL ok = NO;
+    cfg.appKey = @"mock-app-key";
+    cfg.secretKey = @"mock-secret-key";
+    cfg.server = baseURL;
+    cfg.sdkLogEnable = fileLog;
+    cfg.logLevel = level;
+    cfg.sdkLogPath = path;
+    cfg.isOutputLog = NO;
+    [engine initEngine:KY_CloudEngine
+        startEngineConfig:cfg
+              finishBlock:^(BOOL isSuccess, NSString *str) {
+                  (void)str;
+                  ok = isSuccess;
+                  done = YES;
+              }];
+    YGSTSpin(^BOOL {
+        return done;
+    },
+             timeout);
+    return ok ? engine : nil;
+}
+
+/// The mock log entry of the REST request with this Idempotency-Key.
+static NSDictionary *YGSTMockPost(NSArray *log, NSString *tokenId) {
+    for (NSDictionary *e in log) {
+        if ([e[@"method"] isEqualToString:@"POST"] && [e[@"idempotencyKey"] isEqualToString:tokenId]) return e;
+    }
+    return nil;
+}
+
+/// The documented switch: sdkLogEnable YES with logLevel 2 writes INFO to sdkLogPath, with one timing
+/// line per evaluation and timing=1 in the request; logLevel 1, the default, neither.
+NSString *YGSTCheckLogLevelInfoTiming(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *path = [NSTemporaryDirectory()
+        stringByAppendingPathComponent:[NSString stringWithFormat:@"ygst-sdkLog-%@.txt", [NSUUID UUID].UUIDString]];
+    NSString *audioPath = [[specDir stringByAppendingPathComponent:@"fixtures/audio"] stringByAppendingPathComponent:@"zh_short.wav"];
+    NSData *pcm = YGSTFixturePCM(specDir, @"zh_progress.wav");
+    KYTestEngine *engine;
+    KYTestConfig *file = [[KYTestConfig alloc] init];
+    KYTestConfig *stream = [[KYTestConfig alloc] init];
+    NSString *restToken = nil, *wsToken = nil, *quietToken = nil;
+    NSDictionary *final;
+    NSString *text;
+    NSArray *log;
+    file.coreTypeNS = @"sent.eval.cn";
+    file.refText = @"今天天气很好";
+    file.audioPath = audioPath;
+    stream.coreTypeNS = @"sent.eval.cn";
+    stream.refText = kYGSTCustomerText;
+    stream.isStream = YES;
+    YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
+    [YuguCompat resetLogLevel];
+    engine = YGSTEngineWithLog(baseURL, YES, 2, path, timeout);
+    EXPECT(engine != nil, @"initEngine with sdkLogEnable");
+    final = YGSTEvaluateOnce(engine, file, nil, timeout, &restToken);
+    EXPECT(final[@"result"] != nil, @"file evaluation at INFO");
+    final = YGSTEvaluateOnce(engine, stream, pcm, timeout, &wsToken);
+    EXPECT(final[@"result"] != nil, @"streamed evaluation at INFO");
+    [engine deleteEngine];
+    // the default level: no timing line, no timing field
+    engine = YGSTEngineWithLog(baseURL, YES, 1, path, timeout);
+    EXPECT(engine != nil, @"initEngine at WARN");
+    final = YGSTEvaluateOnce(engine, file, nil, timeout, &quietToken);
+    EXPECT(final[@"result"] != nil, @"file evaluation at WARN");
+    [engine deleteEngine];
+    // back to the defaults for the other tests: no log file, WARN
+    engine = YGSTEngineWithLog(baseURL, NO, 1, nil, timeout);
+    [engine deleteEngine];
+    text = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL] ?: @"";
+    [[NSFileManager defaultManager] removeItemAtPath:path error:NULL];
+    EXPECT(([text containsString:[NSString stringWithFormat:@"timing tokenId=%@ mode=rest audio=", restToken]]), text);
+    EXPECT(([text containsString:[NSString stringWithFormat:@"timing tokenId=%@ mode=ws audio=", wsToken]]), text);
+    EXPECT((![text containsString:[NSString stringWithFormat:@"timing tokenId=%@ ", quietToken]]), @"no timing line at WARN");
+    EXPECT(![text containsString:@"mock-secret-key"], @"the secret never reaches the log");
+    EXPECT([text containsString:@" [I] "], @"INFO lines in sdkLogPath");
+    log = YGSTMockCall(baseURL, @"GET", @"/__mock/log", nil, timeout);
+    EXPECT([YGSTMockPost(log, restToken)[@"fields"][@"timing"] isEqualToString:@"1"], @"timing=1 at INFO");
+    EXPECT(YGSTMockPost(log, quietToken) != nil && YGSTMockPost(log, quietToken)[@"fields"][@"timing"] == nil,
+           @"no timing field at WARN");
+    return nil;
+}
+
+/// The INFO lines captured from YuguCompat's log handler.
+@interface YGSTLogCapture : NSObject
+@property (nonatomic, strong) NSMutableArray<NSString *> *lines;
+- (NSString *)timingLineOf:(NSString *)tokenId;
+@end
+
+@implementation YGSTLogCapture
+- (instancetype)init {
+    if ((self = [super init])) _lines = [NSMutableArray array];
+    return self;
+}
+- (NSString *)timingLineOf:(NSString *)tokenId {
+    NSString *prefix = [NSString stringWithFormat:@"timing tokenId=%@ mode=", tokenId];
+    @synchronized(self) {
+        for (NSString *line in self.lines) {
+            if ([line hasPrefix:prefix]) return line;
+        }
+    }
+    return nil;
+}
+@end
+
+static YGSTLogCapture *YGSTCaptureInfo(void) {
+    YGSTLogCapture *capture = [[YGSTLogCapture alloc] init];
+    __weak YGSTLogCapture *weakCapture = capture;
+    [YuguCompat setLogLevel:YuguCompatLogLevelInfo];
+    [YuguCompat setLogHandler:^(NSInteger level, NSString *message) {
+        YGSTLogCapture *c = weakCapture;
+        (void)level;
+        if (!c) return;
+        @synchronized(c) {
+            [c.lines addObject:message];
+        }
+    }];
+    return capture;
+}
+
+static void YGSTCaptureEnd(void) {
+    [YuguCompat setLogHandler:nil];
+    [YuguCompat resetLogLevel];
+}
+
+/// The last entry of the timing server's log of this kind.
+static NSDictionary *YGSTServerEntry(NSString *baseURL, NSString *kind, NSTimeInterval timeout) {
+    NSDictionary *found = nil;
+    for (NSDictionary *e in YGSTMockCall(baseURL, @"GET", @"/__ctl/log", nil, timeout)) {
+        if ([e[@"kind"] isEqualToString:kind]) found = e;
+    }
+    return found;
+}
+
+static NSString *YGSTText(id v) {
+    return [v isKindOfClass:[NSString class]] ? v : @"(none)";
+}
+
+NSString *YGSTCheckTimingServerWebSocket(NSString *baseURL, NSString *specDir, BOOL deflate, NSTimeInterval timeout,
+                                         NSString **report) {
+    YGSTLogCapture *capture;
+    KYTestEngine *engine;
+    KYTestConfig *test = [[KYTestConfig alloc] init];
+    NSData *pcm = YGSTFixturePCM(specDir, @"zh_progress.wav");
+    NSString *token = nil;
+    NSDictionary *final, *entry;
+    NSString *line, *offered;
+    BOOL compressed;
+    EXPECT(pcm.length > 64000, @"fixture zh_progress.wav");
+    YGSTMockCall(baseURL, @"POST", @"/__ctl/reset", nil, timeout);
+    YGSTMockCall(baseURL, @"POST", @"/__ctl/config", @{@"resultWords" : @6000, @"deflate" : deflate ? @"accept" : @"decline"},
+                 timeout);
+    capture = YGSTCaptureInfo();
+    engine = YGSTMockEngine(baseURL, timeout);
+    test.coreTypeNS = @"para.eval";
+    test.refText = @"x";
+    test.isStream = YES;
+    final = engine ? YGSTEvaluateOnce(engine, test, pcm, timeout, &token) : nil;
+    [engine deleteEngine];
+    line = [capture timingLineOf:token];
+    YGSTCaptureEnd();
+    entry = YGSTServerEntry(baseURL, @"ws", timeout);
+    offered = YGSTText(entry[@"offered"]);
+    compressed = [entry[@"finalCompressed"] boolValue];
+    if (report) {
+        *report = [NSString stringWithFormat:@"server deflate %@: URLSessionWebSocketTask offered %@, negotiated %@, "
+                                             @"client messages compressed %@ of the parameter frame, audio and end, "
+                                             @"final %@ bytes sent as %@ bytes in %@ frames (compressed %@); %@",
+                                             deflate ? @"accept" : @"decline", offered, YGSTText(entry[@"negotiated"]),
+                                             entry[@"clientCompressedMessages"], entry[@"finalBytes"],
+                                             entry[@"finalWireBytes"], entry[@"finalFrames"], compressed ? @"yes" : @"no",
+                                             line ?: @"no timing line"];
+    }
+    EXPECT(engine != nil, @"initEngine");
+    EXPECT([final[@"eof"] integerValue] == 1 && final[@"errId"] == nil, [final description] ?: @"no final");
+    EXPECT([final[@"recordId"] hasPrefix:@"eval_ws"], @"evaluated over the WebSocket");
+    EXPECT([final[@"result"][@"words"] count] == 6000, @"the whole final arrived");
+    EXPECT(final[@"timing"] == nil && final[@"result"][@"timing"] == nil, @"the timing object never reaches the app");
+    EXPECT([entry[@"end"] boolValue], @"end sent");
+    EXPECT(entry[@"params"][@"realtime_feedback"] == nil, @"no realtime_feedback key without progress");
+    EXPECT([entry[@"params"][@"timing"] integerValue] == 1, @"\"timing\":1 at INFO");
+    EXPECT([entry[@"audioBytes"] unsignedIntegerValue] == pcm.length, @"every byte streamed");
+    // the system's own offer: what the server does with it is the platform's choice
+    if (deflate && [offered containsString:@"permessage-deflate"]) {
+        EXPECT([YGSTText(entry[@"negotiated"]) hasPrefix:@"permessage-deflate"] && compressed,
+               @"offered and accepted: the final is compressed");
+        EXPECT([entry[@"finalWireBytes"] integerValue] * 4 < [entry[@"finalBytes"] integerValue], @"compressed final");
+        EXPECT([entry[@"finalFrames"] integerValue] > 1, @"fragmented like Tomcat");
+    }
+    if (!deflate) EXPECT(!compressed, @"declined: uncompressed");
+    EXPECT(line != nil, @"timing line at INFO");
+    EXPECT([line containsString:@" mode=ws audio="], line);
+    EXPECT(([line containsString:[NSString stringWithFormat:@" final=%@B wire=- ", entry[@"finalBytes"]]]), line);
+    EXPECT([line hasSuffix:@" server.total=321ms server.engine=300ms server.platform=21ms"], line);
+    EXPECT(![line containsString:@" upload=- "] && ![line containsString:@" wait=- "] &&
+               ![line containsString:@" handshake=- "] && ![line containsString:@" errId="],
+           line);
+    // the upgrade response tells whether the system's offer was taken
+    EXPECT([line containsString:@" deflate "] == [entry[@"negotiated"] isKindOfClass:[NSString class]], line);
+    return nil;
+}
+
+NSString *YGSTCheckTimingServerRest(NSString *baseURL, NSString *specDir, NSTimeInterval timeout, NSString **report) {
+    YGSTLogCapture *capture;
+    KYTestEngine *engine;
+    KYTestConfig *test = [[KYTestConfig alloc] init];
+    NSString *token = nil;
+    NSDictionary *final, *entry;
+    NSString *line;
+    YGSTMockCall(baseURL, @"POST", @"/__ctl/reset", nil, timeout);
+    YGSTMockCall(baseURL, @"POST", @"/__ctl/config", @{@"resultWords" : @6000, @"gzip" : @YES}, timeout);
+    capture = YGSTCaptureInfo();
+    engine = YGSTMockEngine(baseURL, timeout);
+    test.coreTypeNS = @"para.eval";
+    test.refText = @"x";
+    test.audioPath = [[specDir stringByAppendingPathComponent:@"fixtures/audio"] stringByAppendingPathComponent:@"zh_short.wav"];
+    final = engine ? YGSTEvaluateOnce(engine, test, nil, timeout, &token) : nil;
+    [engine deleteEngine];
+    line = [capture timingLineOf:token];
+    YGSTCaptureEnd();
+    entry = YGSTServerEntry(baseURL, @"rest", timeout);
+    if (report) {
+        *report = [NSString stringWithFormat:@"REST: Accept-Encoding %@, gzip %@, body %@ bytes, %@ bytes on the wire; %@",
+                                             YGSTText(entry[@"acceptEncoding"]), [entry[@"gzip"] boolValue] ? @"yes" : @"no",
+                                             entry[@"bodyBytes"], entry[@"wireBytes"], line ?: @"no timing line"];
+    }
+    EXPECT(engine != nil, @"initEngine");
+    EXPECT([final[@"eof"] integerValue] == 1 && [final[@"recordId"] hasPrefix:@"eval_rest"], [final description] ?: @"no final");
+    EXPECT([final[@"result"][@"words"] count] == 6000, @"the whole body arrived, decoded");
+    EXPECT(final[@"timing"] == nil, @"the timing object never reaches the app");
+    EXPECT([entry[@"fields"][@"timing"] isEqualToString:@"1"], @"timing=1 at INFO, signed with the other fields");
+    EXPECT([entry[@"gzip"] boolValue], @"NSURLSession asks for gzip by itself");
+    EXPECT(line != nil, @"timing line at INFO");
+    EXPECT([line containsString:@" mode=rest audio="], line);
+    // NSURLSessionTaskMetrics: the split of the attempt, the decoded and the compressed size
+    EXPECT(([line containsString:[NSString stringWithFormat:@" body=%@B wire=%@B gzip ", entry[@"bodyBytes"],
+                                                            entry[@"wireBytes"]]]),
+           line);
+    EXPECT(![line containsString:@" upload=- "] && ![line containsString:@" wait=- "] &&
+               ![line containsString:@" download=- "] && ![line containsString:@" afterStop=- "],
+           line);
+    EXPECT([line hasSuffix:@" server.total=321ms server.engine=300ms server.platform=21ms"], line);
     return nil;
 }

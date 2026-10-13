@@ -97,6 +97,9 @@ public class MainActivity extends Activity {
             setting.setServerAddress(BuildConfig.SERVER);
         }
         setting.setVADEnabled(true);
+        // SDK log at info: one "timing tokenId=..." line per evaluation with upload, wait and download times
+        setting.setSDKLogEnabled(true);
+        setting.setLogLevel(2);
         setting.setOnInitEngineListener(new OnInitEngineListener() {
             @Override
             public void onStartInitEngine() {

@@ -6,6 +6,7 @@ import android.app.Application;
 import com.shengzhiai.yugu.stcompat.internal.CancelToken;
 import com.shengzhiai.yugu.stcompat.internal.CompatClient;
 import com.shengzhiai.yugu.stcompat.internal.CompatConfig;
+import com.shengzhiai.yugu.stcompat.internal.LogFileSink;
 import com.shengzhiai.yugu.stcompat.internal.SkEgnEmulator;
 import com.stkouyu.SkEgnManager;
 import com.stkouyu.TestHooks;
@@ -59,6 +60,8 @@ public abstract class CompatTestBase {
         SettingHooks.resetEngineSetting();
         SkEgnEmulator.resetForTests();
         CompatConfig.reset();
+        // EngineSetting log options install a file sink at once since 2.1.1; none outlives a test
+        LogFileSink.uninstall();
         Main.idle();
     }
 

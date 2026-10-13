@@ -65,5 +65,6 @@ void suite_retry(void);
 void suite_errors(void);
 void suite_envelope(void);
 void suite_realtime(void);
+void suite_timing(void);
 
 #endif

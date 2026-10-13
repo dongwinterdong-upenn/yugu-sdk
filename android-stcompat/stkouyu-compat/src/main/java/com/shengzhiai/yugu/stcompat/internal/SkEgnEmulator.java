@@ -28,7 +28,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>With {@code request.realtime_feedback} 1 and 16 kHz 16 bit mono audio the session streams over
  * the compat realtime channel like {@code SkEgnManager} (DESIGN 14.3): intermediate results with
- * eof 0 arrive through the same callback before the final result.
+ * eof 0 arrive through the same callback before the final result. Other sessions upload after
+ * skegn_stop as in 2.1.0. SDK 2.1.1 adds the timing log of {@link EvalTiming}: timing=1 at INFO and
+ * DEBUG, the platform's timing object removed before the callback.
  */
 public final class SkEgnEmulator {
     public static final int NONE = 0;
@@ -91,6 +93,9 @@ public final class SkEgnEmulator {
         final SkEgn.skegn_callback callback;
         final ByteArrayOutputStream audio = new ByteArrayOutputStream();
         final CancelToken token = new CancelToken();
+        /** The log level was INFO or DEBUG at skegn_start: requests carry timing=1. */
+        final boolean timing = ServerTiming.wanted();
+        final EvalTiming phases;
         boolean stopped;
         boolean finished;
         int invalidErrId;
@@ -110,6 +115,7 @@ public final class SkEgnEmulator {
             this.needParams = needParams;
             this.fields = fields;
             this.callback = callback;
+            this.phases = new EvalTiming(tokenId);
         }
     }
 
@@ -236,6 +242,7 @@ public final class SkEgnEmulator {
                 int sampleBytes = audio != null ? audio.optInt("sampleBytes", 2) : 2;
                 if (isPcm16kMono(s.audioType, s.sampleRate, s.channel, sampleBytes)) {
                     s.round = new RealtimeRound(roundConfig(e, s), progressListener(e, s), s.token);
+                    s.phases.streaming();
                 } else {
                     YLog.i("realtime_feedback needs 16 kHz 16 bit mono PCM (audioType " + s.audioType + ", sampleRate "
                             + s.sampleRate + ", channel " + s.channel + "); evaluated over REST without intermediate results");
@@ -291,6 +298,9 @@ public final class SkEgnEmulator {
         c.connectTimeoutMs = CompatConfig.connectTimeoutMs() > 0 ? CompatConfig.connectTimeoutMs() : e.connectTimeoutMs;
         c.readTimeoutMs = CompatConfig.readTimeoutMs() > 0 ? CompatConfig.readTimeoutMs() : e.readTimeoutMs;
         c.totalTimeoutMs = CompatConfig.totalTimeoutMs();
+        c.realtimeFeedback = true;
+        c.timing = s.timing;
+        c.phases = s.phases;
         return c;
     }
 
@@ -386,6 +396,7 @@ public final class SkEgnEmulator {
             }
             s.stopped = true;
         }
+        s.phases.stop();
         Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -435,18 +446,17 @@ public final class SkEgnEmulator {
             ext = type;
         }
         int err = s.invalidErrId;
+        Wav.Info wav = "audio/wav".equals(contentType) ? Wav.parse(upload, upload.length, upload.length) : null;
+        s.phases.audioFile(upload.length, wav != null ? wav.durationSeconds() : -1);
         if (err == 0) {
             if (audio.length == 0) {
                 err = CompatErrIds.AUDIO_EMPTY;
             } else if (upload.length > CompatConfig.MAX_AUDIO_BYTES) {
                 err = CompatErrIds.AUDIO_TOO_LARGE;
-            } else if ("audio/wav".equals(contentType)) {
-                Wav.Info info = Wav.parse(upload, upload.length, upload.length);
-                if (info != null && info.durationSeconds() < 1.0) {
-                    err = info.dataLength == 0 ? CompatErrIds.AUDIO_EMPTY : CompatErrIds.AUDIO_TOO_SHORT;
-                } else if (info != null && info.durationSeconds() > CompatConfig.MAX_AUDIO_SECONDS) {
-                    err = CompatErrIds.AUDIO_TOO_LARGE;
-                }
+            } else if (wav != null && wav.durationSeconds() < 1.0) {
+                err = wav.dataLength == 0 ? CompatErrIds.AUDIO_EMPTY : CompatErrIds.AUDIO_TOO_SHORT;
+            } else if (wav != null && wav.durationSeconds() > CompatConfig.MAX_AUDIO_SECONDS) {
+                err = CompatErrIds.AUDIO_TOO_LARGE;
             }
         }
         String json = null;
@@ -455,6 +465,7 @@ public final class SkEgnEmulator {
                 // no end: nothing is evaluated or billed
                 s.round.cancel();
             }
+            s.phases.error(err);
             json = Envelope.error(s.tokenId, err, CompatErrIds.message(err), e.appKey);
         } else if (s.round != null) {
             RealtimeRound.Outcome o = s.round.finish();
@@ -463,12 +474,16 @@ public final class SkEgnEmulator {
                 return;
             }
             if (o.kind == RealtimeRound.Outcome.RESULT) {
+                s.phases.replayed(o.replayed);
                 json = successJson(e, s, o.body, audio.length);
             } else if (o.kind == RealtimeRound.Outcome.ERROR) {
                 int errId = ErrorMapper.errId(o.error);
+                s.phases.error(errId);
                 json = Envelope.error(s.tokenId, errId, ErrorMapper.message(o.error, errId), e.appKey);
+            } else {
+                // FALLBACK: the channel failed before end, evaluate over REST below with the same tokenId
+                s.phases.fallback(o.reason);
             }
-            // FALLBACK: the channel failed before end, evaluate over REST below with the same tokenId
         }
         if (json == null) {
             CompatClient.Request req = new CompatClient.Request();
@@ -477,7 +492,8 @@ public final class SkEgnEmulator {
             req.appKey = e.appKey;
             req.secretKey = e.secretKey;
             req.idempotencyKey = s.tokenId;
-            req.fields = s.fields;
+            req.fields = ServerTiming.requestFields(s.fields, s.timing);
+            req.phases = s.phases;
             req.audioBytes = upload;
             req.audioFilename = s.tokenId + "." + ext;
             req.audioContentType = contentType;
@@ -487,29 +503,40 @@ public final class SkEgnEmulator {
             req.readTimeoutMs = CompatConfig.readTimeoutMs() > 0 ? CompatConfig.readTimeoutMs() : e.readTimeoutMs;
             try {
                 CompatClient.Result r = CompatClient.fromConfig().execute(req, s.token);
+                s.phases.replayed(r.replayed);
                 json = successJson(e, s, r.body, upload.length);
             } catch (CompatError ex) {
                 if (ex.isCancelled()) {
                     return;
                 }
                 int errId = ErrorMapper.errId(ex);
+                s.phases.error(errId);
                 json = Envelope.error(s.tokenId, errId, ErrorMapper.message(ex, errId), e.appKey);
             }
         }
         deliver(e, s, json);
     }
 
-    /** Final envelope of a platform body; the REST answer and the realtime final frame share it. */
+    /**
+     * Final envelope of a platform body; the REST answer and the realtime final frame share it. The
+     * platform's timing object goes to the timing log, never into the callback JSON.
+     */
     private static String successJson(Engine e, Session s, String body, int uploadBytes) {
         synchronized (e) {
             e.uploaded += uploadBytes;
             e.downloaded += body.length();
         }
+        ServerTiming.Split split = ServerTiming.split(body);
+        s.phases.serverBody(split.timing);
         String params = s.needParams ? Envelope.params(e.appKey, s.userId, System.currentTimeMillis(),
                 s.audioType, s.sampleRate, s.channel, s.coreType, s.tokenId, s.fields) : null;
         try {
-            return Envelope.success(s.tokenId, e.appKey, s.userId, s.refText, body, params, System.currentTimeMillis());
+            String json = Envelope.success(s.tokenId, e.appKey, s.userId, s.refText, split.body, params,
+                    System.currentTimeMillis());
+            s.phases.parsed();
+            return json;
         } catch (IllegalArgumentException ex) {
+            s.phases.error(ErrorTable.PROTOCOL_ERROR);
             return Envelope.error(s.tokenId, ErrorTable.PROTOCOL_ERROR, "invalid platform response", e.appKey);
         }
     }
@@ -524,6 +551,8 @@ public final class SkEgnEmulator {
                     }
                     s.finished = true;
                 }
+                s.phases.delivered();
+                s.phases.log();
                 byte[] data = json.getBytes(Codec.UTF_8);
                 s.callback.run(s.idBytes, SkEgn.SKEGN_MESSAGE_TYPE_JSON, data, data.length);
             }
