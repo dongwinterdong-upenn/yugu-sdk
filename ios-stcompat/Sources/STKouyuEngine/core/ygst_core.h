@@ -171,7 +171,7 @@ ygst_ct_status ygst_coretype_check(const char *core_type);
 ygst_ct_status ygst_coretype_resolve(const char *core_type_ns, unsigned long kytesttype, char *out, size_t cap);
 /* Chinese kernels (*.cn and pinyin), where refPinyin may replace refText. */
 int ygst_coretype_is_chinese(const char *core_type);
-/* open.eval.cn (2.1.2): refText is the question, refPinyin cannot replace it. */
+/* open.eval.cn (2.1.2): refText holds model answers or the question, refPinyin cannot replace it. */
 int ygst_coretype_is_open_question(const char *core_type);
 /* Paragraph kernels (para.*): DESIGN 6 result-shape alignment always asks for word details. */
 int ygst_coretype_is_paragraph(const char *core_type);

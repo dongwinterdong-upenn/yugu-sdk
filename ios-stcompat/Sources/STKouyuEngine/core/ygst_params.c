@@ -108,7 +108,7 @@ int ygst_validate_request(ygst_ct_status status, const char *core_type, const ch
                           const char *ref_pinyin) {
     if (status != YGST_CT_SUPPORTED) return YGST_ERRID_CORETYPE_UNSUPPORTED;
     if (!ygst_is_blank(ref_text)) return 0;
-    /* the refText of an open question is the question: a reference pinyin cannot replace it */
+    /* the refText of an open question, model answers or the question, cannot be replaced by a reference pinyin */
     if (!ygst_is_blank(ref_pinyin) && ygst_coretype_is_chinese(core_type) && !ygst_coretype_is_open_question(core_type))
         return 0;
     return YGST_ERRID_REFTEXT_EMPTY;

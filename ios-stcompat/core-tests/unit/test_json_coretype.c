@@ -194,7 +194,7 @@ static void test_coretype_support(void) {
     CHECK_INT(ygst_validate_request(YGST_CT_SUPPORTED, "pinyin", "", "chong2 qing4"), 0);
     CHECK_INT(ygst_validate_request(YGST_CT_SUPPORTED, "pinyin", "", ""), 60006);
     CHECK_INT(ygst_validate_request(YGST_CT_UNSUPPORTED, "open.eval", "hi", NULL), 60003);
-    /* 2.1.2 open.eval.cn: refText is the question, refPinyin cannot replace it */
+    /* 2.1.2 open.eval.cn: refText holds model answers or the question, refPinyin cannot replace it */
     CHECK(ygst_coretype_is_open_question("open.eval.cn"));
     CHECK(!ygst_coretype_is_open_question("open.eval"));
     CHECK(!ygst_coretype_is_open_question(NULL));

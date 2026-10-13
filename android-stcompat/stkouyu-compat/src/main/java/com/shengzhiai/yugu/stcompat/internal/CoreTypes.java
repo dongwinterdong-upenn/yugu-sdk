@@ -10,8 +10,9 @@ import java.util.regex.Pattern;
 /** Shengtong kernel names: which ones the platform compat path supports, and name detection. */
 public final class CoreTypes {
     /**
-     * Shengtong's Chinese open question (since 2.1.2). Its refText is the question, not text to read, so a reference
-     * pinyin cannot replace it. Shengtong publishes no constant for it; apps pass the string.
+     * Shengtong's Chinese open question (since 2.1.2). Its refText holds model answers separated by | or the question,
+     * not text to read, so a reference pinyin cannot replace it. Shengtong publishes no constant for it; apps pass the
+     * string.
      */
     public static final String OPEN_EVAL_CN = "open.eval.cn";
 
@@ -50,7 +51,7 @@ public final class CoreTypes {
         return coreType != null && (coreType.endsWith(".cn") || "pinyin".equals(coreType.trim()));
     }
 
-    /** True for {@link #OPEN_EVAL_CN}: the refText is the question and must be present. */
+    /** True for {@link #OPEN_EVAL_CN}: the refText, model answers or the question, must be present. */
     public static boolean isOpenQuestion(String coreType) {
         return coreType != null && OPEN_EVAL_CN.equals(coreType.trim());
     }

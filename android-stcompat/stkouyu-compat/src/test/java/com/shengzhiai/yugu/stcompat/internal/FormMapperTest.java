@@ -216,7 +216,7 @@ public class FormMapperTest {
 
     @Test
     public void chineseOpenQuestion() {
-        // 2.1.2: open.eval.cn is evaluated; its refText is the question, a reference pinyin cannot replace it
+        // 2.1.2: open.eval.cn is evaluated; its refText (model answers or the question) cannot be replaced by a pinyin
         assertTrue(CoreTypes.isSupported("open.eval.cn"));
         assertTrue(CoreTypes.isOpenQuestion(" open.eval.cn "));
         assertFalse(CoreTypes.isOpenQuestion(CoreType.EN_OPEN_EVAL));
