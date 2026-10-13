@@ -105,7 +105,8 @@ paths:
                 customized_lexicon: {type: string}
                 customized_pron: {type: string}
                 output_rawtext: {type: string, enum: ['0', '1']}
-                readtype_diagnosis: {type: string, enum: ['0', '1']}
+                readtype_diagnosis: {type: string, enum: ['0', '1'], description: 1 时 words 另含增读与重复读，默认只含参考文本里的字词}
+                timing: {type: string, enum: ['0', '1'], description: 1 时结果顶层附 timing，见契约 3.3 节}
                 request: {type: string, description: JSON 文本，顶层标量字段并入业务参数}
       responses:
         '200':
@@ -113,6 +114,8 @@ paths:
           headers:
             Idempotency-Replayed:
               $ref: '#/components/headers/IdempotencyReplayed'
+            Server-Timing:
+              $ref: '#/components/headers/ServerTiming'
           content:
             application/json:
               schema:
@@ -210,6 +213,9 @@ components:
     IdempotencyReplayed:
       description: 值为 true 表示这是同一幂等键首次结果的重放
       schema: {type: string, enum: ['true']}
+    ServerTiming:
+      description: 服务端分段耗时，形如 total;dur=5321, engine;dur=4100, platform;dur=1221，单位毫秒
+      schema: {type: string}
     RetryAfter:
       description: 建议的重试等待秒数
       schema: {type: integer}
@@ -280,7 +286,7 @@ components:
         symbolpinyin: {type: string}
         tone: {type: string, example: tone3}
         charType: {type: integer, description: 0 为正常字词，1 为标点}
-        readType: {type: integer, description: 0 正常，1 增读，2 漏读，3 重复读}
+        readType: {type: integer, description: 0 正常，1 增读，2 漏读，3 重复读。声通兼容接口默认不给 1 与 3，请求带 readtype_diagnosis=1 时才有}
         read_status: {type: string, enum: [correct, mispronounced, skipped, inserted]}
         scores:
           type: object
@@ -431,6 +437,17 @@ components:
         eof: {type: integer, enum: [1]}
         result: {$ref: '#/components/schemas/EvaluationScores'}
         audioUrl: {type: string, format: uri, description: 请求带 attachAudioUrl=1 时出现，录音下载地址，保留 7 天}
+        timing:
+          type: object
+          description: 请求带 timing=1 时出现，服务端分段耗时，单位毫秒，客户端应忽略不认识的键
+          properties:
+            receivedAt: {type: integer, format: int64, description: 服务端开始处理的时刻，毫秒时间戳}
+            totalMs: {type: integer}
+            engineMs: {type: integer}
+            platformMs: {type: integer}
+            engineStages: {type: object, additionalProperties: {type: number}, description: 引擎各环节耗时，键名随引擎版本变化}
+            audioBytes: {type: integer}
+            wsFirstAudioAt: {type: integer, format: int64, description: 只在实时评测出现}
     TtsRequest:
       type: object
       required: [text]
