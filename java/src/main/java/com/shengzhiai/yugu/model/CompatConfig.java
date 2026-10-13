@@ -9,12 +9,17 @@ import java.util.Map;
 /**
  * Parameters of the Shengtong compatible endpoints: {@code POST /{coreType}} (form fields) and
  * {@code wss://host/{coreType}} (parameter frame). The core type goes into the path.
+ *
+ * <p>{@code open.eval.cn} (since 2.1.1) is Shengtong's Chinese open question. Its refText holds one or
+ * more model answers separated by {@code |}, or the question, and is required; a refPinyin cannot replace
+ * it. Pass {@code qType}, {@code keypoints} and {@code keywords} with {@link #param(String, Object)}. The
+ * scores arrive in {@code EvalResult.getOpen()}; streams send bytes only, no reading progress.
  */
 public class CompatConfig {
     /** Core types the platform registers for the compat endpoints. */
     public static final List<String> CORE_TYPES = Collections.unmodifiableList(Arrays.asList(
             "word.eval", "word.eval.pro", "sent.eval", "sent.eval.pro", "para.eval",
-            "alpha.eval", "word.eval.cn", "sent.eval.cn", "para.eval.cn", "pinyin"));
+            "alpha.eval", "word.eval.cn", "sent.eval.cn", "para.eval.cn", "pinyin", "open.eval.cn"));
 
     private String coreType;
     private String refText;
@@ -29,7 +34,7 @@ public class CompatConfig {
 
     /**
      * @param coreType one of {@link #CORE_TYPES}
-     * @param refText  reference text
+     * @param refText  reference text; for {@code open.eval.cn} model answers separated by {@code |}, or the question
      */
     public CompatConfig(String coreType, String refText) {
         this.coreType = coreType;
@@ -42,7 +47,11 @@ public class CompatConfig {
         return this;
     }
 
-    /** @param v reference text @return this */
+    /**
+     * @param v reference text; for {@code open.eval.cn} model answers separated by {@code |}, or the question,
+     *          required
+     * @return this
+     */
     public CompatConfig refText(String v) {
         this.refText = v;
         return this;

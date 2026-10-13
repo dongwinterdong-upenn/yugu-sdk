@@ -172,7 +172,7 @@ paths:
           schema: {type: string, example: eval_3fb45f4c8e71}
       responses:
         '200':
-          description: 报告详情
+          description: 报告详情，见契约 4.2 节
           content:
             application/json:
               schema:
@@ -180,7 +180,43 @@ paths:
                 properties:
                   code: {type: integer, example: 0}
                   message: {type: string}
-                  data: {type: object, additionalProperties: true}
+                  data:
+                    type: object
+                    additionalProperties: true
+                    properties:
+                      recordId: {type: string}
+                      score: {type: object, additionalProperties: true, description: 评测分数，字段与评测结果的 result 一致}
+                      report:
+                        type: object
+                        additionalProperties: true
+                        properties:
+                          source: {type: string, description: AI 终稿为 llm}
+                          summary: {type: string}
+                          dimensions: {type: object, additionalProperties: {type: string}}
+                          dimensionSuggestions: {type: object, additionalProperties: {type: array, items: {type: string}}}
+                          suggestions: {type: array, items: {type: string}}
+                          skillInsights:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                aspect: {type: string}
+                                observation: {type: string}
+                                quote: {type: string}
+                                confidence: {type: string, enum: [low, medium, high]}
+                      reportStatus: {type: string, enum: [final, pending, instant, none], description: 2026-10-13 起。final 为 AI 终稿，pending 为终稿生成中，instant 为终稿不会再来，none 为没有报告}
+                      timing:
+                        type: object
+                        additionalProperties: true
+                        description: 声通兼容评测才有，字段同兼容评测结果的 timing，另有 channel，保留 7 天
+                        properties:
+                          receivedAt: {type: integer, format: int64}
+                          totalMs: {type: integer}
+                          engineMs: {type: integer}
+                          platformMs: {type: integer}
+                          engineStages: {type: object, additionalProperties: {type: number}}
+                          audioBytes: {type: integer}
+                          channel: {type: string, enum: [rest, ws]}
         '400': {$ref: '#/components/responses/Error'}
         '401': {$ref: '#/components/responses/Error'}
 components:
@@ -473,6 +509,10 @@ components:
         pitch: {type: integer, minimum: 0, maximum: 100, default: 50}
         volume: {type: integer, minimum: 0, maximum: 100, default: 50}
         style: {type: string, nullable: true}
+        sampleRate: {type: integer, minimum: 8000, maximum: 48000, description: 当前合成固定输出 22050 Hz，传了也不生效，warnings 里会说明}
+        emotion: {type: string, enum: [neutral, warm, energetic], description: 情感预设}
+        pinyin: {type: string, maxLength: 8000, example: qu1 xiang4 xiang4 tian1 ge1, description: 中文参考读音，与汉字逐位对应的数字调拼音，空格分隔}
+        genre: {type: string, enum: [classical_poem, prose], description: 中文文体，不传时自动判定}
     TtsResponse:
       type: object
       properties:

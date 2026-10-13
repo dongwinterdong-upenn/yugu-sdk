@@ -228,9 +228,9 @@ static void test_envelope_error(void) {
     ygst_buf out;
     ygst_span root;
     ygst_buf_init(&out);
-    CHECK_INT(ygst_envelope_error(&out, "abc", 60003, "coreType 不支持: open.eval", "app\\key"), 0);
+    CHECK_INT(ygst_envelope_error(&out, "abc", 60003, "不支持的评测内核：open.eval", "app\\key"), 0);
     CHECK_STR(ygst_buf_cstr(&out),
-              "{\"tokenId\":\"abc\",\"errId\":60003,\"error\":\"coreType 不支持: open.eval\",\"eof\":1,"
+              "{\"tokenId\":\"abc\",\"errId\":60003,\"error\":\"不支持的评测内核：open.eval\",\"eof\":1,"
               "\"applicationId\":\"app\\\\key\"}");
     CHECK_INT(ygst_json_parse((const char *)out.data, out.len, &root), 0);
     ygst_buf_free(&out);

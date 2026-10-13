@@ -263,7 +263,10 @@ final class SandboxTests: XCTestCase {
             engine.delete()
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5)) // the timing line follows the callback
             lock.lock()
-            let line = timingLines.first { $0.hasPrefix("timing tokenId=\(r["tokenId"] as? String ?? "-") mode=") }
+            // 2.2.0: recordId of the result right after tokenId
+            let line = timingLines.first {
+                $0.hasPrefix("timing tokenId=\(r["tokenId"] as? String ?? "-") recordId=\(r["recordId"] as? String ?? "-") mode=")
+            }
             lock.unlock()
             XCTAssertTrue(line?.contains(" mode=ws audio=") ?? false, "streamed: " + (line ?? "no timing line"))
             XCTAssertTrue(line?.contains(" server.total=") ?? false, "the platform timing: " + (line ?? "-"))

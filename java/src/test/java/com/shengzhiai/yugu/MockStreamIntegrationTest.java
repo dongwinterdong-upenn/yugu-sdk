@@ -9,6 +9,7 @@ import com.shengzhiai.yugu.errors.ServerException;
 import com.shengzhiai.yugu.model.CompatConfig;
 import com.shengzhiai.yugu.model.EvalResult;
 import com.shengzhiai.yugu.model.EvaluateConfig;
+import com.shengzhiai.yugu.model.StreamPartial;
 import com.shengzhiai.yugu.testing.Fixtures;
 import com.shengzhiai.yugu.testing.MockServer;
 import com.shengzhiai.yugu.testing.MockServerExtension;
@@ -326,6 +327,32 @@ class MockStreamIntegrationTest {
         assertTrue(l.partials.size() >= 3, "progress frames: " + l.partials.size());
         assertEquals(16000, l.partials.get(0).getBytes());
         assertEquals("ws-compat", mock.billing().get("records").get(0).get("op").asText());
+        assertBilledOnce(s.getIdempotencyKey());
+    }
+
+    @Test
+    void openQuestionCompatStreamSendsBytesOnly() throws Exception {
+        // open.eval.cn (2.1.1) streams to /open.eval.cn; like the platform, partials carry bytes and no progress
+        RecordingListener l = new RecordingListener();
+        StreamSession s;
+        try (YuguClient c = client(b -> { })) {
+            s = c.streamEvaluateCompat(new CompatConfig("open.eval.cn", "我是学生|我不是学生").realtimeFeedback(true), l);
+            l.session = s;
+            send(s, PCM);
+            s.end();
+            awaitTerminal(l);
+        }
+        assertNotNull(l.result, l.events.toString());
+        assertEquals(96.0, l.result.getOverall());
+        assertNotNull(l.result.getOpen().getDelivery());
+        assertFalse(l.partials.isEmpty());
+        assertTrue(l.partials.stream().noneMatch(StreamPartial::hasProgress), "open questions have no reading progress");
+        assertEquals(16000, l.partials.get(0).getBytes());
+        boolean routed = false;
+        for (JsonNode e : mock.log()) {
+            routed |= "WS".equals(e.get("method").asText()) && "/open.eval.cn".equals(e.get("path").asText());
+        }
+        assertTrue(routed, "WS handshake on /open.eval.cn");
         assertBilledOnce(s.getIdempotencyKey());
     }
 

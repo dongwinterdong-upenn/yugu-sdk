@@ -1,7 +1,7 @@
 // YuguClient: REST calls with idempotency and retries, WebSocket sessions, recorders, lifecycle.
 import {
   CORE_TYPES, COMPAT_CORE_TYPES, DEFAULT_BASE_URL, DEFAULT_WS_BASE_URL, USER_AGENT,
-  PATH_EVALUATE, PATH_TTS, PATH_REPORT, PATH_WS_NATIVE,
+  PATH_EVALUATE, PATH_TTS, PATH_REPORT, PATH_WS_NATIVE, OPEN_QUESTION_CORE_TYPE,
 } from './constants.js';
 import {
   asYuguError, fromWarningCode, localError, RequestCancelledException,
@@ -130,6 +130,18 @@ function checkCoreType(coreType, list, name) {
   if (list.indexOf(coreType) < 0) throw localError(90010, name + ' must be one of ' + list.join(', ') + ', got ' + String(coreType));
 }
 
+function filled(v) {
+  return v !== undefined && v !== null && String(v).trim() !== '';
+}
+
+// The open question's refText as sent, model answers separated by | or the question, must not be blank, and
+// no refPinyin stands in for it (as in the 2.1.2 shims). text, the platform's alias of refText, counts too.
+function checkOpenQuestionRefText(coreType, sent) {
+  if (coreType === OPEN_QUESTION_CORE_TYPE && !filled(sent.refText) && !filled(sent.text)) {
+    throw localError(90010, 'refText is required for open.eval.cn: model answers separated by | or the question');
+  }
+}
+
 function evaluateConfig(p) {
   checkCoreType(p.coreType, CORE_TYPES, 'coreType');
   const config = { coreType: p.coreType, referenceText: requireText(p.referenceText, 'referenceText') };
@@ -145,6 +157,7 @@ function compatFields(coreType, p) {
   copyDefined(fields, p, ['language', 'refPinyin']);
   mergeExtra(fields, p.fields, 'fields');
   if (coreType === 'pinyin' && !fields.refPinyin) throw localError(90010, 'refPinyin is required for coreType pinyin');
+  checkOpenQuestionRefText(coreType, fields);
   if (!fields.refText && !fields.text) throw localError(90010, 'refText is required');
   const out = {};
   Object.keys(fields).forEach((k) => {
@@ -313,6 +326,7 @@ export class YuguClient {
     const p = params || {};
     checkCoreType(coreType, COMPAT_CORE_TYPES, 'coreType');
     const refText = p.refText !== undefined ? p.refText : p.referenceText !== undefined ? p.referenceText : p.text;
+    checkOpenQuestionRefText(coreType, { refText });
     const frame = { refText: requireText(refText, 'refText') };
     copyDefined(frame, p, ['language', 'refPinyin']);
     if (p.realtimeFeedback !== undefined && p.realtimeFeedback !== null) frame.realtime_feedback = !!p.realtimeFeedback;

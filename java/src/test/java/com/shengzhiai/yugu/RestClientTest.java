@@ -131,7 +131,7 @@ class RestClientTest {
         assertEquals(key, r.getIdempotencyKey());
         assertEquals(1, r.getAttempts());
         assertFalse(r.isReplayed());
-        assertEquals("yugu-java-sdk/2.1.0", req.header("User-Agent"));
+        assertEquals("yugu-java-sdk/2.1.1", req.header("User-Agent"));
         assertEquals(APP_KEY, req.header("X-App-Key"));
         assertTrue(Math.abs(Long.parseLong(req.header("X-Timestamp")) - System.currentTimeMillis() / 1000) < 60);
         assertTrue(req.header("X-Nonce").matches("[0-9a-f]{16}"));
@@ -235,6 +235,46 @@ class RestClientTest {
             assertThrows(InvalidParameterException.class, () -> c.evaluateCompat((AudioSource) null, cfg, null));
         }
         assertEquals(7, stub.requests().size());
+    }
+
+    @Test
+    void openQuestionCompatPathFieldsAndRequiredRefText() {
+        // open.eval.cn (2.1.1): POST /open.eval.cn with refText and the scoring fields, signed like every compat call
+        stub.enqueue(200, Fixtures.text("fixtures/platform/compat_open.eval.cn.json"));
+        byte[] answer = Fixtures.wav("zh_open_answer.wav");
+        EvalResult r;
+        try (YuguClient c = builder().build()) {
+            r = c.evaluateCompat(answer, new CompatConfig("open.eval.cn", "我是学生|我不是学生").param("qType", 6).param("keypoints", "学生"));
+            // refText, the model answers or the question, is required; a refPinyin does not replace it
+            for (CompatConfig bad : Arrays.asList(new CompatConfig("open.eval.cn", null), new CompatConfig("open.eval.cn", " \t"),
+                    new CompatConfig("open.eval.cn", "").language("zh-CN").refPinyin("wo3 shi4 xue2 sheng1"))) {
+                InvalidParameterException e = assertThrows(InvalidParameterException.class, () -> c.evaluateCompat(answer, bad));
+                assertEquals(90010, e.getCode());
+                assertTrue(e.getRawMessage().contains("open.eval.cn"), e.getRawMessage());
+            }
+            // the English open question stays unsupported
+            assertThrows(InvalidParameterException.class, () -> c.evaluateCompat(answer, new CompatConfig("open.eval", "What do you do?")));
+        }
+        assertEquals(1, stub.requests().size(), "rejected configurations send nothing");
+        assertTrue(CompatConfig.CORE_TYPES.contains("open.eval.cn"));
+        StubServer.Req req = stub.requests().get(0);
+        assertEquals("/open.eval.cn", req.path);
+        Map<String, String> fields = new LinkedHashMap<>();
+        for (Map<String, Object> p : parts(req)) {
+            String cd = (String) p.get("content-disposition");
+            if (cd.contains("filename")) {
+                assertArrayEquals(answer, (byte[]) p.get("data"));
+            } else {
+                fields.put(cd.substring(cd.indexOf("name=\"") + 6, cd.length() - 1), text(p));
+            }
+        }
+        assertEquals(Map.of("refText", "我是学生|我不是学生", "qType", "6", "keypoints", "学生"), fields);
+        assertEquals(Signer.sign(fields, SECRET), req.header("X-Signature"));
+        assertEquals(96.0, r.getOverall());
+        assertEquals("open", r.getCoreType(), "the platform reports the scoring mode");
+        assertEquals("situational", r.getOpen().getTaskType());
+        assertEquals(88.0, r.getOpen().getDelivery().getOverall());
+        assertTrue(r.getWords().isEmpty());
     }
 
     @Test

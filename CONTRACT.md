@@ -1,6 +1,6 @@
 # 优谷雅言语音评测接口契约
 
-契约版本 `2.1`，登记日期 2026-10-12，适用接口版本 v1 与 SDK `2.1.0`。五端 SDK 与服务端按本契约对齐，字段，签名算法，协议帧均取自线上服务端代码。`1.x` 版本契约的全部接口与字段继续有效，`2.0` 新增幂等，重试，实时评测心跳与断线重连语义，错误码分类，沙箱与声通平替层。`2.1` 新增实时评测朗读进度，见 5.5 节。
+契约版本 `2.1`，登记日期 2026-10-12，适用接口版本 v1 与 SDK `2.1.0` 及以后版本，2026-10-13 补充报告查询的 `reportStatus` 与 `timing`，见 4.2 节。五端 SDK 与服务端按本契约对齐，字段，签名算法，协议帧均取自线上服务端代码。`1.x` 版本契约的全部接口与字段继续有效，`2.0` 新增幂等，重试，实时评测心跳与断线重连语义，错误码分类，沙箱与声通平替层。`2.1` 新增实时评测朗读进度，见 5.5 节。
 
 ## 1 基址与连接
 
@@ -149,11 +149,21 @@ expected = A+6uVB/D7khxQEt8tzgCNjMUC1QtQQd1UF+NCYVYZqE=
 {"text": "你好世界", "language": "zh-CN", "voice": "xiaoyan", "format": "mp3", "speed": 50, "pitch": 50, "volume": 50, "style": null}
 ```
 
-voice 英文取 `female` 或 `male`，中文取 `xiaoyan` 女声或 `xiaofeng` 男声。format 取 `mp3` 默认，`wav`，`ogg`。speed，pitch，volume 取值 0 到 100，默认 50。响应为 `{"code": 0, "message": "success", "data": {"audioUrl": "...", "duration": "1.348", "format": "mp3"}}`，audioUrl 以 `/audio/` 开头时按基址拼成 `https://open.shengzhiai.com/tts/audio/...`。
+voice 英文取 `female` 或 `male`，中文取 `xiaoyan` 女声或 `xiaofeng` 男声。format 取 `mp3` 默认，`wav`，`ogg`。speed，pitch，volume 取值 0 到 100，默认 50。另有四个可选字段。`sampleRate` 为采样率，当前合成固定输出 22050 Hz，传了也不生效，`warnings` 里会说明。`emotion` 为情感预设，取 `neutral`，`warm`，`energetic`。`pinyin` 为中文参考读音，与汉字逐位对应的数字调拼音，空格分隔，例如 `qu1 xiang4 xiang4 tian1 ge1`，个数与汉字数不同时整条不用。`genre` 为中文文体，取 `classical_poem` 古诗词或 `prose` 散文，不传时自动判定。响应为 `{"code": 0, "message": "success", "data": {"audioUrl": "...", "duration": "1.348", "format": "mp3"}}`，audioUrl 以 `/audio/` 开头时按基址拼成 `https://open.shengzhiai.com/tts/audio/...`。
 
 ### 4.2 报告查询
 
-`GET /api/v1/report/{recordId}`，响应 `{"code": 0, "data": {...}}`，只能查询本账号的记录。
+`GET /api/v1/report/{recordId}`，响应 `{"code": 0, "data": {...}}`，只能查询本账号的记录。`2026-10-13` 起声通兼容接口的评测同样可查，用评测时的同一个 appKey 签名，被签名参数为空集合。在这之前的兼容评测记录没有记下所属账号，查询回 40001。
+
+| 字段 | 说明 |
+|---|---|
+| `recordId` | 记录号 |
+| `score` | 评测分数，字段与评测结果的 `result` 一致 |
+| `report` | 报告：`summary` 总评，`dimensions` 分维点评，`dimensionSuggestions` 分维建议，`suggestions` 提升建议，`skillInsights` 内在技巧观察，每条带 `confidence`，取 `low`，`medium`，`high`，只作教学参考，不计分 |
+| `reportStatus` | `final` 为 AI 终稿。`pending` 为即时稿，AI 终稿还在生成，稍后再查。`instant` 为即时稿，AI 终稿没有生成出来，不会再变。`none` 为本次评测没有报告 |
+| `timing` | 声通兼容评测才有，字段同兼容评测结果的 `timing`，另有 `channel`，取 `rest` 或 `ws`，保留 7 天 |
+
+AI 终稿在评测返回之后生成，一般中文约 5 秒，英文约 11 秒就绪，`reportStatus` 为 `pending` 时隔 1 秒再查。英文题的 `report` 用英文写，维度为完整度，准确度，流利度，朗读技巧四项，`report.i18n.zh` 另有同样结构的中文版。开放题的点评在 `score.feedback`，随评测结果同步给出，`reportStatus` 恒为 `final`。评测结果 `compositeReport` 里的各项建议是评测当时的即时稿，以 AI 终稿的 `report` 为准。
 
 ## 5 实时评测
 
@@ -330,6 +340,10 @@ SDK 在上传前对 WAV 与 PCM 做预检，模式 OFF，WARN，REJECT，默认 
 ```
 
 请求带 `attachAudioUrl=1` 时，兼容接口的返回体顶层另有 `audioUrl`，为本次录音的下载地址，形如 `https://open.shengzhiai.com/rec/<yyyyMMdd>/<文件名>`，保留 7 天，平替层把该地址原样放进回调 JSON。错误时回调 `{"tokenId": "...", "errId": 20009, "error": "...", "eof": 1, "applicationId": "..."}`。可重试的失败在重试用尽后统一给 errId 20009，其余服务端错误把平台错误码作为 errId，平替层本地错误为 60001 到 60009 与 90005，90011，见 `ERRORS.md`。接入方式见 `SHENGTONG-MIGRATION.md`。
+
+平台不评测的内核，例如 `open.eval`，`choice.rec` 与法语，日语，韩语内核，平替层不发请求，回调 `{"tokenId": "...", "errId": 60003, "error": "不支持的评测内核：open.eval", "eof": 1, "applicationId": "..."}`，同时记一行警告日志，未指定内核时写“未指定”。`2.2.0` 起可以打开安卓 `YuguCompat.setThrowOnUnsupportedCoreType(true)` 或 iOS `YuguCompat.throwOnUnsupportedCoreType`，开始评测时直接抛异常，安卓为 `IllegalArgumentException`，iOS 为 `NSInvalidArgumentException`，文案相同，不回调。iOS 的 C 接口 `skegn_start` 不能抛异常，返回 -1，最近错误为 60003。
+
+`2.2.0` 起两个平替层另带语音合成与报告查询，走 4.1 与 4.2 节，用初始化引擎时的 appKey 与 secretKey 签名，也可以单独指定密钥。安卓为 `com.shengzhiai.yugu.stcompat` 包里的 `TtsClient` 与 `ReportClient`，iOS 为 `YuguCompat.h` 里的 `YuguTtsClient` 与 `YuguReportClient`，Swift 名为 `TtsClient` 与 `ReportClient`。报告查询可以设 `waitForFinalMs`，`reportStatus` 为 `pending` 时每秒再查一次，直到不再是 `pending` 或时间用完。日志级别为 INFO 时分段耗时一行另有 `recordId`，可与报告查询返回的 `timing` 对照。
 
 ## 11 沙箱
 

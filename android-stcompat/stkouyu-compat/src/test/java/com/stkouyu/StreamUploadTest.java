@@ -318,7 +318,8 @@ public class StreamUploadTest extends CompatTestBase {
         String token = r.getString("tokenId");
         String line = summary(token);
         int finalBytes = body.getBytes(StandardCharsets.UTF_8).length;
-        Matcher x = Pattern.compile("timing tokenId=" + token + " mode=ws audio=1\\.92s afterStop=(\\d+)ms upload=(\\d+)ms"
+        Matcher x = Pattern.compile("timing tokenId=" + token + " recordId=eval_7954d149c40a mode=ws audio=1\\.92s"
+                + " afterStop=(\\d+)ms upload=(\\d+)ms"
                 + " wait=(\\d+)ms download=(\\d+)ms parse=(\\d+)ms deliver=(\\d+)ms handshake=\\d+ms queued=\\d+B"
                 + " final=" + finalBytes + "B wire=2345B deflate server.total=5321ms server.engine=4100ms"
                 + " server.platform=1221ms").matcher(line);
@@ -358,6 +359,9 @@ public class StreamUploadTest extends CompatTestBase {
         SkEgnManager m = initManager(null);
         JSONObject r = streamSession(m, sent(), ev);
         String line = summary(r.getString("tokenId"));
+        // 2.2.0: the recordId of the result follows the tokenId
+        assertTrue(line, line.startsWith("timing tokenId=" + r.getString("tokenId") + " recordId=eval_7954d149c40a mode=rest "));
+        assertEquals("eval_7954d149c40a", r.getString("recordId"));
         assertTrue(line, line.contains(" mode=rest audio=1.92s "));
         assertTrue(line, line.contains(" attempts=1 "));
         assertTrue(line, line.endsWith(" server.total=812ms server.engine=700ms server.platform=112ms"));
@@ -365,7 +369,10 @@ public class StreamUploadTest extends CompatTestBase {
         Events e2 = new Events();
         JSONObject err = streamSession(m, sent(), e2);
         assertEquals(40001, err.getInt("errId"));
-        assertTrue(summary(err.getString("tokenId")).endsWith(" errId=40001"));
+        String errLine = summary(err.getString("tokenId"));
+        assertTrue(errLine, errLine.endsWith(" errId=40001"));
+        assertTrue("an error JSON has no record: " + errLine,
+                errLine.startsWith("timing tokenId=" + err.getString("tokenId") + " recordId=- mode=rest "));
     }
 
     @Test
@@ -383,7 +390,8 @@ public class StreamUploadTest extends CompatTestBase {
         File log = new File(new File(AiUtil.externalFilesDir(app), "log"), "stkouyu_sdk.log");
         LogFileSink.uninstall();
         String text = new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8);
-        assertTrue(text, text.contains(" I/YuguStCompat: timing tokenId=" + r.getString("tokenId") + " mode=ws "));
+        assertTrue(text, text.contains(" I/YuguStCompat: timing tokenId=" + r.getString("tokenId") + " recordId="
+                + r.getString("recordId") + " mode=ws "));
         es.setLogLevel(3);
         assertEquals(YuguCompat.LOG_DEBUG, YuguCompat.getLogLevel());
         es.setSDKLogEnabled(false);
@@ -418,6 +426,7 @@ public class StreamUploadTest extends CompatTestBase {
         assertFalse(got[0], RawJson.members(got[0]).containsKey("timing"));
         String line = summary(token);
         assertTrue(line, line.contains(" mode=rest audio=1.92s ") && line.contains(" server.total=5321ms"));
+        assertTrue(line, line.startsWith("timing tokenId=" + token + " recordId=eval_7954d149c40a mode=rest "));
         for (String l : lines) {
             assertFalse(l, l.contains("sk-skegn") || l.contains("ak-skegn"));
         }

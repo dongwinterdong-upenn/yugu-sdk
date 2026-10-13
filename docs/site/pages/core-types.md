@@ -14,6 +14,8 @@
 
 原生接口的 `language` 取 `en-US`，`en-GB`，`zh-CN`，缺省为 `en-US`，中文评测要显式传 `zh-CN`。参考文本最长 1000 字，开放题为题目。看图说话另上传一张图片。
 
+两个声通平替的内核常量与声通 SDK 逐个一致。`alpha.eval`，`pinyin`，`open.eval.cn` 在声通 SDK 里本来就没有常量，直接传字符串，iOS 用 `coreTypeNS`。其余声通内核，例如 `choice.rec`，`open.eval`，`asr.rec`，`asr.eval`，`align.eval` 与法语，日语，韩语内核，平替不发请求，在本地回 `errId` 为 60003 的错误，文案写明是哪个内核，同时记一行警告日志，需要时可以改为抛异常，见[声通平替层](page:api-compat-layer)。
+
 ## 评分参数
 
 | 参数 | 原生字段 | 兼容字段 | 取值与默认 |

@@ -17,7 +17,7 @@ const code = fs.readFileSync(DIST, 'utf8');
 
 test('package.json carries the published coordinates', () => {
   assert.equal(pkg.name, '@shengzhiai/yugu-miniprogram-sdk');
-  assert.equal(pkg.version, '2.1.0');
+  assert.equal(pkg.version, '2.1.1');
   assert.equal(pkg.license, 'Apache-2.0');
   assert.equal(pkg.main, 'miniprogram_dist/index.js');
   assert.equal(pkg.miniprogram, 'miniprogram_dist');
@@ -38,7 +38,7 @@ test('the CommonJS bundle exports exactly what src/index.js exports', () => {
   assert.equal(dist.signParams(v.params, v.secret), v.signature);
   assert.equal(dist.fromCode(40901).name, 'ConflictException');
   assert.ok(Object.isFrozen(dist.ERROR_TABLE));
-  assert.ok(code.startsWith('/*! @shengzhiai/yugu-miniprogram-sdk 2.1.0'));
+  assert.ok(code.startsWith('/*! @shengzhiai/yugu-miniprogram-sdk 2.1.1'));
 });
 
 test('the bundle is ES2017 syntax and calls no newer runtime API', () => {

@@ -115,6 +115,43 @@ describe('session happy paths', () => {
     assert.equal(states(ev).filter((x) => x === 'STARTED').length, 1, 'duplicate started frames are ignored');
   });
 
+  test('compat open.eval.cn (2.1.1): own path, model answers in the parameter frame, partials with bytes only', async () => {
+    const { client, socket, serve } = setup();
+    const l = recordingListener();
+    const s = client.streamEvaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', qType: 6, realtime_feedback: true }, l);
+    const ws = await socket(0);
+    assert.equal(new URL(ws.url).pathname, '/open.eval.cn');
+    serve(ws, { mode: 'compat', result: readJson('platform/compat_open.eval.cn.json') });
+    await waitFor(() => s.getState() === 'STARTED');
+    assert.deepEqual(ws.json[0], { refText: '我是学生|我不是学生', qType: 6, realtime_feedback: true, idempotencyKey: s.idempotencyKey });
+    ws.serverSend({ eof: 0, result: { bytes: 16000 } });
+    s.end();
+    const ev = await l.done;
+    assert.deepEqual(ev.filter((e) => e[0] === 'partial').map((e) => e[1]), [16000]);
+    const r = ev.find((e) => e[0] === 'result')[1];
+    assert.equal(r.coreType, 'open.eval.cn');
+    assert.equal(r.overall, 96);
+    assert.equal(r.open.content.overall, 100);
+    assertGuarantees(assert, ev);
+  });
+
+  test('compat open.eval.cn: refText required before connecting, a refPinyin does not replace it', async () => {
+    const { client, sockets } = setup();
+    const ok = { onResult() {}, onError() {} };
+    for (const params of [null, {}, { refText: '' }, { refText: ' \t' }, { refPinyin: 'wo3 shi4 xue2 sheng1', language: 'zh-CN' }]) {
+      assert.throws(
+        () => client.streamEvaluateCompat('open.eval.cn', params, ok),
+        (e) => e instanceof InvalidParameterException && e.code === 90010 && /open\.eval\.cn/.test(e.message),
+        JSON.stringify(params),
+      );
+    }
+    await sleep(5);
+    assert.equal(sockets.length, 0, 'nothing connects');
+    // text, the platform's alias of refText, counts
+    const s = client.streamEvaluateCompat('open.eval.cn', { text: '我是学生' }, ok);
+    s.cancel();
+  });
+
   test('end() before STARTED: audio flushed in order, then end, then ENDING', async () => {
     for (const policy of ['REPLAY', 'DROP', 'FAIL']) {
       const { client, socket, serve } = setup();

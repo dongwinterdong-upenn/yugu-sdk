@@ -33,6 +33,15 @@ FOUNDATION_EXTERN void YGSTLogf(NSInteger level, NSString *format, ...) NS_FORMA
 
 // ------------------------------------------------------------------ global settings (YuguCompat)
 
+/// 2.2.0: appKey, secretKey and platform address of an initialized engine, for the clients made with
+/// +[YuguTtsClient clientFromEngine] and +[YuguReportClient clientFromEngine].
+@interface YGSTEngineCredentials : NSObject
+@property (nonatomic, copy) NSString *appKey;
+@property (nonatomic, copy) NSString *secretKey;
+/// KYStartEngineConfig.server or cloud.server resolved like every evaluation request.
+@property (nonatomic, copy) NSString *baseURL;
+@end
+
 @interface YGSTSettings : NSObject
 + (instancetype)shared;
 @property (atomic, copy, nullable) NSString *baseURLOverride;
@@ -44,6 +53,14 @@ FOUNDATION_EXTERN void YGSTLogf(NSInteger level, NSString *format, ...) NS_FORMA
 @property (atomic) BOOL streamUpload;
 /// Base URL derived from the last initEngine (KYStartEngineConfig.server).
 @property (atomic, copy) NSString *configuredBaseURL;
+/// 2.2.0: an unsupported coreType throws (KYTestEngine) or fails skegn_start instead of a 60003 callback.
+@property (atomic) BOOL throwOnUnsupportedCoreType;
+/// 2.2.0: the engine initialized last (initEngine or skegn_new) gives its credentials; owner identifies
+/// that engine, so that deleteEngine, skegn_delete or a failed initEngine of another one keep them.
+- (void)setEngineCredentials:(YGSTEngineCredentials *)credentials owner:(const void *)owner;
+- (void)clearEngineCredentialsOfOwner:(const void *)owner;
+/// nil when no engine is initialized.
+- (nullable YGSTEngineCredentials *)engineCredentials;
 @end
 
 // ------------------------------------------------------------------ per-phase timing (2.1.1)
@@ -60,6 +77,8 @@ FOUNDATION_EXTERN BOOL YGSTTimingWanted(void);
 }
 /// The platform timing object of the final JSON, for the DEBUG line.
 @property (nonatomic, copy, nullable) NSData *timingObject;
+/// 2.2.0: the recordId of the result for the INFO line, nil for an error ("-").
+@property (nonatomic, copy, nullable) NSString *recordId;
 /// The server times and the timing object of a final JSON (REST body or WebSocket final frame).
 - (void)takeTimingFromRoot:(ygst_span)root;
 /// INFO summary line and, at DEBUG, the detail line; once, and only when the platform was reached.
@@ -85,6 +104,8 @@ FOUNDATION_EXTERN int YGSTTimeZoneOffsetMinutes(void);
 FOUNDATION_EXTERN NSString *YGSTErrorJSON(NSString *tokenId, int errId, NSString *_Nullable message,
                                           NSString *_Nullable appKey);
 FOUNDATION_EXTERN NSString *YGSTCompatMessage(int errId);
+/// 2.2.0: the 60003 text, "不支持的评测内核：<requested, trimmed>" or "不支持的评测内核：未指定".
+FOUNDATION_EXTERN NSString *YGSTUnsupportedCoreTypeMessage(NSString *_Nullable requested);
 FOUNDATION_EXTERN NSString *YGSTMaskedAppKey(NSString *_Nullable appKey);
 FOUNDATION_EXTERN NSString *YGSTNonEmpty(NSString *_Nullable s);
 /// Wraps 16-bit PCM in a WAV header.
@@ -104,6 +125,8 @@ FOUNDATION_EXTERN NSData *YGSTWavFromPCM(NSData *pcm, int sampleRate, int channe
 @property (nonatomic, copy) NSString *message;
 @property (nonatomic) int attempts;
 @property (nonatomic) BOOL replayed;
+/// 2.2.0: the HTTP status of the last attempt, 0 without a response.
+@property (nonatomic) int httpStatus;
 @end
 
 /// One logical evaluation call: attempts, backoff and autoRetry decided by the C controller.
@@ -163,6 +186,28 @@ FOUNDATION_EXTERN YGSTUploadResult *YGSTUploadResultMake(const ygst_classificati
 FOUNDATION_EXTERN NSString *_Nullable YGSTResultJSON(YGSTUploadResult *result, NSString *tokenId,
                                                      NSString *appKey, NSString *userId, NSString *refText,
                                                      NSString *_Nullable paramsJSON);
+
+// ------------------------------------------------------------------ v1 API calls (2.2.0)
+
+/// One call of TtsClient or ReportClient: the shared session, a fresh timestamp and nonce on every
+/// attempt, the same signature and Idempotency-Key (none for a GET), attempts and back-off decided by
+/// the C call controller with the policy of the evaluations, answers classified by ygst_classify_api.
+/// The result is built like an evaluation's (YGSTUploadResultMake): on success resultRange is the
+/// "data" object of body, otherwise errId and message. Runs on queue, the completion as well.
+@interface YGSTApiCall : NSObject
+- (instancetype)initWithURLSession:(NSURLSession *)session queue:(dispatch_queue_t)queue;
+- (void)startWithMethod:(NSString *)method
+                    url:(NSURL *)url
+                 appKey:(NSString *)appKey
+              signature:(NSString *)signature
+         idempotencyKey:(nullable NSString *)idempotencyKey
+                   body:(nullable NSData *)body
+            contentType:(nullable NSString *)contentType
+         attemptTimeout:(NSTimeInterval)attemptTimeout
+                 policy:(const ygst_retry_policy *)policy
+              operation:(NSString *)operation
+             completion:(void (^)(YGSTUploadResult *result))completion;
+@end
 
 // ------------------------------------------------------------------ realtime feedback (2.1.0)
 

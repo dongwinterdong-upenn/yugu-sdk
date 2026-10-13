@@ -1,6 +1,6 @@
 # 声通安卓平替接入说明
 
-`com.shengzhiai.yugu:stkouyu-compat:2.1.2` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
+`com.shengzhiai.yugu:stkouyu-compat:2.2.0` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
 
 各端平替层的概览与切换步骤见仓库根目录 [SHENGTONG-MIGRATION.md](../SHENGTONG-MIGRATION.md)，版本兼容矩阵见 [COMPATIBILITY.md](../COMPATIBILITY.md)。
 
@@ -9,7 +9,7 @@
 | 项目 | 说明 |
 |---|---|
 | 对应的声通版本 | `17kouyu_1.0.0.jar`，`Build.VERSION` 为 `1.0.62` |
-| 平替层版本 | `2.1.2`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.1.2 (api 1.0.62)` |
+| 平替层版本 | `2.2.0`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.2.0 (api 1.0.62)` |
 | 系统要求 | Android 5.0 及更高版本，`minSdk 21` |
 | 字节码版本 | Java 8 |
 | 运行时依赖 | 无，网络请求用 `HttpURLConnection`，边录边传与朗读进度用 AAR 内置的 WebSocket 客户端，录音用 `AudioRecord`，JSON 用系统自带的 `org.json` |
@@ -56,11 +56,11 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    api 'com.shengzhiai.yugu:stkouyu-compat:2.1.2'
+    api 'com.shengzhiai.yugu:stkouyu-compat:2.2.0'
 }
 ```
 
-不使用远程仓库时，把 `stkouyu-compat-2.1.2.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.1.2.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
+不使用远程仓库时，把 `stkouyu-compat-2.2.0.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.2.0.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
 
 ### 需要删除的文件与配置
 
@@ -141,7 +141,7 @@ manager.recycle();
 | `pinyin` | 没有常量，直接传字符串 | 拼音，需要同时设置 `refPinyin` |
 | `open.eval.cn` | 没有常量，直接传字符串 | 中文开放题，见下方中文开放题一节，`2.1.2` 起支持 |
 
-`choice.rec`，`open.eval`，`asr.rec`，`asr.eval`，`align.eval` 与法语，日语，韩语内核不受支持，平替层不发起网络请求，直接回调 errId 为 60003 的错误 JSON。
+`choice.rec`，`open.eval`，`asr.rec`，`asr.eval`，`align.eval` 与法语，日语，韩语内核不受支持，平替层不发起网络请求，直接回调 errId 为 60003 的错误 JSON，`error` 写明是哪个内核，例如 `不支持的评测内核：open.eval`，同时记录一条 WARN 日志。`YuguCompat.setThrowOnUnsupportedCoreType(true)` 之后改为抛出异常，见下方不支持的内核一节。
 
 ### 中文开放题
 
@@ -161,6 +161,38 @@ manager.startRecord(rs, listener);
 ```
 
 结果 JSON 的 `result` 含原生开放题的全部字段：`overall` 总分，`content` 内容，`languageUse` 语言运用，`delivery` 表达，`transcript` 识别文本，`feedback` 点评，含义见仓库根目录 [RESULTS.md](../RESULTS.md) 的开放题一节。`openTaskAudit.refKind` 为 `answers` 时评分模型把 `refText` 当参考答案，为 `question` 时当题目。另有与声通相同的扁平字段 `pronunciation`，`fluency`，`integrity`，`coherence` 与 `speed`，`speed` 为每分钟字数。结果里没有逐字的 `words` 与 `sentences`。录音同样边录边传，`realtime_feedback` 设为 1 时中间结果只有已收音频的字节数 `bytes`，没有朗读进度。
+
+### 不支持的内核
+
+不受支持的内核在本地即被拒绝，不发起网络请求，不打开麦克风，不计费。每次拒绝记录一条 WARN 日志，写明调用的方法，内核与 errId 60003：
+
+```text
+startRecord rejected (errId 60003): 不支持的评测内核：open.eval
+```
+
+默认按回调返回错误 JSON，`error` 写明是哪个内核，`coreType` 为空或未设置时写 `未指定`，其余字段与 `2.1.2` 相同：
+
+```json
+{"tokenId":"3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c","errId":60003,"error":"不支持的评测内核：open.eval","eof":1,"applicationId":"your-app-key"}
+```
+
+- `startRecord` 与 `existsAudioTrans`：经 `onScore` 或 `onRecordEnd(json)` 回调，回调方式与 `2.1.2` 相同。
+- `SkEgn.skegn_start`：返回 0，随即在主线程经 `skegn_callback` 回调这一错误 JSON，不必等到 `skegn_stop`。这次评测之后调用 `skegn_feed` 与 `skegn_stop` 都返回 -1，`skegn_get_last_error()` 分别为 21 与 24，与 iOS 平替层一致。
+
+开发阶段需要立即暴露这类问题时，打开抛异常开关：
+
+```java
+YuguCompat.setThrowOnUnsupportedCoreType(true);
+try {
+    manager.startRecord(new RecordSetting("open.eval", refText), listener);
+} catch (IllegalArgumentException e) {
+    // e.getMessage() 为 "不支持的评测内核：open.eval"
+}
+```
+
+- 开关打开后，`startRecord` 与 `existsAudioTrans` 的各个重载以及 `SkEgn.skegn_start` 遇到不支持的内核时同步抛出 `IllegalArgumentException`，消息与错误 JSON 的 `error` 相同，不再回调，同样记录一条 WARN 日志。
+- 这项检查先于其他检查，引擎未初始化或正忙时同样抛出，正在进行的评测不受影响。`skegn_start` 先检查引擎句柄，回调，`id` 与参数 JSON，再检查内核。
+- 开关只作用于不支持的内核，refText 为空，引擎未初始化，引擎正忙等其他错误照常回调。默认关闭，`YuguCompat.reset()` 恢复关闭。
 
 ## 参数映射
 
@@ -209,7 +241,7 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 | 引擎正忙 | `onStartRecordFail("engine is busy")` | `onRecordEnd(json)`，errId 60008 |
 | 麦克风不可用或没有录音权限 | `onStartRecordFail`，参数为原因 | `onRecordEnd(json)`，errId 60004 |
 | 引擎未初始化 | `onScore`，errId 60007 | `onRecordEnd(json)`，errId 60007 |
-| coreType 不支持 | `onScore`，errId 60003 | `onRecordEnd(json)`，errId 60003 |
+| 不支持的评测内核 | `onScore`，errId 60003。开关打开时抛出异常，见“不支持的内核”一节 | `onRecordEnd(json)`，errId 60003。开关打开时抛出异常 |
 | refText 为空 | `onScore`，errId 60006 | `onRecordEnd(json)`，errId 60006 |
 
 `getEngineStatus()` 返回的状态：
@@ -412,7 +444,7 @@ manager.startRecord(rs, new OnRecorderListener() {
 | 20009 | 网络或服务端临时故障，重试已用尽 | 提示稍后再试，或开启 `autoRetry` |
 | 60001 | 音频文件不存在或不可读 | 检查 `audioPath` 与录音目录 |
 | 60002 | 音频为空 | 重新录音 |
-| 60003 | coreType 不支持 | 换用支持的内核 |
+| 60003 | 不支持的评测内核，`error` 写明内核，例如 `不支持的评测内核：open.eval` | 换用支持的内核，见“不支持的内核”一节 |
 | 60004 | 麦克风不可用或没有录音权限 | 申请录音权限，或关闭占用麦克风的应用 |
 | 60005 | 音频短于 1 秒 | 重新录音 |
 | 60006 | refText 为空 | 传入参考文本 |
@@ -441,12 +473,14 @@ manager.startRecord(rs, new OnRecorderListener() {
 
 | 方法 | 作用 |
 |---|---|
-| `setBaseUrl(String)` | 指定平台地址，例如测试环境或私有部署，优先于 `EngineSetting.setServerAddress` |
+| `setBaseUrl(String)` | 指定平台地址，例如测试环境或私有部署，优先于 `EngineSetting.setServerAddress`，`TtsClient` 与 `ReportClient` 未指定地址时同样使用 |
 | `setLogLevel(int)` | 日志级别 `LOG_OFF` 到 `LOG_DEBUG`，默认 `LOG_WARN`，优先于 `EngineSetting` 的日志设置 |
 | `setRetryPolicy(int, long, double, long, double)` | 重试次数，初始间隔，倍数，最大间隔，浮动比例 |
 | `setTimeouts(int, int, long)` | 连接超时，读取超时，总时长，单位为毫秒 |
 | `setStreamUpload(boolean)` | 录音与外部音频是否边录边传，默认 true，见“边录边传”一节 |
 | `isStreamUpload()` | 当前是否边录边传 |
+| `setThrowOnUnsupportedCoreType(boolean)` | 不支持的内核改为抛出 `IllegalArgumentException`，默认 false，见“不支持的内核”一节 |
+| `isThrowOnUnsupportedCoreType()` | 当前是否抛出异常 |
 | `getVersion()` | 版本字符串 |
 | `reset()` | 恢复默认值 |
 
@@ -471,11 +505,12 @@ manager.initEngine(appKey, secretKey, userId, setting);
 一行 `timing` 的示例：
 
 ```text
-timing tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c mode=ws audio=4.48s afterStop=1650ms upload=60ms wait=1420ms download=150ms parse=15ms deliver=5ms handshake=210ms queued=3200B final=41210B wire=6120B deflate server.total=1380ms server.engine=1205ms server.platform=175ms
+timing tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c recordId=eval_7954d149c40a mode=ws audio=4.48s afterStop=1650ms upload=60ms wait=1420ms download=150ms parse=15ms deliver=5ms handshake=210ms queued=3200B final=41210B wire=6120B deflate server.total=1380ms server.engine=1205ms server.platform=175ms
 ```
 
 | 字段 | 含义 |
 |---|---|
+| `recordId` | 结果的评测记录编号，`2.2.0` 起输出，用来与平台按记录保存的分段耗时对应。以错误 JSON 结束时记为 `-` |
 | `mode` | `ws` 为边录边传，`rest` 为停止录音后整段上传或文件评测，`ws>rest` 为通道在结束帧之前失败，已退回整段上传，行末的 `fallback` 给出原因 |
 | `audio` | 音频时长 |
 | `afterStop` | 从停止录音到结果回调开始执行，即接入方感受到的等待时间。停止录音包括调用 `stopRecord`，VAD 判定说话结束，到达 `duration` 与录音达到 300 秒，`existsAudioTrans` 与 `skegn_stop` 从调用时算起 |
@@ -499,6 +534,7 @@ timing tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c mode=ws audio=4.48s afterStop=16
 - 值未知时记为 `-`，平台没有给出耗时时不输出 `server` 开头的字段。
 - 级别为 DEBUG，即 `setLogLevel(3)` 时，另外按发生顺序输出 `stage` 行，记录每一步距评测开始的毫秒数。平台给出评测引擎各环节的耗时时再输出一行 `engineStages`，环节名称由引擎决定，可能变化。
 - 级别为 INFO 或 DEBUG 时，请求带 `timing=1`，平台在结果中附带分段耗时，平替层读取后从结果中删除，回调给应用的 JSON 与 `2.1.0` 相同。级别低于 INFO 时不发送这一字段。
+- 平台侧的记录：报告查询返回的 `data.timing` 是同一 `recordId` 的平台分段耗时，另有 `channel` 给出 `rest` 或 `ws`，保留 7 天，查询方法见“报告查询”一节。
 
 ## 外部音频与文件评测
 
@@ -507,6 +543,90 @@ timing tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c mode=ws audio=4.48s afterStop=16
 - 录音文件保存为 `recordFilePath` 目录中的 `recordName`，未设置时保存为 `<externalFilesDir>/record/<tokenId>.wav`，`getLastRecordPath()` 返回该路径，`playback()` 播放该文件。录音内容一律为 WAV，显式设置的 `recordName` 以 `.mp3` 结尾时沿用该文件名。
 - 上传前的本地检查：文件不存在或不可读给 60001，音频为空给 60002，WAV 与 PCM 短于 1 秒给 60005，大于 50 MB 或 WAV 与 PCM 长于 300 秒给 60009。50 MB 是平台整段上传接口的上限。录音与外部音频达到 300 秒时自动停止，随后照常评测。
 - `activeMic()` 预先打开麦克风，`releaseMic()` 释放预先打开的麦克风，录音进行中返回 false。
+
+## 语音合成与报告
+
+`2.2.0` 起，`com.shengzhiai.yugu.stcompat` 包中的 `TtsClient` 与 `ReportClient` 调用平台的语音合成与报告查询，声通 SDK 没有对应的接口。两者默认使用评测引擎的 appKey 与 secretKey，签名方式，网络请求，超时与重试规则与评测相同，`YuguCompat.setBaseUrl`，`setTimeouts` 与 `setRetryPolicy` 同样生效。
+
+| 创建方法 | 说明 |
+|---|---|
+| `TtsClient.create()`，`ReportClient.create()` | 取 `initEngine` 传入的 appKey 与 secretKey，`EngineSetting` 的服务地址与超时。引擎未初始化时抛出 `IllegalStateException`，消息为 `引擎未初始化` |
+| `create(appKey, secretKey)` | 指定密钥，平台地址取 `YuguCompat.setBaseUrl` 的设置，未设置时为 `https://open.shengzhiai.com` |
+| `create(appKey, secretKey, baseUrl)` | 指定密钥与平台地址 |
+
+- 线程：同步方法 `tts` 与 `getReport` 等待网络返回，在主线程调用时抛出 `IllegalStateException`，需要放在工作线程。异步方法 `ttsAsync` 与 `getReportAsync` 在 SDK 的工作线程执行，结果在主线程回调 `onSuccess` 或 `onFailure`，每次调用只回调其中一个。
+- 参数错误：`text` 或 `recordId` 为空等参数错误立即抛出 `IllegalArgumentException`，异步方法同样如此。
+- 调用失败：同步方法抛出非受检异常 `YuguApiException`，异步方法回调 `onFailure`。`getCode()` 的取法与错误 JSON 的 errId 相同，网络或服务端临时故障在重试用尽后为 20009，其余为平台错误码，例如 40001 评测记录不存在，2003 签名验证失败，2010 appKey 不存在。`getHttpStatus()` 为最后一次响应的 HTTP 状态，没有收到响应时为 0。
+- 日志：每次调用输出一行 INFO 日志，给出接口，报告查询的 `recordId`，结果状态，尝试次数与耗时毫秒数，例如 `report recordId=eval_7954d149c40a status=final lookups=3 attempts=3 ms=2034`。日志不记录 secretKey，签名，合成文本与报告内容。
+
+### 语音合成
+
+```java
+TtsClient tts = TtsClient.create();
+TtsRequest request = new TtsRequest("床前明月光，疑是地上霜。")
+        .setLanguage("zh-CN")
+        .setVoice("xiaoyan")
+        .setGenre("classical_poem");
+tts.ttsAsync(request, null, new TtsClient.Callback() {
+    @Override public void onSuccess(TtsResult result) {
+        player.play(result.getAbsoluteUrl());
+    }
+    @Override public void onFailure(YuguApiException e) {
+        showError(e.getCode(), e.getMessage());
+    }
+});
+```
+
+`TtsRequest` 的字段对应 `POST /api/v1/tts/generate` 的请求体。只有 `text` 必填，未设置的字段不发送，由平台取默认值。
+
+| TtsRequest | 说明 |
+|---|---|
+| `text` | 合成文本，必填，最长 1000 字 |
+| `language` | `zh-CN`，`en-US` 或 `en-GB` |
+| `voice` | 中文 `xiaoyan` 女声或 `xiaofeng` 男声，英文 `female` 或 `male` |
+| `format` | `mp3` 默认，`wav`，`ogg` |
+| `speed`，`pitch`，`volume` | 语速，音调，音量，取值 0 到 100，默认 50 |
+| `sampleRate` | 采样率，取值 8000 到 48000，引擎做不到时平台在响应的 `warnings` 中说明 |
+| `emotion` | 情感预设 `neutral`，`warm` 或 `energetic`，同时设置时优先于 `style` |
+| `style` | 自然语言写的风格要求，最长 200 字 |
+| `pinyin` | 中文文本的读音，数字调拼音与汉字逐个对应，用空格隔开，例如 `chuang2 qian2` |
+| `genre` | 中文文体，`classical_poem` 为古诗词，`prose` 为散文与课文，不设置时由平台判定 |
+
+- 结果：`getAudioUrl()` 为平台返回的原值，`getAbsoluteUrl()` 为可以直接播放的地址，以 `/audio/` 开头的地址按平台地址拼成 `https://open.shengzhiai.com/tts/audio/...`。另有 `getDuration()` 时长的原文，单位为秒，`getDurationSeconds()` 时长数值，`getFormat()` 音频格式，`getRawJson()` 完整的响应 JSON。
+- 幂等：每次调用自动生成一个幂等键，重试复用同一个键，平台只合成一次，只计费一次。需要按业务单号去重时用 `new TtsOptions().setIdempotencyKey("...")` 指定，同一个键与同样的请求再次调用时平台返回首次结果，`isReplayed()` 为 true。
+
+### 报告查询
+
+用评测结果的 `recordId` 查询网站上展示的 AI 报告：整体点评，各维度点评与建议，带置信度的技能观察与逐条改进建议。兼容接口评测的记录归属于 appKey 的所有者，用同一对 appKey 与 secretKey 即可查询。
+
+```java
+ReportClient reports = ReportClient.create();
+ReportOptions options = new ReportOptions().setWaitForFinalMs(15000);
+reports.getReportAsync(recordId, options, new ReportClient.Callback() {
+    @Override public void onSuccess(ReportResult report) {
+        showReport(report.getSummary(), report.getSuggestions(), report.isFinal());
+    }
+    @Override public void onFailure(YuguApiException e) {
+        showError(e.getCode(), e.getMessage());
+    }
+});
+```
+
+`reportStatus` 的取值：
+
+| 取值 | 含义 |
+|---|---|
+| `final` | AI 终稿 |
+| `pending` | 即时稿，AI 终稿正在生成 |
+| `instant` | 即时稿，不会有 AI 终稿 |
+| `none` | 没有报告 |
+
+- 等待终稿：`waitForFinalMs` 默认为 0，只查询一次。大于 0 时，结果为 `pending` 就每隔 1000 毫秒再查一次，直到不再是 `pending` 或用完这段时间，返回最后一次的结果。仍为 `pending` 是正常结果，不是错误。中文的 AI 终稿一般在评测返回后约 6 秒生成，九成在 11 秒内，英文目前约 16 秒。等待途中某次查询失败时返回此前最后一次的结果，同时记录一条 WARN 日志。
+- 结果：`getRecordId()`，`getReportStatus()`，`isFinal()`，`getSummary()` 整体点评，`getSuggestions()` 改进建议，`getOverall()` 即 `score.overall` 总分，`getReport()` 与 `getScore()` 为 `report` 与 `score` 对象，`getTiming()` 为分段耗时，`getDataJson()` 为响应中 `data` 的原文。
+- `report` 对象：`dimensions` 为各维度点评，`dimensionSuggestions` 为各维度建议，`skillInsights` 为技能观察，每项含 `aspect`，`observation`，`quote` 与 `confidence`。
+- 中文开放题 `open.eval.cn` 的点评在 `score.feedback` 中，`reportStatus` 总是 `final`。
+- `timing`：兼容接口评测的记录才有，与评测结果的 `timing` 对象相同，另有 `channel` 给出 `rest` 或 `ws`，保留 7 天，与分段耗时日志中同一 `recordId` 的 `timing` 行对应。
+- 记录不存在或不属于这个 appKey 时抛出 `YuguApiException`，`getCode()` 为 40001，消息为“评测记录不存在”。
 
 ## 与声通 SDK 的行为差异
 
@@ -532,14 +652,14 @@ timing tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c mode=ws audio=4.48s afterStop=16
 `tools/api-diff/run.sh` 核对平替 AAR 与接入方手中的声通 jar 接口是否一致，接入方可以用自己的 jar 运行：
 
 ```bash
-tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.1.2.aar --report-dir api-diff-report
+tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.2.0.aar --report-dir api-diff-report
 ```
 
 核对分两步。第一步用 japicmp `0.23.1` 检查公共与受保护元素的二进制兼容与源码兼容，japicmp 在首次运行时从 Maven Central 下载，校验 SHA-1 与 SHA-256 后存入 `tools/api-diff/lib`。随后严格检查 japicmp 的报告，注解与修饰符的变化也算差异，只容许类文件版本从 Java 7 升到 Java 8。第二步用 javap 逐条比对类声明，成员签名，泛型签名，异常声明与常量值，`native` 修饰符除外。发现缺失或改变的元素时退出码为 1，报告写入 `--report-dir` 指定的目录。
 
 运行条件为 JDK 11 或更高版本，bash，首次运行还需要 curl 或 wget。环境变量 `JAPICMP_JAR` 可以指定已下载的 japicmp，`ANDROID_JAR` 可以指定 `android.jar`。
 
-`2.1.2` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`。
+`2.2.0` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`。`TtsClient` 与 `ReportClient` 等新增的类在 `com.shengzhiai.yugu.stcompat` 包中，不在声通 jar 的包内，不影响核对。
 
 ## 构建与测试
 
@@ -551,7 +671,7 @@ api-compat-test/run.sh
 ../ci/android-stcompat.sh
 ```
 
-单元测试与 Robolectric 测试覆盖参数映射，结果与错误 JSON，errId 映射，WAV 读写，VAD，状态机，autoRetry，生命周期，回调线程与 `SkEgn` 接口，以及朗读进度的中间结果，实时评测通道的退回与重连，WebSocket 客户端的握手，掩码，分片，心跳，关闭与帧大小上限。`2.1.1` 增加的测试覆盖边录边传的默认与关闭，permessage-deflate 的协商，压缩消息的解压与解压后的大小上限，gzip 结果的解压，`timing=1` 的发送条件与从结果中删除，分段耗时日志的内容与日志中没有密钥。压缩测试使用测试内的 WebSocket 服务端，分别在保留与不保留压缩上下文时压缩消息。集成测试启动仓库中 `tools/mock-server` 的平台模拟服务，需要 Node 20 与 `tools/mock-server/node_modules`。`api-compat-test` 中的代码按声通接口编写，分别对声通 jar 与平替 AAR 用 javac 编译，两次都要通过。声通 jar 不随仓库分发，路径由环境变量 `ST_ORIGINAL_JAR` 指定，文件不存在时跳过这一项，同时给出提示。
+单元测试与 Robolectric 测试覆盖参数映射，结果与错误 JSON，errId 映射，WAV 读写，VAD，状态机，autoRetry，生命周期，回调线程与 `SkEgn` 接口，以及朗读进度的中间结果，实时评测通道的退回与重连，WebSocket 客户端的握手，掩码，分片，心跳，关闭与帧大小上限。`2.1.1` 增加的测试覆盖边录边传的默认与关闭，permessage-deflate 的协商，压缩消息的解压与解压后的大小上限，gzip 结果的解压，`timing=1` 的发送条件与从结果中删除，分段耗时日志的内容与日志中没有密钥。压缩测试使用测试内的 WebSocket 服务端，分别在保留与不保留压缩上下文时压缩消息。`2.2.0` 增加的测试覆盖不支持内核的错误文字，各个入口的 WARN 日志，`skegn_start` 立即回调与之后 `skegn_feed` 和 `skegn_stop` 的返回值，抛异常开关在各个入口的行为，`TtsClient` 与 `ReportClient` 的请求，签名，重试，错误码，线程与日志，在平台模拟服务上的语音合成，报告查询与等待终稿，以及分段耗时日志中的 `recordId`。集成测试启动仓库中 `tools/mock-server` 的平台模拟服务，需要 Node 20 与 `tools/mock-server/node_modules`。`api-compat-test` 中的代码按声通接口编写，分别对声通 jar 与平替 AAR 用 javac 编译，两次都要通过。声通 jar 不随仓库分发，路径由环境变量 `ST_ORIGINAL_JAR` 指定，文件不存在时跳过这一项，同时给出提示。
 
 沙箱集成测试 `SandboxIntegrationTest` 按声通接入方的写法调用真实平台，覆盖句子评测，段落逐字得分，未知 appKey 的鉴权错误，录音下载地址，朗读进度，边录边传时最终结果的压缩与平台耗时，以及整段上传时的 `Server-Timing`，每次运行最多 9 次平台调用，实时评测连接也计入。朗读进度一项按实时速度送入 `spec/fixtures/audio/zh_progress.wav`。设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后运行，`YUGU_SANDBOX_BASE` 默认为 `https://open.shengzhiai.com`，平台地址经 `EngineSetting.setServerAddress` 设置。未设置密钥时这些测试跳过，`./gradlew test` 照常通过。
 

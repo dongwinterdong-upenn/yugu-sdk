@@ -306,6 +306,24 @@ class MockRestIntegrationTest {
     }
 
     @Test
+    void openQuestionCompatPassesThePlatformRules() throws Exception {
+        // open.eval.cn (2.1.1): signature verified, routed to /open.eval.cn and billed once
+        try (YuguClient c = client(b -> { })) {
+            EvalResult r = c.evaluateCompat(Fixtures.wav("zh_open_answer.wav"), new CompatConfig("open.eval.cn", "我是学生|我不是学生").param("qType", 6));
+            assertEquals(96.0, r.getOverall());
+            assertNotNull(r.getOpen().getContent());
+            assertNotNull(r.getOpen().getFeedback());
+            assertTrue(r.getWords().isEmpty());
+        }
+        List<JsonNode> log = logEntries("/open.eval.cn");
+        assertEquals(1, log.size());
+        assertTrue(log.get(0).get("idempotencyKey").asText().matches("[0-9a-f]{32}"));
+        assertEquals("我是学生|我不是学生", log.get(0).get("fields").get("refText").asText());
+        assertEquals("6", log.get(0).get("fields").get("qType").asText());
+        assertEquals(1, mock.billing().get("billed").asInt());
+    }
+
+    @Test
     void platformErrorsMapToTypedExceptions() throws Exception {
         try (YuguClient c = client(b -> { })) {
             InvalidParameterException e = assertThrows(InvalidParameterException.class,
@@ -333,7 +351,7 @@ class MockRestIntegrationTest {
             assertNotNull(c.evaluate(WAV, sentence()).getRecordId());
         }
         JsonNode entry = logEntries("/api/v1/evaluate").get(0);
-        assertEquals("yugu-java-sdk/2.1.0", entry.get("userAgent").asText());
+        assertEquals("yugu-java-sdk/2.1.1", entry.get("userAgent").asText());
         assertTrue(entry.get("contentType").asText().startsWith("multipart/form-data; boundary="));
         assertNull(entry.get("fault").textValue());
     }

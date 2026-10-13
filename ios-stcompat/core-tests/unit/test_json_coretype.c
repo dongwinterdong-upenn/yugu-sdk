@@ -222,6 +222,100 @@ static void test_coretype_resolve(void) {
     CHECK_INT(ygst_coretype_resolve(NULL, 0, NULL, 0), YGST_CT_UNKNOWN);
 }
 
+/* 2.2.0 shared decision 1: the 60003 text names the coreType that was asked for */
+static void test_coretype_unsupported_message(void) {
+    ygst_buf b;
+    ygst_buf_init(&b);
+    CHECK_STR(ygst_compat_message(60003), "不支持的评测内核");
+    CHECK_INT(ygst_coretype_unsupported_message("open.eval", &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "不支持的评测内核：open.eval");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_unsupported_message(" \t sent.eval.fr \r\n", &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "不支持的评测内核：sent.eval.fr");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_unsupported_message("my custom core", &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "不支持的评测内核：my custom core");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_unsupported_message("", &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "不支持的评测内核：未指定");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_unsupported_message(" \n\t ", &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "不支持的评测内核：未指定");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_unsupported_message(NULL, &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "不支持的评测内核：未指定");
+    CHECK_INT(ygst_coretype_unsupported_message("open.eval", NULL), -1);
+    /* the full-width colon U+FF1A of the shared decision */
+    ygst_buf_reset(&b);
+    ygst_coretype_unsupported_message("x", &b);
+    CHECK(b.len == strlen("不支持的评测内核") + 3 + 1);
+    CHECK(memcmp(b.data + strlen("不支持的评测内核"), "\xEF\xBC\x9A", 3) == 0);
+    /* longer than any fixed buffer of the core: kept whole */
+    {
+        char longer[600];
+        memset(longer, 'a', sizeof longer - 1);
+        longer[sizeof longer - 1] = 0;
+        ygst_buf_reset(&b);
+        CHECK_INT(ygst_coretype_unsupported_message(longer, &b), 0);
+        CHECK_INT(b.len, strlen("不支持的评测内核：") + sizeof longer - 1);
+    }
+    ygst_buf_free(&b);
+}
+
+/* KYTestEngine names coreTypeNS, else the string of the KYTestType value, else the enum value */
+static void test_coretype_requested(void) {
+    ygst_buf b;
+    ygst_buf_init(&b);
+    CHECK_INT(ygst_coretype_requested("  open.eval  ", 1, &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "open.eval");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_requested(" ", 3, &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "open.eval");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_requested(NULL, 13, &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "word.eval.fr");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_requested(NULL, 22, &b), 0); /* KYTestType_Wordspell: no Shengtong string */
+    CHECK_STR(ygst_buf_cstr(&b), "KYTestType 22");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_requested("", 99, &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "KYTestType 99");
+    ygst_buf_reset(&b);
+    CHECK_INT(ygst_coretype_requested(NULL, 10, &b), 0);
+    CHECK_STR(ygst_buf_cstr(&b), "sent.eval.cn");
+    CHECK_INT(ygst_coretype_requested("x", 0, NULL), -1);
+    /* the message KYTestEngine sends for each */
+    ygst_buf_reset(&b);
+    ygst_coretype_requested(NULL, 22, &b);
+    {
+        ygst_buf m;
+        ygst_buf_init(&m);
+        ygst_coretype_unsupported_message(ygst_buf_cstr(&b), &m);
+        CHECK_STR(ygst_buf_cstr(&m), "不支持的评测内核：KYTestType 22");
+        ygst_buf_free(&m);
+    }
+    ygst_buf_free(&b);
+}
+
+/* skegn_start: a blank or missing request.coreType is no coreType, never the KYTestType 0 word.eval */
+static void test_coretype_resolve_text(void) {
+    char out[32];
+    CHECK_INT(ygst_coretype_resolve_text(" sent.eval.cn ", out, sizeof out), YGST_CT_SUPPORTED);
+    CHECK_STR(out, "sent.eval.cn");
+    CHECK_INT(ygst_coretype_resolve_text("open.eval.cn", out, sizeof out), YGST_CT_SUPPORTED);
+    CHECK_INT(ygst_coretype_resolve_text("open.eval", out, sizeof out), YGST_CT_UNSUPPORTED);
+    CHECK_STR(out, "open.eval");
+    CHECK_INT(ygst_coretype_resolve_text("x.y", out, sizeof out), YGST_CT_UNKNOWN);
+    CHECK_STR(out, "x.y");
+    CHECK_INT(ygst_coretype_resolve_text("   ", out, sizeof out), YGST_CT_UNKNOWN);
+    CHECK_STR(out, "");
+    CHECK_INT(ygst_coretype_resolve_text("", out, sizeof out), YGST_CT_UNKNOWN);
+    CHECK_INT(ygst_coretype_resolve_text(NULL, out, sizeof out), YGST_CT_UNKNOWN);
+    CHECK_STR(out, "");
+    CHECK_INT(ygst_coretype_resolve_text("word.eval", NULL, 0), YGST_CT_UNKNOWN);
+    CHECK_INT(ygst_validate_request(ygst_coretype_resolve_text(" ", out, sizeof out), out, "hi", NULL), 60003);
+}
+
 void suite_json(void) {
     RUN("json", test_json_validate);
     RUN("json", test_json_member_and_iteration);
@@ -233,4 +327,7 @@ void suite_coretype(void) {
     RUN("coretype", test_coretype_enum_table);
     RUN("coretype", test_coretype_support);
     RUN("coretype", test_coretype_resolve);
+    RUN("coretype", test_coretype_unsupported_message);
+    RUN("coretype", test_coretype_requested);
+    RUN("coretype", test_coretype_resolve_text);
 }

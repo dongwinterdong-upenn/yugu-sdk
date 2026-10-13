@@ -4,7 +4,7 @@
 
 | 项目 | 说明 |
 |---|---|
-| Maven 坐标 | `com.shengzhiai.yugu:yugu-java-sdk:2.1.0` |
+| Maven 坐标 | `com.shengzhiai.yugu:yugu-java-sdk:2.1.1` |
 | 仓库地址 | `https://open.shengzhiai.com/maven/`，公开读取，无需认证 |
 | Java 版本 | Java 11 及更高版本 |
 | 运行时依赖 | `jackson-databind` 2.17，HTTP 与 WebSocket 使用 JDK 自带的 `java.net.http` |
@@ -27,7 +27,7 @@ Maven 项目在 `pom.xml` 中加入仓库与依赖：
   <dependency>
     <groupId>com.shengzhiai.yugu</groupId>
     <artifactId>yugu-java-sdk</artifactId>
-    <version>2.1.0</version>
+    <version>2.1.1</version>
   </dependency>
 </dependencies>
 ```
@@ -41,7 +41,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.shengzhiai.yugu:yugu-java-sdk:2.1.0'
+    implementation 'com.shengzhiai.yugu:yugu-java-sdk:2.1.1'
 }
 ```
 
@@ -54,7 +54,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.shengzhiai.yugu:yugu-java-sdk:2.1.0")
+    implementation("com.shengzhiai.yugu:yugu-java-sdk:2.1.1")
 }
 ```
 
@@ -86,7 +86,7 @@ dependencies {
     <dependency>
       <groupId>com.shengzhiai.yugu</groupId>
       <artifactId>yugu-java-sdk</artifactId>
-      <version>2.1.0</version>
+      <version>2.1.1</version>
     </dependency>
   </dependencies>
   <build>
@@ -174,6 +174,20 @@ YUGU_APP_KEY=沙箱appKey YUGU_SECRET_KEY=沙箱secretKey mvn -q compile exec:ja
 | `getLocalWarnings()` | 本地音频预检的提示，码值 90101 到 90105 |
 | `getIdempotencyKey()`，`isReplayed()`，`getAttempts()` | 本次调用的幂等键，是否为平台重放的首次结果，尝试次数 |
 | `getRaw()` | 完整响应 JSON，新增字段可从中读取 |
+
+`getReport(recordId)` 返回的 `ReportResult.getData()` 为响应的 `data` 节点，其中 `reportStatus` 为 `final` 时报告是 AI 终稿，为 `pending` 时是 AI 稿生成期间的即时稿，稍后再查可取到终稿，为 `instant` 时不会再有 AI 稿，为 `none` 时没有报告，声通兼容评测的记录另带分段耗时 `timing`，保留 7 天。
+
+### 中文开放题
+
+`2.1.1` 起 `CompatConfig.CORE_TYPES` 含中文开放题 `open.eval.cn`，与原生 `open` 用同一套评分，语言固定为中文。`refText` 必填，与声通的用法相同，填一条或多条参考答案，多条用竖线隔开，也可以填题目，由评分模型判断是哪一种，`refPinyin` 不能代替 `refText`，为空时在发请求前抛出 `InvalidParameterException`，错误码 90010。`qType`，`keypoints`，`keywords` 用 `param` 传入，`qType` 为 5 时按看图说话评，为 6 时按情景问答评，其他取值或不设置时按自由表达评，细则见仓库根目录 `CONTRACT.md` 的 3.2 节。
+
+```java
+EvalResult r = client.evaluateCompat(Path.of("answer.wav"),
+        new CompatConfig("open.eval.cn", "我是学生|我不是学生").param("qType", 6));
+System.out.println(r.getOverall() + " " + r.getOpen().getContent().getOverall() + " " + r.getOpen().getFeedback().getStrengths());
+```
+
+结果的分项与原生开放题相同，由 `getOpen()` 取得，`getCoreType()` 为平台回传的 `open`。另有与声通相同的 `pronunciation`，`fluency`，`integrity` 与每分钟字数 `speed`，可从 `getDims()` 读取，没有逐字与逐句结果。实时评测打开 `realtimeFeedback(true)` 后，中间结果只有已收音频的字节数，没有朗读进度。
 
 ## 鉴权方式
 
@@ -511,7 +525,7 @@ YuguClient client = YuguClient.builder()
 | `eventListener` | 无 | 指标回调 |
 | `audioPrecheck` | `WARN` | 音频预检模式 |
 | `strictAudio` | false | 平台警告 1001 改为抛出异常 |
-| `userAgent` | `yugu-java-sdk/2.1.0` | `User-Agent` 请求头 |
+| `userAgent` | `yugu-java-sdk/2.1.1` | `User-Agent` 请求头 |
 | `reconnect` | `ReconnectPolicy.defaults()`，连续 8 次 | 实时会话重连策略 |
 | `audioBufferPolicy` | `REPLAY` | 实时会话断线时的音频处理 |
 | `pingIntervalMs` 与 `pongTimeoutMs` | 15000，30000 | 心跳 |
@@ -567,7 +581,7 @@ cd java
 
 问题：如何从 `1.0.0` 版本迁移。
 
-解答：坐标改为 `com.shengzhiai.yugu:yugu-java-sdk:2.1.0`，包名由 `tech.dragonai.yugu` 改为 `com.shengzhiai.yugu`，`YuguException` 改为非受检异常，流式接口的参数改为 `EvaluateConfig` 与 `CompatConfig`，回调接口的方法有调整。详细说明见 `CHANGELOG.md` 与仓库根目录的 `MIGRATION-2.0.md`。
+解答：坐标改为 `com.shengzhiai.yugu:yugu-java-sdk:2.1.1`，包名由 `tech.dragonai.yugu` 改为 `com.shengzhiai.yugu`，`YuguException` 改为非受检异常，流式接口的参数改为 `EvaluateConfig` 与 `CompatConfig`，回调接口的方法有调整。详细说明见 `CHANGELOG.md` 与仓库根目录的 `MIGRATION-2.0.md`。
 
 ## 版本与许可
 

@@ -95,7 +95,7 @@ class RequestBuildingTest {
         assertEquals("POST", req.method)
         assertEquals("/api/v1/evaluate", req.path)
         assertEquals(YuguVersion.USER_AGENT, req.getHeader("User-Agent"))
-        assertEquals("yugu-android-sdk/2.1.0", req.getHeader("User-Agent"))
+        assertEquals("yugu-android-sdk/2.1.1", req.getHeader("User-Agent"))
         assertEquals("mock-app-key", req.getHeader("X-App-Key"))
         val ts = req.getHeader("X-Timestamp")!!.toLong()
         assertTrue(Math.abs(System.currentTimeMillis() / 1000 - ts) < 5)
@@ -235,6 +235,59 @@ class RequestBuildingTest {
             req.getHeader("X-Signature"),
         )
         assertEquals("agegroup=2&language=zh-CN&paragraph_need_word_score=1&refText=今天天气很好", Signer.buildPayload(fields))
+    }
+
+    @Test
+    fun openQuestionCompatRoutesToItsPathAndRequiresRefText() {
+        // open.eval.cn (2.1.1) is accepted locally and posted to /open.eval.cn with the scoring fields signed
+        server.enqueue(MockResponse().setBody(TestEnv.fixtureText("platform/compat_open.eval.cn.json")))
+        val answer = TestEnv.fixtureBytes("audio/zh_open_answer.wav")
+        val cfg = CompatConfig(CompatCoreType.OPEN_EVAL_CN, "我是学生|我不是学生", params = mapOf("qType" to "6", "keypoints" to "学生"))
+        val r = client().use { it.evaluateCompat(cfg, answer) }
+        assertEquals("open.eval.cn", CompatCoreType.OPEN_EVAL_CN)
+        assertTrue(CompatCoreType.OPEN_EVAL_CN in CompatCoreType.ALL)
+        assertEquals(96.0, r.overall!!, 1e-9)
+        assertEquals("situational", r.open!!.taskType)
+        val req = server.takeRequest()
+        assertEquals("/open.eval.cn", req.path)
+        val ps = parts(req)
+        assertEquals(listOf("audio", "refText", "qType", "keypoints"), ps.map { it.name })
+        assertArrayEquals(answer, ps[0].body)
+        val fields = ps.drop(1).associate { it.name!! to it.text }
+        assertEquals("我是学生|我不是学生", fields["refText"])
+        assertEquals(Signer.sign(fields, "mock-secret-key"), req.getHeader("X-Signature"))
+
+        // refText, the model answers or the question, is required on both channels; a refPinyin never replaces it
+        val listener = object : StreamListener {
+            override fun onResult(result: EvalResult) = Unit
+            override fun onError(error: YuguException) = Unit
+        }
+        client().use { c ->
+            val missing = listOf(
+                CompatConfig(CompatCoreType.OPEN_EVAL_CN, ""),
+                CompatConfig(CompatCoreType.OPEN_EVAL_CN, " \t", Language.ZH_CN, refPinyin = "wo3 shi4 xue2 sheng1"),
+                CompatConfig(CompatCoreType.OPEN_EVAL_CN, "", params = mapOf("refText" to "我是学生")),
+            )
+            for ((i, bad) in missing.withIndex()) {
+                for (call in listOf<() -> Unit>({ c.evaluateCompat(bad, answer) }, { c.streamEvaluateCompat(bad, listener) })) {
+                    try {
+                        call()
+                        fail("case $i accepted")
+                    } catch (e: InvalidParameterException) {
+                        assertEquals(90010, e.code)
+                        assertTrue(e.message!!, e.message!!.contains("open.eval.cn"))
+                    }
+                }
+            }
+            // the English open question stays unsupported
+            try {
+                c.evaluateCompat(CompatConfig("open.eval", "What do you do?"), answer)
+                fail("open.eval accepted")
+            } catch (e: InvalidParameterException) {
+                assertEquals(90010, e.code)
+            }
+        }
+        assertEquals(1, server.requestCount)
     }
 
     @Test

@@ -1,4 +1,4 @@
-// 优谷雅言 Android 示例工程，从 Maven 仓库拉取 com.shengzhiai.yugu:yugu-android-sdk:2.1.0。
+// 优谷雅言 Android 示例工程，从 Maven 仓库拉取 com.shengzhiai.yugu:yugu-android-sdk:2.1.1。
 pluginManagement {
     repositories {
         google()

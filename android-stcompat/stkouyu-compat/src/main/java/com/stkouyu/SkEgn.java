@@ -52,7 +52,11 @@ public final class SkEgn {
     }
 
     /**
-     * Starts an evaluation; the tokenId is written into {@code id} as ASCII.
+     * Starts an evaluation; the tokenId is written into {@code id} as ASCII. An unsupported coreType
+     * returns 0, logs one WARN line and posts the error JSON with errId 60003 ({@code 不支持的评测内核：<coreType>})
+     * to the callback at once; skegn_feed and skegn_stop then return -1 with the error numbers 21 and 24.
+     * With {@code YuguCompat.setThrowOnUnsupportedCoreType(true)} it throws IllegalArgumentException
+     * with that text instead.
      *
      * @param param {@code {"coreProvideType":"cloud","app":{"userId":"..."},"audio":{"audioType":"wav","sampleRate":16000,"channel":1,"sampleBytes":2},"request":{"coreType":"sent.eval","refText":"..."}}}
      */

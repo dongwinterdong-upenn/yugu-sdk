@@ -231,6 +231,37 @@ public final class CompatEngine {
         }
     }
 
+    /** Credentials and timeouts of the initialised engine, for TtsClient and ReportClient (SDK 2.2.0). */
+    public static final class Account {
+        public final String appKey;
+        public final String secretKey;
+        /** Platform base from EngineSetting.setServerAddress; YuguCompat.setBaseUrl still wins over it. */
+        public final String baseUrl;
+        /** EngineSetting.setConnectTimeout in seconds, 0 or less for the default. */
+        public final int connectTimeoutSec;
+        /** EngineSetting.setServerTimeout in seconds, 0 or less for the default. */
+        public final int serverTimeoutSec;
+
+        Account(Config c) {
+            this.appKey = c.appKey;
+            this.secretKey = c.secretKey;
+            this.baseUrl = c.baseUrl;
+            this.connectTimeoutSec = c.connectTimeoutSec;
+            this.serverTimeoutSec = c.serverTimeoutSec;
+        }
+    }
+
+    /** The account of the engine initialised through SkEgnManager, null when none is initialised. */
+    public static Account currentAccount() {
+        CompatEngine e = instance;
+        if (e == null) {
+            return null;
+        }
+        synchronized (e.lock) {
+            return e.initialized && e.config != null ? new Account(e.config) : null;
+        }
+    }
+
     // ================================================================ init
 
     /**
@@ -346,22 +377,29 @@ public final class CompatEngine {
 
     // ================================================================ recording
 
-    /** Starts a recording (microphone) or a stream session (setIsStream(true), audio from feed). */
+    /**
+     * Starts a recording (microphone) or a stream session (setIsStream(true), audio from feed).
+     *
+     * @throws IllegalArgumentException for an unsupported coreType with
+     *         {@code YuguCompat.setThrowOnUnsupportedCoreType(true)}, before any other check
+     */
     public void startRecord(RecordSetting setting, OnRecorderListener rl, OnRecordListener l) {
+        RecordSetting s = setting != null ? setting : new RecordSetting();
+        FormMapper.throwIfUnsupported("startRecord", s);
         synchronized (startLock) {
-            startRecordLocked(setting, rl, l);
+            startRecordLocked(s, rl, l);
         }
     }
 
-    private void startRecordLocked(RecordSetting setting, OnRecorderListener rl, OnRecordListener l) {
-        RecordSetting s = setting != null ? setting : new RecordSetting();
+    private void startRecordLocked(RecordSetting s, OnRecorderListener rl, OnRecordListener l) {
         final Session session;
         synchronized (lock) {
             if (rl == null && l == null) {
                 rl = defaultRecorderListener;
             }
             if (!initialized || config == null) {
-                postEarlyError(rl, l, CompatErrIds.ENGINE_NOT_INITIALIZED, null);
+                postEarlyError("startRecord", rl, l, CompatErrIds.ENGINE_NOT_INITIALIZED,
+                        CompatErrIds.message(CompatErrIds.ENGINE_NOT_INITIALIZED), null);
                 return;
             }
             if (busyLocked()) {
@@ -369,13 +407,14 @@ public final class CompatEngine {
                 if (rl != null) {
                     postStartFail(rl, "engine is busy");
                 } else {
-                    postEarlyError(null, l, CompatErrIds.ENGINE_BUSY, config.appKey);
+                    postEarlyError("startRecord", null, l, CompatErrIds.ENGINE_BUSY,
+                            CompatErrIds.message(CompatErrIds.ENGINE_BUSY), config.appKey);
                 }
                 return;
             }
             int invalid = FormMapper.validate(s);
             if (invalid != 0) {
-                postEarlyError(rl, l, invalid, config.appKey);
+                postEarlyError("startRecord", rl, l, invalid, FormMapper.rejection(s, invalid), config.appKey);
                 return;
             }
             session = new Session(Codec.newTokenId(), s, config, rl, l, s.getIsStream(), false);
@@ -760,23 +799,31 @@ public final class CompatEngine {
 
     // ================================================================ file evaluation
 
-    /** Evaluates {@code setting.getAudioPath()} (DESIGN 6, existsAudioTrans). */
+    /**
+     * Evaluates {@code setting.getAudioPath()} (DESIGN 6, existsAudioTrans).
+     *
+     * @throws IllegalArgumentException for an unsupported coreType with
+     *         {@code YuguCompat.setThrowOnUnsupportedCoreType(true)}, before any other check
+     */
     public void existsAudioTrans(RecordSetting setting, OnRecorderListener rl, OnRecordListener l, Integer bufSize,
                                  Integer timeout) {
         RecordSetting s = setting != null ? setting : new RecordSetting();
+        FormMapper.throwIfUnsupported("existsAudioTrans", s);
         final Session session;
         synchronized (lock) {
             if (!initialized || config == null) {
-                postEarlyError(rl, l, CompatErrIds.ENGINE_NOT_INITIALIZED, null);
+                postEarlyError("existsAudioTrans", rl, l, CompatErrIds.ENGINE_NOT_INITIALIZED,
+                        CompatErrIds.message(CompatErrIds.ENGINE_NOT_INITIALIZED), null);
                 return;
             }
             if (busyLocked()) {
-                postEarlyError(rl, l, CompatErrIds.ENGINE_BUSY, config.appKey);
+                postEarlyError("existsAudioTrans", rl, l, CompatErrIds.ENGINE_BUSY,
+                        CompatErrIds.message(CompatErrIds.ENGINE_BUSY), config.appKey);
                 return;
             }
             int invalid = FormMapper.validate(s);
             if (invalid != 0) {
-                postEarlyError(rl, l, invalid, config.appKey);
+                postEarlyError("existsAudioTrans", rl, l, invalid, FormMapper.rejection(s, invalid), config.appKey);
                 return;
             }
             session = new Session(Codec.newTokenId(), s, config, rl, l, false, true);
@@ -940,6 +987,8 @@ public final class CompatEngine {
             deliverError(s, ErrorTable.PROTOCOL_ERROR, "invalid platform response: " + e.getMessage());
             return;
         }
+        // the timing line names the record the app receives (SDK 2.2.0)
+        s.phases.recordId(Envelope.recordIdOf(split.body));
         s.phases.parsed();
         YLog.i("result tokenId=" + s.tokenId + " " + attempts + (replayed ? " replayed" : ""));
         deliverFinal(s, json);
@@ -1129,9 +1178,14 @@ public final class CompatEngine {
         });
     }
 
-    private void postEarlyError(final OnRecorderListener rl, final OnRecordListener l, int errId, String appKey) {
-        final String json = Envelope.error(Codec.newTokenId(), errId, CompatErrIds.message(errId), appKey);
-        YLog.w("request rejected (errId " + errId + "): " + CompatErrIds.message(errId));
+    /**
+     * Error JSON of a start that never became a session, with one WARN line; for 60003 both name the
+     * coreType ({@link CompatErrIds#unsupportedCoreType}).
+     */
+    private void postEarlyError(String entry, final OnRecorderListener rl, final OnRecordListener l, int errId,
+                                String message, String appKey) {
+        final String json = Envelope.error(Codec.newTokenId(), errId, message, appKey);
+        YLog.w(entry + " rejected (errId " + errId + "): " + message);
         MainThread.post(new Runnable() {
             @Override
             public void run() {

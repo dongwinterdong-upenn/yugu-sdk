@@ -16,11 +16,20 @@ with the same tokenId), timing=1 and "timing":1 only at log level INFO, and the 
 line. The Server-Timing header and the platform timing object are not in the shared mock, so
 those scenarios run against timing_server.py next to this file (BRIEF 2.1.1 rule 5).
 
+2.2.0: the 60003 text names the coreType (KYTestEngine and skegn resolution), the summary line
+carries recordId, and TtsClient.tts and ReportClient.getReport run against the mock's
+/api/v1/tts/generate and /api/v1/report/{recordId}: signature checked with an independent HMAC,
+Idempotency-Key reused across retries, no key on report lookups, retries and errors, and
+waitForFinalMs over a recordId containing "pending".
+
   run_it.py --driver build/it_driver --mock ../tools/mock-server/server.mjs --spec ../spec
             [--junit it.xml] [--log it.log]
 """
 import argparse
+import base64
 import copy
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -164,7 +173,7 @@ def s_success_envelope(c):
         c(e["idempotencyKey"] == r["tokenId"], "Idempotency-Key is the tokenId")
         c(e.get("fields") == {"refText": "今天天气很好", "phoneme_output": "1"}, "form fields %r" % e.get("fields"))
         c(e["contentType"].startswith("multipart/form-data; boundary=----YuguSTCompat"), "multipart content type")
-        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.1.2", "User-Agent %r" % e["userAgent"])
+        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.2.0", "User-Agent %r" % e["userAgent"])
     b = billing()
     c(b["billed"] == 1 and b["byKey"].get(r["tokenId"]) == 1, "billed once %r" % b)
 
@@ -321,6 +330,9 @@ def s_retries_exhausted(c):
     c(r["attempts"] == 3, "3 attempts")
     c(len(entries_for(r["tokenId"])) == 3, "same key on all attempts")
     c(billing()["billed"] == 0, "nothing billed")
+    # 2.2.0: an error has no record
+    c((r.get("timing") or "").startswith("timing tokenId=%s recordId=- mode=rest " % r["tokenId"]) and
+      " errId=20009" in r.get("timing", ""), "summary line of the error %r" % r.get("timing"))
 
 
 def s_auto_retry(c):
@@ -380,29 +392,48 @@ def s_auth_errors(c):
     c(billing()["billed"] == 0, "nothing billed")
 
 
+UNSUPPORTED = "不支持的评测内核："  # 2.2.0 shared decision 1, full-width colon U+FF1A
+
+
 def s_local_errors_no_network(c):
     reset()
+    short = audio("zh_short.wav")
     cases = [
-        (("--core-type", "open.eval", "--audio", audio("zh_short.wav")), 60003),
-        (("--core-type", "align.eval", "--audio", audio("zh_short.wav")), 60003),
-        (("--core-type", "my.custom.core", "--audio", audio("zh_short.wav")), 60003),
-        (("--ref-text", "", "--audio", audio("zh_short.wav")), 60006),
-        (("--audio-synth-ms", "500",), 60005),
-        (("--audio", "/nonexistent/audio.wav"), 60001),
-        (("--audio", "-"), 60002),
+        (("--core-type", "open.eval", "--audio", short), 60003, UNSUPPORTED + "open.eval"),
+        (("--core-type", "align.eval", "--audio", short), 60003, UNSUPPORTED + "align.eval"),
+        (("--core-type", "my.custom.core", "--audio", short), 60003, UNSUPPORTED + "my.custom.core"),
+        # the requested coreType, trimmed
+        (("--core-type", "  sent.eval.fr \t", "--audio", short), 60003, UNSUPPORTED + "sent.eval.fr"),
+        # KYTestEngine: a blank coreTypeNS names the KYTestType, by its Shengtong string or its value
+        (("--core-type", "", "--core-type-enum", "3", "--audio", short), 60003, UNSUPPORTED + "open.eval"),
+        (("--core-type", " ", "--core-type-enum", "19", "--audio", short), 60003, UNSUPPORTED + "word.eval.jp"),
+        (("--core-type", "", "--core-type-enum", "22", "--audio", short), 60003, UNSUPPORTED + "KYTestType 22"),
+        # skegn_start: a blank or missing request.coreType is not a coreType
+        (("--skegn", "--core-type", "  ", "--audio", short), 60003, UNSUPPORTED + "未指定"),
+        (("--skegn", "--core-type", "", "--audio", short), 60003, UNSUPPORTED + "未指定"),
+        (("--skegn", "--core-type", " open.eval ", "--audio", short), 60003, UNSUPPORTED + "open.eval"),
+        (("--ref-text", "", "--audio", short), 60006, "refText 为空"),
+        (("--audio-synth-ms", "500",), 60005, "音频短于 1 秒"),
+        (("--audio", "/nonexistent/audio.wav"), 60001, "音频文件不存在或不可读: /nonexistent/audio.wav"),
+        (("--audio", "-"), 60002, "音频为空"),
     ]
-    messages = {60003: "coreType 不支持", 60006: "refText 为空", 60005: "音频短于 1 秒", 60002: "音频为空"}
-    for args, want in cases:
+    for args, want, message in cases:
         r = driver(*args)
-        c(r["outcome"] == "error" and r["json"].get("errId") == want and r["attempts"] == 0,
-          "%s -> errId %d, got %r" % (" ".join(args), want, r["json"]))
-        if want in messages:
-            c(r["json"].get("error") == messages[want], "errId %d message %r" % (want, r["json"].get("error")))
-        if want == 60001:
-            c(r["json"].get("error") == "音频文件不存在或不可读: /nonexistent/audio.wav", "60001 message")
+        j = r["json"]
+        c(r["outcome"] == "error" and j.get("errId") == want and r["attempts"] == 0,
+          "%r -> errId %d, got %r" % (args, want, j))
+        c(j.get("error") == message, "%r: errId %d message %r" % (args, want, j.get("error")))
+        c(list(j.keys()) == ["tokenId", "errId", "error", "eof", "applicationId"] and j.get("eof") == 1 and
+          j.get("applicationId") == "mock-app-key", "the rest of the error JSON unchanged %r" % j)
     r = driver("--core-type", "sent.eval", "--ref-text", "", "--ref-pinyin", "ni3 hao3", "--audio", audio("zh_short.wav"))
     c(r["json"].get("errId") == 60006, "refPinyin does not replace refText for an English kernel")
     c(mock_log() == [], "no request reached the platform for local errors")
+    # a supported coreType resolves as before: skegn and KYTestEngine alike
+    r = driver("--skegn", "--core-type", " sent.eval.cn ", "--audio", short)
+    c(r["outcome"] == "result", "skegn resolution of a supported coreType %r" % r["json"].get("errId"))
+    r = driver("--core-type", "", "--core-type-enum", "10", "--audio", short)
+    c(r["outcome"] == "result" and [e["path"] for e in entries_for(r["tokenId"])] == ["/sent.eval.cn"],
+      "KYTestType_Sentence_Cn without coreTypeNS goes to /sent.eval.cn")
 
 
 def s_pinyin(c):
@@ -704,8 +735,8 @@ def s_realtime_too_short(c):
 # ------------------------------------------------------------------ stream upload and timing (2.1.1)
 
 ENVELOPE_KEYS = ["tokenId", "recordId", "applicationId", "userId", "refText", "eof", "dtLastResponse", "result"]
-SUMMARY = re.compile(r"^timing tokenId=([0-9a-f]{32}) mode=(rest|ws|ws>rest) audio=\S+ afterStop=\S+ upload=\S+ "
-                     r"wait=\S+ download=\S+ parse=\S+ deliver=\S+ ")
+SUMMARY = re.compile(r"^timing tokenId=([0-9a-f]{32}) recordId=(\S+) mode=(rest|ws|ws>rest) audio=\S+ afterStop=\S+ "
+                     r"upload=\S+ wait=\S+ download=\S+ parse=\S+ deliver=\S+ ")
 
 
 def summary_fields(line):
@@ -721,9 +752,12 @@ def summary_fields(line):
 
 
 def check_summary(c, r, mode):
+    """2.2.0: recordId right after tokenId, the recordId of the result, "-" for an error."""
     line = r.get("timing") or ""
     m = SUMMARY.match(line)
-    c(m is not None and m.group(1) == r["tokenId"] and m.group(2) == mode, "summary line %r" % line)
+    want = r["json"].get("recordId") or "-"
+    c(m is not None and m.group(1) == r["tokenId"] and m.group(2) == want and m.group(3) == mode,
+      "summary line %r, recordId %r" % (line, want))
     return summary_fields(line) if m else {}
 
 
@@ -844,6 +878,290 @@ def s_server_timing_ws(c):
       "no timing without INFO %r" % f)
 
 
+# ------------------------------------------------------------------ TtsClient and ReportClient (2.2.0)
+
+SECRET = "mock-secret-key"
+TTS_PATH = "/api/v1/tts/generate"
+
+
+def contract_signature(params, secret=SECRET):
+    """CONTRACT 2.2 written out independently: non-empty values, sorted keys, k=v joined by &, HMAC-SHA256,
+    Base64."""
+    keys = sorted(k for k, v in params.items() if v is not None and v != "")
+    payload = "&".join("%s=%s" % (k, params[k]) for k in keys)
+    return base64.b64encode(hmac.new(secret.encode(), payload.encode("utf-8"), hashlib.sha256).digest()).decode()
+
+
+def literal(v):
+    """The literal text of a scalar JSON value (CONTRACT 2.3)."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    return str(v)
+
+
+def api(*extra):
+    """The JSON line of the driver in --tts or --report mode."""
+    cmd = [ARGS.driver, "--port", str(PORT)] + [str(x) for x in extra]
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    if p.returncode != 0:
+        raise AssertionError("driver exit %d: %s" % (p.returncode, p.stderr))
+    lines = [l for l in p.stdout.splitlines() if l.strip()]
+    if len(lines) != 1:
+        raise AssertionError("driver printed %d lines: %r" % (len(lines), p.stdout))
+    out = json.loads(lines[0])
+    out["_stderr"] = p.stderr
+    return out
+
+
+LOG_LINE = re.compile(r"^(tts|getReport)( recordId=\S+)? status=(\S+)( code=\d+)?( lookups=\d+)? attempts=\d+ ms=\d+$")
+
+
+def s_tts(c):
+    """TtsClient.tts: the members that are set, signed with their literal text, one Idempotency-Key, the
+    absolute audio URL against the base, the INFO line without the text."""
+    reset()
+    r = api("--tts", "--tts-text", "你好，世界", "--tts-set", "language=zh-CN", "--tts-set", "voice=xiaoyan",
+            "--tts-set", "format=wav", "--tts-set", "speed=50", "--tts-set", "pitch=0", "--tts-set", "volume=100",
+            "--tts-set", "sampleRate=16000", "--tts-set", "emotion=warm", "--tts-set", "style=温柔地朗读",
+            "--tts-set", "pinyin=ni3 hao3 shi4 jie4", "--tts-set", "genre=prose")
+    c(r["outcome"] == "result" and r["code"] == 0 and r["attempts"] == 1 and r["httpStatus"] == 200, "result %r" % r)
+    req = r.get("request") or {}
+    c(list(req.keys()) == ["text", "language", "voice", "format", "speed", "pitch", "volume", "sampleRate", "emotion",
+                           "style", "pinyin", "genre"], "members in the order of the request %r" % list(req.keys()))
+    c(req.get("speed") == 50 and req.get("pitch") == 0 and req.get("sampleRate") == 16000 and req.get("text") == "你好，世界",
+      "integers as JSON numbers, 0 sent %r" % req)
+    flat = {k: literal(v) for k, v in req.items() if v is not None and not isinstance(v, (dict, list))}
+    c(r.get("signature") == contract_signature(flat), "signed over the top-level scalars %r" % r.get("signature"))
+    c(r.get("signature") != contract_signature({}), "not the empty set")
+    c(re.fullmatch(r"[0-9a-f]{32}", r.get("idempotencyKey", "")) is not None, "a fresh key %r" % r.get("idempotencyKey"))
+    c(str(r.get("audioUrl", "")).startswith("/audio/mock-"), "audioUrl as returned %r" % r.get("audioUrl"))
+    c(r.get("absoluteAudioUrl") == "http://127.0.0.1:%d/tts%s" % (PORT, r.get("audioUrl")),
+      "absolute against the base %r" % r.get("absoluteAudioUrl"))
+    c(r.get("hasDuration") == 1 and abs(r.get("duration", 0) - 1.348) < 1e-9 and r.get("format") == "wav",
+      "duration and format %r" % {k: r.get(k) for k in ("duration", "format")})
+    raw = r.get("raw") or {}
+    c(raw.get("code") == 0 and raw.get("data", {}).get("audioUrl") == r.get("audioUrl"), "the raw answer %r" % raw)
+    c(LOG_LINE.match(r.get("log", "")) is not None and r["log"].startswith("tts status=ok attempts=1 ms="),
+      "INFO line %r" % r.get("log"))
+    c("你好" not in r["log"] and SECRET not in r["log"] and r["signature"] not in r["log"], "nothing sensitive logged")
+    e = mock_log()
+    c(len(e) == 1 and e[0]["method"] == "POST" and e[0]["path"] == TTS_PATH, "one POST %r" % e)
+    if e:
+        c(e[0]["idempotencyKey"] == r["idempotencyKey"], "Idempotency-Key sent")
+        c(e[0]["contentType"] == "application/json; charset=utf-8", "JSON body %r" % e[0]["contentType"])
+        c(e[0]["userAgent"] == "yugu-ios-stcompat-sdk/2.2.0", "User-Agent %r" % e[0]["userAgent"])
+        c(e[0]["bytes"] == len(json.dumps(req, ensure_ascii=False, separators=(",", ":")).encode("utf-8")),
+          "the body as built")
+    b = billing()
+    c(b["billed"] == 1 and b["records"][0]["op"] == "tts" and b["records"][0]["idemKey"] == r["idempotencyKey"],
+      "billed once %r" % b)
+    # only what is set: text alone
+    r = api("--tts", "--tts-text", "早上好")
+    c(r["outcome"] == "result" and r.get("request") == {"text": "早上好"}, "text only %r" % r.get("request"))
+    c(r.get("signature") == contract_signature({"text": "早上好"}) and r.get("format") == "mp3", "signed text only")
+
+
+def s_tts_retries_and_errors(c):
+    """The retry rules of CONTRACT 7 with the shim's controller: one key and a fresh nonce on every attempt,
+    20009 when the retries are used up, platform codes as they are, local checks without a request."""
+    reset()
+    faults((TTS_PATH, "status:503"))
+    r = api("--tts", "--tts-text", "你好")
+    e = mock_log()
+    c(r["outcome"] == "result" and r["attempts"] == 2, "503 then success %r" % r)
+    c([x["idempotencyKey"] for x in e] == [r["idempotencyKey"]] * 2, "the same key on both attempts %r" % e)
+    c(billing()["byKey"].get(r["idempotencyKey"]) == 1, "billed once")
+    reset()
+    faults((TTS_PATH, "status:503"), (TTS_PATH, "status:503"), (TTS_PATH, "status:503"))
+    r = api("--tts", "--tts-text", "你好")
+    c(r["outcome"] == "error" and r["code"] == 20009 and r["attempts"] == 3 and r["httpStatus"] == 503,
+      "20009 after three attempts %r" % r)
+    c(r["message"].endswith(": HTTP 503 code=50000 mock fault 503 (attempts 3)"), "message %r" % r["message"])
+    c(r["log"].startswith("tts status=error code=20009 attempts=3 ms="), "log %r" % r["log"])
+    c(billing()["billed"] == 0, "nothing billed")
+    reset()
+    faults((TTS_PATH, "status:400:code=40001:message=text%20%E4%B8%8D%E8%83%BD%E4%B8%BA%E7%A9%BA"))
+    r = api("--tts", "--tts-text", "你好")
+    c(r["outcome"] == "error" and r["code"] == 40001 and r["attempts"] == 1 and r["message"] == "text 不能为空",
+      "400 not retried, platform text %r" % r)
+    r = api("--tts", "--tts-text", "你好", "--secret", "wrong-secret")
+    c(r["code"] == 2003 and r["message"] == "签名验证失败" and r["httpStatus"] == 401 and r["attempts"] == 1,
+      "bad signature %r" % r)
+    r = api("--tts", "--tts-text", "你好", "--app-key", "no-such-key")
+    c(r["code"] == 2010 and r["attempts"] == 1, "unknown appKey %r" % r)
+    reset()
+    r = api("--tts", "--tts-text", "  \n ")
+    c(r["outcome"] == "error" and r["code"] == 90010 and r["attempts"] == 0 and r["message"] == "TtsRequest.text 为空",
+      "blank text answered locally %r" % r)
+    r = api("--tts", "--tts-text", "你好", "--idempotency-key", "has space")
+    c(r["code"] == 90010 and r["attempts"] == 0, "invalid key answered locally %r" % r)
+    c(mock_log() == [], "no request for local errors")
+
+
+def s_tts_idempotency_key(c):
+    """TtsOptions.idempotencyKey: the caller's key; the same key and body again is the first answer."""
+    reset()
+    r1 = api("--tts", "--tts-text", "今天天气很好", "--idempotency-key", "order-42")
+    r2 = api("--tts", "--tts-text", "今天天气很好", "--idempotency-key", "order-42")
+    c(r1["outcome"] == r2["outcome"] == "result", "both answered %r %r" % (r1["code"], r2["code"]))
+    c(r1.get("audioUrl") == r2.get("audioUrl"), "the replay is the first answer")
+    c([x["idempotencyKey"] for x in mock_log()] == ["order-42", "order-42"], "the caller's key")
+    c(billing()["byKey"].get("order-42") == 1, "billed once")
+    r3 = api("--tts", "--tts-text", "另一句话", "--idempotency-key", "order-42")
+    c(r3["outcome"] == "error" and r3["code"] == 40903 and r3["attempts"] == 1, "same key, other body: 40903 %r" % r3)
+
+
+MOCK_FINAL_SUGGESTION = "“清”的后鼻音收得再完整一些。"
+
+
+def check_report_line(c, r, record_id, status, lookups):
+    want = "getReport recordId=%s status=%s lookups=%d attempts=" % (record_id, status, lookups)
+    c(LOG_LINE.match(r.get("log", "")) is not None and r["log"].startswith(want), "INFO line %r, want %r" % (r.get("log"), want))
+    c("mock report" not in r["log"] and "即时稿" not in r["log"], "no report text in the log")
+
+
+def s_report(c):
+    """ReportClient.getReport: the empty signed set, no Idempotency-Key, the fields of the answer."""
+    reset()
+    r = api("--report", "eval_abc123")
+    c(r["outcome"] == "result" and r["lookups"] == 1 and r["attempts"] == 1, "one lookup %r" % r)
+    c(r.get("signature") == contract_signature({}), "CONTRACT 2.3: the empty set")
+    c(r.get("recordId") == "eval_abc123" and r.get("reportStatus") == "final" and r.get("isFinal") == 1,
+      "final %r" % {k: r.get(k) for k in ("recordId", "reportStatus", "isFinal")})
+    c(r.get("summary") == "mock report" and r.get("suggestions") == [MOCK_FINAL_SUGGESTION], "summary and suggestions")
+    c(r.get("overall") == 93.7, "overall from score.overall %r" % r.get("overall"))
+    data = r.get("data") or {}
+    c(r.get("report") == data.get("report") and r.get("report", {}).get("source") == "llm" and
+      r["report"].get("skillInsights", [{}])[0].get("confidence") == "medium", "the report object %r" % r.get("report"))
+    c(r.get("score") == {"overall": 93.7, "integrity": 100}, "the score object %r" % r.get("score"))
+    c(r.get("timing") == data.get("timing") and (r.get("timing") or {}).get("channel") == "rest", "timing %r" % r.get("timing"))
+    c(data.get("recordId") == "eval_abc123" and data.get("reportStatus") == "final", "the raw data")
+    check_report_line(c, r, "eval_abc123", "final", 1)
+    e = mock_log()
+    c([(x["method"], x["path"], x["idempotencyKey"]) for x in e] == [("GET", "/api/v1/report/eval_abc123", None)],
+      "one GET without a key %r" % e)
+    c(e and e[0]["userAgent"] == "yugu-ios-stcompat-sdk/2.2.0", "User-Agent")
+    c(billing()["billed"] == 0, "a lookup is not billed")
+    # the recordId is trimmed and percent-encoded as one path segment
+    r = api("--report", "  eval_a b  ")
+    c(r["outcome"] == "result" and r.get("recordId") == "eval_a b" and r.get("path") == "/api/v1/report/eval_a%20b",
+      "encoded %r" % {k: r.get(k) for k in ("recordId", "path", "code", "message")})
+    c(mock_log()[-1]["path"] == "/api/v1/report/eval_a%20b", "path on the wire %r" % mock_log()[-1]["path"])
+
+
+def s_report_wait_for_final(c):
+    """waitForFinalMs: pending answers are looked up again every 1000 ms until final or the time is used up;
+    still pending is a result."""
+    reset()
+    r = api("--report", "eval_pending_1")
+    c(r["outcome"] == "result" and r["lookups"] == 1, "waitForFinalMs 0: one lookup %r" % r)
+    c(r.get("reportStatus") == "pending" and r.get("isFinal") == 0 and r.get("isPending") == 1, "pending %r" % r.get("reportStatus"))
+    c(r.get("summary") == "即时稿：整体读得流畅。" and r.get("suggestions") == ["注意后鼻音。"], "the instant draft")
+    check_report_line(c, r, "eval_pending_1", "pending", 1)
+    r = api("--report", "eval_pending_2", "--wait-for-final-ms", "6000")
+    c(r["outcome"] == "result" and r["lookups"] == 3 and r.get("reportStatus") == "final" and r.get("isFinal") == 1,
+      "final on the third lookup %r" % {k: r.get(k) for k in ("lookups", "reportStatus", "lookupMs")})
+    starts = r.get("lookupMs") or []
+    c(len(starts) == 3 and all(1000 <= b - a < 2000 for a, b in zip(starts, starts[1:])), "one second apart %r" % starts)
+    c(r.get("summary") == "mock report" and r["attempts"] == 3, "the AI draft, three attempts in all")
+    check_report_line(c, r, "eval_pending_2", "final", 3)
+    # the time is used up while pending: the latest answer, not an error
+    r = api("--report", "eval_pending_3", "--wait-for-final-ms", "1500")
+    c(r["outcome"] == "result" and r["lookups"] == 2 and r.get("reportStatus") == "pending",
+      "pending after 1500 ms %r" % {k: r.get(k) for k in ("lookups", "reportStatus", "lookupMs")})
+    c(r["elapsedMs"] < 2500, "returned when the next lookup would start too late %r" % r["elapsedMs"])
+    # not pending: no wait
+    r = api("--report", "eval_final_4", "--wait-for-final-ms", "6000")
+    c(r["lookups"] == 1 and r.get("reportStatus") == "final", "final at once %r" % r["lookups"])
+    c([x["method"] for x in mock_log()] == ["GET"] * 7, "seven lookups %r" % len(mock_log()))
+
+
+def s_report_errors(c):
+    reset()
+    r = api("--report", "nope")
+    c(r["outcome"] == "error" and r["code"] == 40001 and r["httpStatus"] == 400 and r["attempts"] == 1,
+      "not found: platform code, not retried %r" % r)
+    c(r["message"] == "评测记录不存在: nope", "platform text %r" % r["message"])
+    c(LOG_LINE.match(r["log"]) is not None and
+      r["log"].startswith("getReport recordId=nope status=error code=40001 lookups=1 attempts=1 ms="), "error line %r" % r["log"])
+    faults(("/api/v1/report/", "status:503"))
+    r = api("--report", "eval_retry")
+    c(r["outcome"] == "result" and r["attempts"] == 2 and r["lookups"] == 1, "503 retried %r" % r)
+    e = [x for x in mock_log() if x["path"] == "/api/v1/report/eval_retry"]
+    c(len(e) == 2 and all(x["idempotencyKey"] is None for x in e), "two GETs, no key %r" % e)
+    reset()
+    for _ in range(3):
+        faults(("/api/v1/report/", "drop"))
+    r = api("--report", "eval_drop")
+    c(r["outcome"] == "error" and r["code"] == 20009 and r["attempts"] == 3 and r["httpStatus"] == 0,
+      "network failure after the retries: 20009 %r" % r)
+    # the first lookup's error ends the call with that error, waitForFinalMs or not
+    reset()
+    faults(("/api/v1/report/eval_pending_w", "status:403:code=40300"))
+    r = api("--report", "eval_pending_w", "--wait-for-final-ms", "5000")
+    c(r["outcome"] == "error" and r["code"] == 40300 and r["lookups"] == 1 and "warn" not in r,
+      "403 on the first lookup %r" % r)
+    reset()
+    r = api("--report", "eval_x", "--secret", "wrong-secret")
+    c(r["code"] == 2003 and r["attempts"] == 1, "bad signature %r" % r)
+    reset()
+    r = api("--report", "  ")
+    c(r["outcome"] == "error" and r["code"] == 90010 and r["attempts"] == 0 and r["message"] == "recordId 为空",
+      "blank recordId answered locally %r" % r)
+    c(mock_log() == [], "no request")
+
+
+def report_with_fault_after_first(record_id, fault, count, wait_ms):
+    """getReport with waitForFinalMs while the mock fails every lookup after the first answer: the faults
+    are queued once the mock has seen the first lookup, so they hit the following ones."""
+    path = "/api/v1/report/" + record_id
+    p = subprocess.Popen([ARGS.driver, "--port", str(PORT), "--report", record_id, "--wait-for-final-ms", str(wait_ms)],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        deadline = time.time() + 20
+        while time.time() < deadline and not [e for e in mock_log() if e.get("path") == path]:
+            time.sleep(0.02)
+        faults(*[(path, fault)] * count)
+        out, err = p.communicate(timeout=90)
+    finally:
+        if p.poll() is None:
+            p.kill()
+            p.wait()
+    if p.returncode != 0:
+        raise AssertionError("driver exit %d: %s" % (p.returncode, err))
+    r = json.loads([l for l in out.splitlines() if l.strip()][0])
+    r["_stderr"] = err
+    return r, [e for e in mock_log() if e.get("path") == path]
+
+
+def s_report_later_lookup_fails(c):
+    """waitForFinalMs as the Android shim decides it: a lookup that fails after an answer ends the call with
+    the latest answer, still pending, as a result, with one WARN line naming the recordId, the code and the
+    lookups so far."""
+    reset()
+    rid = "eval_pending_later_503"
+    r, gets = report_with_fault_after_first(rid, "status:503", 3, 6000)
+    c(r["outcome"] == "result" and r["code"] == 0 and r["message"] == "",
+      "the latest answer, not an error %r" % {k: r.get(k) for k in ("outcome", "code", "message")})
+    c(r.get("reportStatus") == "pending" and r.get("isFinal") == 0 and r.get("summary") == "即时稿：整体读得流畅。",
+      "the pending answer of the first lookup %r" % r.get("reportStatus"))
+    c(r["lookups"] == 2 and r["attempts"] == 4, "an answer, then a lookup failed after three attempts %r" % {
+        k: r.get(k) for k in ("lookups", "attempts", "lookupMs")})
+    c(r.get("failedCode") == 20009 and r.get("warn") ==
+      "getReport recordId=%s lookup failed while waiting: code=20009 lookups=2, returning the latest answer" % rid,
+      "WARN line %r" % r.get("warn"))
+    c(r["log"].startswith("getReport recordId=%s status=pending lookups=2 attempts=4 ms=" % rid), "INFO line %r" % r["log"])
+    c([e.get("fault") for e in gets] == [None, "status:503", "status:503", "status:503"],
+      "one answer and three failed attempts %r" % [e.get("fault") for e in gets])
+    # not retried: the same, at once
+    rid = "eval_pending_later_403"
+    r, gets = report_with_fault_after_first(rid, "status:403:code=40300", 1, 6000)
+    c(r["outcome"] == "result" and r.get("reportStatus") == "pending" and r["lookups"] == 2 and r["attempts"] == 2,
+      "403 on the second lookup: the first answer %r" % {k: r.get(k) for k in ("outcome", "code", "lookups", "attempts")})
+    c(r.get("warn", "").endswith(" code=40300 lookups=2, returning the latest answer"), "WARN line %r" % r.get("warn"))
+    c(len(gets) == 2, "two lookups %r" % len(gets))
+
+
 SCENARIOS = [
     s_success_envelope, s_word_params_custom, s_attach_audio_url, s_retry_500_same_key, s_retry_429_retry_after, s_timeout_then_replay,
     s_slow_inflight_replay, s_inflight_conflict_40901, s_nonce_reuse_rejected, s_no_retry_400, s_retries_exhausted, s_auto_retry, s_auto_retry_custom_errid, s_drop_then_success,
@@ -854,6 +1172,8 @@ SCENARIOS = [
     s_realtime_progress_mismatch, s_realtime_progress_off, s_realtime_heartbeat, s_realtime_result_timeout_replay,
     s_realtime_too_short,
     s_stream_default, s_stream_refused_rest, s_timing_only_at_info, s_server_timing_rest, s_server_timing_ws,
+    s_tts, s_tts_retries_and_errors, s_tts_idempotency_key, s_report, s_report_wait_for_final, s_report_errors,
+    s_report_later_lookup_fails,
 ]
 
 

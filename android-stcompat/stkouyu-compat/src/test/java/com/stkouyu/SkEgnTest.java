@@ -101,10 +101,12 @@ public class SkEgnTest extends CompatTestBase {
     public void localErrorsComeThroughTheCallback() throws Exception {
         long e = SkEgn.skegn_new(CFG, null);
         byte[] id = new byte[64];
-        SkEgn.skegn_start(e, param("open.eval", "x"), id, cb, null);
-        SkEgn.skegn_feed(e, Fixtures.tone(1200, 5000), 38400);
-        SkEgn.skegn_stop(e);
+        assertEquals(0, SkEgn.skegn_start(e, param("open.eval", "x"), id, cb, null));
+        // 2.2.0: answered at skegn_start, so feed and stop fail as on iOS
+        assertEquals(-1, SkEgn.skegn_feed(e, Fixtures.tone(1200, 5000), 38400));
+        assertEquals(-1, SkEgn.skegn_stop(e));
         Main.await("first callback", 5000, () -> results.size() == 1);
+        assertEquals("不支持的评测内核：open.eval", new JSONObject(results.get(0)).getString("error"));
         SkEgn.skegn_start(e, param("sent.eval", "x"), id, cb, null);
         SkEgn.skegn_stop(e);
         Main.await("second callback", 5000, () -> results.size() == 2);
@@ -224,7 +226,7 @@ public class SkEgnTest extends CompatTestBase {
         long e = SkEgn.skegn_new(CFG, app);
         byte[] buf = new byte[128];
         int n = SkEgn.skegn_opt(e, SkEgn.SKEGN_OPT_GET_VERSION, buf, buf.length);
-        assertEquals("yugu-stkouyu-compat/2.1.2 (api 1.0.62)", new String(buf, 0, n, StandardCharsets.US_ASCII));
+        assertEquals("yugu-stkouyu-compat/2.2.0 (api 1.0.62)", new String(buf, 0, n, StandardCharsets.US_ASCII));
         assertEquals(0, buf[n]);
         n = SkEgn.skegn_opt(e, SkEgn.SKEGN_OPT_GET_MODULES, buf, buf.length);
         assertEquals("{\"modules\":[\"cloud\"]}", new String(buf, 0, n, StandardCharsets.US_ASCII));

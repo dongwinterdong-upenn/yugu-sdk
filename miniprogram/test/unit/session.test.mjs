@@ -94,7 +94,7 @@ test('happy path: states, callback order, frames and getState consistency', asyn
   assert.equal(q.idempotencyKey, session.idempotencyKey);
   const { signature, ...rest } = q;
   assert.equal(signature, signParams(rest, AUTH.secretKey));
-  assert.equal(task.options.header['X-Yugu-SDK'], 'yugu-miniprogram-sdk/2.1.0');
+  assert.equal(task.options.header['X-Yugu-SDK'], 'yugu-miniprogram-sdk/2.1.1');
   assert.deepEqual(task.closeArgs, { code: 1000, reason: 'completed' });
   assert.ok(!logs.lines.some((l) => l.level === 'ERROR'), logs.text());
 });
@@ -117,6 +117,35 @@ test('compat session: parameter frame, partial frames, extra query, token auth',
   assert.deepEqual(task.query(), { trace: 't1', idempotencyKey: 'compat-key-1', token: 'jwt-1' });
   assert.deepEqual(task.texts()[1], { refText: '北京你好', language: 'zh-CN', realtime_feedback: true, scale: 100, idempotencyKey: 'compat-key-1' });
   assert.equal(s.mode, 'compat');
+});
+
+test('compat open.eval.cn (2.1.1): own path, model answers in the parameter frame, partials with bytes only', async () => {
+  const { c, sockets } = setup({ mode: 'compat', result: fixtureJson('platform/compat_open.eval.cn.json') });
+  const rl = recordingListener();
+  const s = c.streamEvaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', realtimeFeedback: true, fields: { qType: 6 } }, rl.listener);
+  await waitFor(() => s.getState() === 'STARTED');
+  sockets[0].frame({ eof: 0, result: { bytes: 16000 } });
+  feed(s, PCM.subarray(0, 3200));
+  s.end();
+  await rl.done;
+  assert.equal(new URL(sockets[0].url).pathname, '/open.eval.cn');
+  const frame = sockets[0].texts().find((t) => t.refText !== undefined);
+  assert.deepEqual(frame, { refText: '我是学生|我不是学生', realtime_feedback: true, qType: 6, idempotencyKey: s.idempotencyKey });
+  assert.deepEqual(partials(rl).map((p) => [p.bytes, p.hasProgress]), [[16000, false]]);
+  const r = rl.first('onResult').args[0];
+  assert.equal(r.overall, 96);
+  assert.equal(r.open.content.overall, 100);
+});
+
+test('compat open.eval.cn: refText required before connecting, a refPinyin does not replace it', async () => {
+  const { c, sockets } = setup({ mode: 'compat' });
+  const L = { onResult() {}, onError() {} };
+  const rejected = (e) => e instanceof InvalidParameterException && e.code === 90010 && /open\.eval\.cn/.test(e.message);
+  for (const p of [{}, { refText: '' }, { refText: ' \t' }, { text: '  ' }, { refPinyin: 'wo3 shi4 xue2 sheng1', language: 'zh-CN' }]) {
+    assert.throws(() => c.streamEvaluateCompat('open.eval.cn', p, L), rejected, JSON.stringify(p));
+  }
+  await sleep(20);
+  assert.equal(sockets.length, 0, 'nothing connects');
 });
 
 test('reading progress: the four recorded rounds reach onPartial in order, the last ones while ENDING', async () => {

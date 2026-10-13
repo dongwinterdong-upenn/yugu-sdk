@@ -97,6 +97,25 @@ describe('baseline sessions', () => {
     assert.equal(bill.byKey[s.idempotencyKey], 1);
     await c.close();
   });
+
+  test('compat open.eval.cn (2.1.1): routed to /open.eval.cn, partials carry bytes only, one bill', async () => {
+    const c = client();
+    const l = recordingListener();
+    const s = c.streamEvaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', realtime_feedback: true }, l);
+    await waitFor(() => s.getState() === 'STARTED', 5000);
+    await sendPaced(s, FRAMES, 0);
+    s.end();
+    const ev = await finished(l);
+    assertGuarantees(assert, ev);
+    assert.ok(ev.some((e) => e[0] === 'partial' && e[1] > 0), 'partials with bytes');
+    assert.ok(l.partials.length > 0 && l.partials.every((p) => p.hasProgress === false), 'open questions have no reading progress');
+    assert.equal(result(ev).coreType, 'open.eval.cn');
+    assert.equal(result(ev).overall, 96);
+    assert.ok(result(ev).open.feedback.strengths);
+    assert.ok((await mock.log()).some((e) => e.method === 'WS' && e.path === '/open.eval.cn'));
+    assert.equal((await mock.billing()).billed, 1);
+    await c.close();
+  });
 });
 
 describe('V-04 server kill, close 1011, silent server (REPLAY)', () => {

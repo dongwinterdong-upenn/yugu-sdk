@@ -415,6 +415,27 @@ class MockStreamIT {
     }
 
     @Test
+    fun openQuestionCompatStreamOnItsPathWithBytesOnly() {
+        // open.eval.cn (2.1.1) streams to /open.eval.cn; like the platform, partials carry bytes and no progress
+        builder().build().use { c ->
+            val l = RecordingListener()
+            val s = c.streamEvaluateCompat(CompatConfig(CompatCoreType.OPEN_EVAL_CN, "我是学生|我不是学生", realtimeFeedback = true), l)
+            l.session = s
+            streamPcm(s, pcm, 1)
+            s.end()
+            assertTrue(l.awaitClosed(10))
+            assertOrdered(l)
+            assertTrue(l.partials.isNotEmpty())
+            assertTrue(l.partials.none { it.hasProgress })
+            assertEquals(16000L, l.partials[0].bytes)
+            assertEquals(96.0, l.result!!.overall!!, 1e-9)
+            assertNotNull(l.result!!.open!!.feedback)
+            assertEquals("ws-compat", billingFor(s.idempotencyKey).single().str("op"))
+        }
+        assertTrue(m.log().any { it.str("method") == "WS" && it.str("path") == "/open.eval.cn" })
+    }
+
+    @Test
     fun recorderStreamsIntoALiveSession() {
         // Recorder with a fake microphone feeding the real mock session.
         val src = RecorderTest.FakeSource(pcm)

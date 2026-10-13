@@ -267,6 +267,45 @@ class ResultParsingTest {
     }
 
     @Test
+    fun compatOpenQuestion() {
+        // open.eval.cn (2.1.1), recorded 2026-10-13 with two model answers: the native open question fields
+        // plus Shengtong's flat pronunciation, fluency, integrity, coherence and speed, no words or sentences
+        val r = parse("compat_open.eval.cn.json")
+        assertEquals("open_00289cd06bd0", r.recordId)
+        assertEquals("platform scoring mode", "open", r.coreType)
+        assertEquals("zh", r.language)
+        assertEquals(1, r.eof)
+        near(96.0, r.overall)
+        near(71.0, r.dimensions.pronunciation)
+        near(71.0, r.dimensions.accuracy)
+        near(100.0, r.dimensions.fluency)
+        near(100.0, r.dimensions.integrity)
+        near(267.0, r.speed)
+        near(1.64, r.durationSeconds)
+        assertEquals(100L, r.resultRaw["coherence"])
+        assertTrue(r.words.isEmpty())
+        assertTrue(r.sentences.isEmpty())
+        assertNull(r.connected)
+        assertNull(r.report)
+        val o = r.open!!
+        near(96.0, o.overall)
+        assertEquals("situational", o.taskType)
+        assertEquals("我是学生。", o.transcript)
+        assertEquals(true, o.hasSpeech)
+        near(100.0, o.content!!.overall)
+        near(100.0, o.content!!.taskAchievement)
+        near(100.0, o.languageUse!!.overall)
+        near(88.0, o.delivery!!.overall)
+        near(71.0, o.delivery!!.pronunciation)
+        assertEquals("266.7 字/分", o.delivery!!.speechRateLabel)
+        assertEquals("回答完全符合参考答案，表达清晰准确。", o.feedback!!.strengths)
+        assertEquals(2, o.feedback!!.suggestions.size)
+        assertEquals(false, o.audit!!.promptEcho)
+        assertEquals(false, o.audit!!.capApplied)
+        assertEquals("answers", o.audit!!.raw["refKind"])
+    }
+
+    @Test
     fun wsFrameFixtures() {
         @Suppress("UNCHECKED_CAST")
         val native = (Json.parse(TestEnv.fixtureText("platform/ws_native_sentence_frames.json")) as List<Map<String, Any?>>)

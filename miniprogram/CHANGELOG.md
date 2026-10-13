@@ -2,6 +2,19 @@
 
 微信小程序 SDK `@shengzhiai/yugu-miniprogram-sdk` 的变更记录，格式参照 Keep a Changelog，版本号规则见仓库根目录的 `COMPATIBILITY.md`。
 
+## 版本 `2.1.1`，2026-10-13
+
+### 新增
+
+- 声通兼容评测支持中文开放题 `open.eval.cn`，`COMPAT_CORE_TYPES` 与 TypeScript 的 `CompatCoreType` 含这个内核，`evaluateCompat` 发往 `POST /open.eval.cn`，`streamEvaluateCompat` 连接 `WS /open.eval.cn`。此前这个内核在本地以错误码 90010 拒绝。`refText` 必填，填一条或多条参考答案，多条用竖线隔开，也可以填题目，`refPinyin` 不能代替，为空或只有空白时在发请求前以错误码 90010 失败。`qType`，`keypoints`，`keywords` 放在 `fields` 里。结果的分项在 `open`，与原生开放题相同，另有声通的 `pronunciation`，`fluency`，`integrity` 与 `speed`。实时评测的 `onPartial` 只有 `bytes`，没有朗读进度。用法见 README 的中文开放题一节。
+- 平台的报告查询返回 `reportStatus` 与 `timing`，`getReport` 返回的数据原样带这两个字段，含义见 README 的结果模型一节。
+- 单元测试解析线上录下的 `open.eval.cn` 结果，核对请求路径，表单字段，签名与 `refText` 的本地校验，集成测试在平台模拟服务上跑整段评测与实时评测。
+
+### 变更
+
+- 版本号改为 `2.1.1`，请求头 `X-Yugu-SDK` 的默认值改为 `yugu-miniprogram-sdk/2.1.1`。
+- 其他内核的请求与结果不变，英文 `open.eval` 仍在本地以错误码 90010 拒绝。
+
 ## 版本 `2.1.0`，2026-10-12
 
 ### 新增

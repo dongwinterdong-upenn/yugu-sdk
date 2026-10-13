@@ -1,10 +1,10 @@
 # 微信小程序 SDK 示例工程
 
-可直接导入微信开发者工具的完整小程序工程，通过 npm 引用 `@shengzhiai/yugu-miniprogram-sdk@2.1.0`，演示录音，整段评测，实时评测与结果展示，页面卸载时释放全部资源。
+可直接导入微信开发者工具的完整小程序工程，通过 npm 引用 `@shengzhiai/yugu-miniprogram-sdk@2.1.1`，演示录音，整段评测，实时评测与结果展示，页面卸载时释放全部资源。
 
 | 文件 | 内容 |
 |---|---|
-| `package.json` | 依赖 `@shengzhiai/yugu-miniprogram-sdk` `2.1.0` |
+| `package.json` | 依赖 `@shengzhiai/yugu-miniprogram-sdk` `2.1.1` |
 | `.npmrc` | `@shengzhiai` 作用域的 npm 源 `https://open.shengzhiai.com/npm/` |
 | `project.config.json` | 开发者工具工程配置，AppID 为测试号 `touristappid` |
 | `config.js` | 鉴权与服务地址 |

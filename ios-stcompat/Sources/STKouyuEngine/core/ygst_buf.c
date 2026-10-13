@@ -152,3 +152,12 @@ int ygst_is_blank(const char *s) {
     }
     return 1;
 }
+
+int ygst_buf_append_trimmed(ygst_buf *b, const char *s) {
+    const char *e;
+    if (!s) return 0;
+    while (*s && is_space((unsigned char)*s)) s++;
+    e = s + strlen(s);
+    while (e > s && is_space((unsigned char)e[-1])) e--;
+    return ygst_buf_append(b, s, (size_t)(e - s));
+}

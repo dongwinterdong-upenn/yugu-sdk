@@ -179,7 +179,10 @@ public class SkEgnManager {
     /**
      * Starts recording (or a stream session when {@code setIsStream(true)}). A busy engine answers
      * onStartRecordFail("engine is busy"); invalid settings answer onScore with errId 60003,
-     * 60006 or 60007; a missing microphone answers onStartRecordFail.
+     * 60006 or 60007; a missing microphone answers onStartRecordFail. An unsupported coreType
+     * (errId 60003, {@code 不支持的评测内核：<coreType>}) logs one WARN line; with
+     * {@code YuguCompat.setThrowOnUnsupportedCoreType(true)} every startRecord and existsAudioTrans
+     * overload throws IllegalArgumentException with that text instead of calling back.
      */
     public void startRecord(RecordSetting setting, OnRecorderListener listener) {
         core.startRecord(setting, listener, null);
@@ -309,7 +312,8 @@ public class SkEgnManager {
         }
         int invalid = FormMapper.validate(setting);
         if (invalid != 0) {
-            YLog.w("initParams: setting would be rejected with errId " + invalid);
+            YLog.w("initParams: setting would be rejected with errId " + invalid + ": "
+                    + FormMapper.rejection(setting, invalid));
         } else if (YLog.isLoggable(YLog.DEBUG)) {
             YLog.d("initParams: " + setting.getCoreType() + " fields " + FormMapper.fields(setting).keySet());
         }
@@ -328,7 +332,7 @@ public class SkEgnManager {
         return SERVER_TYPE_CLOUD;
     }
 
-    /** {@code yugu-stkouyu-compat/2.1.2 (api 1.0.62)}. */
+    /** {@code yugu-stkouyu-compat/2.2.0 (api 1.0.62)}. */
     public String getSDKVersion() {
         return CompatConfig.SDK_VERSION;
     }

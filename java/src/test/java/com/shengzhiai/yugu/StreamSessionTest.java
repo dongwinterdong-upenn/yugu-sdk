@@ -172,7 +172,7 @@ class StreamSessionTest {
         assertTrue(s.getIdempotencyKey().matches("[0-9a-f]{32}"));
         String sig = q.remove("signature");
         assertEquals(Signer.sign(q, "mock-secret-key"), sig, "every query parameter except signature is signed");
-        assertEquals("yugu-java-sdk/2.1.0", conn.headers.get("User-Agent"));
+        assertEquals("yugu-java-sdk/2.1.1", conn.headers.get("User-Agent"));
         JsonNode start = Json.read(conn.texts.get(0));
         assertEquals("start", start.get("cmd").asText());
         assertEquals("sentence", start.get("coreType").asText());
@@ -285,6 +285,39 @@ class StreamSessionTest {
         assertEquals(94.6, l.result.getOverall());
         assertEquals("eval_a5ddd0c68840", l.result.getRecordId());
         assertEquals(List.of("connected", "started", "partial", "result", "closed:1000"), l.callbacks());
+    }
+
+    @Test
+    void openQuestionCompatStreamOnItsPathAndRefTextRequired() throws Exception {
+        // open.eval.cn (2.1.1): wss://host/open.eval.cn, the parameter frame carries the model answers
+        String openResult = Fixtures.text("fixtures/platform/compat_open.eval.cn.json");
+        fake.scripts = n -> {
+            FakeTransport.Script sc = new FakeTransport.Script();
+            sc.resultFrame = openResult;
+            return sc;
+        };
+        YuguClient c = client();
+        RecordingListener l = new RecordingListener();
+        StreamSession s = c.streamEvaluateCompat(new CompatConfig("open.eval.cn", "我是学生|我不是学生").param("qType", 6), l);
+        l.session = s;
+        FakeTransport.Conn conn = fake.awaitConnection(1, 3000);
+        awaitEvent(l, "started");
+        sendAll(s, PCM);
+        s.end();
+        await(l);
+        assertEquals("/open.eval.cn", conn.uri.getPath());
+        JsonNode param = Json.read(conn.texts.get(0));
+        assertEquals("我是学生|我不是学生", param.get("refText").asText());
+        assertEquals(6, param.get("qType").asInt());
+        assertNull(param.get("realtime_feedback"));
+        assertEquals(96.0, l.result.getOverall());
+        assertEquals("situational", l.result.getOpen().getTaskType());
+        // without refText nothing connects; a refPinyin does not replace it
+        for (CompatConfig bad : List.of(new CompatConfig("open.eval.cn", ""), new CompatConfig("open.eval.cn", "  ").refPinyin("wo3 shi4 xue2 sheng1"))) {
+            InvalidParameterException e = assertThrows(InvalidParameterException.class, () -> c.streamEvaluateCompat(bad, new RecordingListener()));
+            assertTrue(e.getRawMessage().contains("open.eval.cn"), e.getRawMessage());
+        }
+        assertEquals(1, fake.connections.size());
     }
 
     @Test

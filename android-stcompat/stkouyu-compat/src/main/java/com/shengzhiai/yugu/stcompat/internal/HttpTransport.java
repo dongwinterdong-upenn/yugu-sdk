@@ -15,16 +15,34 @@ public interface HttpTransport {
         public final String method;
         public final String url;
         public final Map<String, String> headers;
+        /** Multipart body of a compat evaluation, null for the other calls. */
         public final Multipart body;
+        /** Body of a JSON call such as speech synthesis (SDK 2.2.0), null for none or a multipart body. */
+        public final byte[] bytes;
+        /** Content-Type of {@link #bytes}. */
+        public final String bytesContentType;
         public final int connectTimeoutMs;
         public final int readTimeoutMs;
 
         public Request(String method, String url, Map<String, String> headers, Multipart body,
                        int connectTimeoutMs, int readTimeoutMs) {
+            this(method, url, headers, body, null, null, connectTimeoutMs, readTimeoutMs);
+        }
+
+        /** A request with a byte body, or none when {@code bytes} is null (GET). */
+        public Request(String method, String url, Map<String, String> headers, byte[] bytes, String contentType,
+                       int connectTimeoutMs, int readTimeoutMs) {
+            this(method, url, headers, null, bytes, contentType, connectTimeoutMs, readTimeoutMs);
+        }
+
+        private Request(String method, String url, Map<String, String> headers, Multipart body, byte[] bytes,
+                        String contentType, int connectTimeoutMs, int readTimeoutMs) {
             this.method = method;
             this.url = url;
             this.headers = Collections.unmodifiableMap(new LinkedHashMap<String, String>(headers));
             this.body = body;
+            this.bytes = bytes;
+            this.bytesContentType = contentType;
             this.connectTimeoutMs = connectTimeoutMs;
             this.readTimeoutMs = readTimeoutMs;
         }

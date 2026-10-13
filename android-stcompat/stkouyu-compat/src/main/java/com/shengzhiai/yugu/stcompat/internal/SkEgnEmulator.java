@@ -31,6 +31,13 @@ import java.util.concurrent.atomic.AtomicLong;
  * eof 0 arrive through the same callback before the final result. Other sessions upload after
  * skegn_stop as in 2.1.0. SDK 2.1.1 adds the timing log of {@link EvalTiming}: timing=1 at INFO and
  * DEBUG, the platform's timing object removed before the callback.
+ *
+ * <p>Unsupported coreType (SDK 2.2.0, same as the iOS layer): skegn_start returns 0, logs one WARN
+ * line and posts the error JSON with errId 60003 at once; the session counts as stopped, so
+ * skegn_feed fails with {@link #SGN_FUNCTION_FEED_BEFORE_START} and skegn_stop with
+ * {@link #SGN_FUNCTION_STOP_AND_STOP}, also after the callback. With
+ * {@code YuguCompat.setThrowOnUnsupportedCoreType(true)} skegn_start throws IllegalArgumentException
+ * instead, after the handle, callback, id and param checks and before anything changes.
  */
 public final class SkEgnEmulator {
     public static final int NONE = 0;
@@ -99,6 +106,8 @@ public final class SkEgnEmulator {
         boolean stopped;
         boolean finished;
         int invalidErrId;
+        /** Unsupported coreType: answered with errId 60003 at skegn_start, feed and stop fail like on iOS. */
+        boolean rejected;
         /** Realtime round when the request asks for realtime_feedback, else null. */
         RealtimeRound round;
 
@@ -212,6 +221,13 @@ public final class SkEgnEmulator {
         if (request == null) {
             return fail(SGN_BAD_PRAMA);
         }
+        String coreType = request.optString("coreType", "").trim();
+        String refText = request.optString("refText", null);
+        RecordSetting probe = new RecordSetting(coreType, refText);
+        probe.setRefPinyin(request.optString("refPinyin", null));
+        // before anything changes: the engine's session stays as it is when this throws
+        FormMapper.throwIfUnsupported("skegn_start", probe);
+        final Session rejected;
         synchronized (e) {
             Session old = e.session;
             if (old != null && !old.finished) {
@@ -223,10 +239,6 @@ public final class SkEgnEmulator {
             }
             JSONObject app = p.optJSONObject("app");
             JSONObject audio = p.optJSONObject("audio");
-            String coreType = request.optString("coreType", "").trim();
-            String refText = request.optString("refText", null);
-            RecordSetting probe = new RecordSetting(coreType, refText);
-            probe.setRefPinyin(request.optString("refPinyin", null));
             LinkedHashMap<String, String> fields = requestFields(request);
             if (FormMapper.isParagraph(coreType)) {
                 fields.put("paragraph_need_word_score", "1");
@@ -238,7 +250,11 @@ public final class SkEgnEmulator {
                     audio != null ? audio.optInt("channel", Wav.CHANNELS) : Wav.CHANNELS,
                     request.optInt("getParam", 0) == 1 || request.optBoolean("getParam", false), fields, callback);
             s.invalidErrId = FormMapper.validate(probe);
-            if (s.invalidErrId == 0 && realtimeRequested(request)) {
+            if (s.invalidErrId == CompatErrIds.CORE_TYPE_UNSUPPORTED) {
+                // answered at once without network I/O; feed and stop fail from now on (iOS skegn.m)
+                s.rejected = true;
+                s.stopped = true;
+            } else if (s.invalidErrId == 0 && realtimeRequested(request)) {
                 int sampleBytes = audio != null ? audio.optInt("sampleBytes", 2) : 2;
                 if (isPcm16kMono(s.audioType, s.sampleRate, s.channel, sampleBytes)) {
                     s.round = new RealtimeRound(roundConfig(e, s), progressListener(e, s), s.token);
@@ -260,8 +276,15 @@ public final class SkEgnEmulator {
             if (s.round != null) {
                 s.round.start();
             }
-            return 0;
+            rejected = s.rejected ? s : null;
         }
+        if (rejected != null) {
+            String message = FormMapper.rejection(probe, CompatErrIds.CORE_TYPE_UNSUPPORTED);
+            YLog.w("skegn_start rejected (errId " + CompatErrIds.CORE_TYPE_UNSUPPORTED + "): " + message);
+            rejected.phases.error(CompatErrIds.CORE_TYPE_UNSUPPORTED);
+            deliver(e, rejected, Envelope.error(rejected.tokenId, CompatErrIds.CORE_TYPE_UNSUPPORTED, message, e.appKey));
+        }
+        return 0;
     }
 
     /** realtime_feedback of the request: 1, true, "1" or "true". */
@@ -388,6 +411,10 @@ public final class SkEgnEmulator {
         final Session s;
         synchronized (e) {
             s = e.session;
+            if (s != null && s.rejected) {
+                // as the iOS layer: the session was answered at skegn_start, before and after its callback
+                return fail(SGN_FUNCTION_STOP_AND_STOP);
+            }
             if (s == null || s.finished) {
                 return fail(SGN_FUNCTION_STOP_BEFORE_START);
             }
@@ -533,6 +560,7 @@ public final class SkEgnEmulator {
         try {
             String json = Envelope.success(s.tokenId, e.appKey, s.userId, s.refText, split.body, params,
                     System.currentTimeMillis());
+            s.phases.recordId(Envelope.recordIdOf(split.body));
             s.phases.parsed();
             return json;
         } catch (IllegalArgumentException ex) {

@@ -33,6 +33,34 @@ public final class FormMapper {
         return 0;
     }
 
+    /**
+     * {@code error} text for the errId of {@link #validate}: 60003 names the coreType
+     * ({@link CompatErrIds#unsupportedCoreType}), other errIds give the table message.
+     */
+    public static String rejection(RecordSetting s, int errId) {
+        return errId == CompatErrIds.CORE_TYPE_UNSUPPORTED ? CompatErrIds.unsupportedCoreType(s.getCoreType())
+                : CompatErrIds.message(errId);
+    }
+
+    /**
+     * With {@code YuguCompat.setThrowOnUnsupportedCoreType(true)}, an unsupported coreType ends
+     * {@code entry} here: one WARN line naming the coreType and errId 60003, then
+     * IllegalArgumentException with the 60003 text. Called before any other check and before any
+     * state change, so nothing else happens: no callback, no network, no microphone.
+     *
+     * @param entry the API call for the log line, for example {@code startRecord}
+     * @throws IllegalArgumentException when the switch is on and the coreType is unsupported
+     */
+    public static void throwIfUnsupported(String entry, RecordSetting s) {
+        if (!CompatConfig.throwOnUnsupportedCoreType() || validate(s) != CompatErrIds.CORE_TYPE_UNSUPPORTED) {
+            return;
+        }
+        String message = CompatErrIds.unsupportedCoreType(s.getCoreType());
+        YLog.w(entry + " rejected (errId " + CompatErrIds.CORE_TYPE_UNSUPPORTED + "): " + message
+                + ", thrown as IllegalArgumentException");
+        throw new IllegalArgumentException(message);
+    }
+
     public static LinkedHashMap<String, String> fields(RecordSetting s) {
         LinkedHashMap<String, String> f = new LinkedHashMap<String, String>();
         put(f, "refText", s.getRefText());

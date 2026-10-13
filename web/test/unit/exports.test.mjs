@@ -14,10 +14,10 @@ const vector = readJson('sign/vectors.json').cases[0];
 describe('package entry points', () => {
   test('version, defaults and namespace object', () => {
     assert.equal(SDK.SDK_VERSION, pkg.version);
-    assert.equal(SDK.SDK_VERSION, '2.1.0');
+    assert.equal(SDK.SDK_VERSION, '2.1.1');
     assert.equal(SDK.DEFAULT_BASE_URL, 'https://open.shengzhiai.com');
     assert.equal(SDK.DEFAULT_WS_BASE_URL, 'wss://open.shengzhiai.com');
-    assert.equal(SDK.CLIENT_DEFAULTS.userAgent, 'yugu-web-sdk/2.1.0');
+    assert.equal(SDK.CLIENT_DEFAULTS.userAgent, 'yugu-web-sdk/2.1.1');
     assert.ok(Object.isFrozen(SDK.default));
     for (const k of Object.keys(SDK)) if (k !== 'default') assert.equal(SDK.default[k], SDK[k], k);
     assert.equal('streamRealtime' in SDK.YuguClient.prototype, false, 'streamRealtime removed in 2.0.0');
@@ -46,7 +46,7 @@ describe('package entry points', () => {
       vm.runInContext(code, sandbox, { filename: file });
       const g = sandbox.YuguSDK;
       assert.equal(typeof g.YuguClient, 'function', file);
-      assert.equal(g.SDK_VERSION, '2.1.0');
+      assert.equal(g.SDK_VERSION, '2.1.1');
       const e = g.YuguErrors.fromCode(90003);
       assert.equal(e.name, 'RequestCancelledException', `${file}: names survive minification`);
       assert.equal(await g.signHmacSha256(vector.params, vector.secret), vector.signature);

@@ -66,5 +66,6 @@ void suite_errors(void);
 void suite_envelope(void);
 void suite_realtime(void);
 void suite_timing(void);
+void suite_api(void);
 
 #endif

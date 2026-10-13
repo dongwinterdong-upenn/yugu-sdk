@@ -86,6 +86,21 @@ public final class UrlConnectionTransport implements HttpTransport {
                 }
                 m.uploadBytes = length;
                 m.uploadDoneNanos = System.nanoTime();
+            } else if (request.bytes != null) {
+                c.setDoOutput(true);
+                c.setRequestProperty("Content-Type", request.bytesContentType != null ? request.bytesContentType
+                        : "application/octet-stream");
+                if (STREAM_BODY) {
+                    c.setFixedLengthStreamingMode(request.bytes.length);
+                }
+                OutputStream out = c.getOutputStream();
+                try {
+                    out.write(request.bytes);
+                } finally {
+                    out.close();
+                }
+                m.uploadBytes = request.bytes.length;
+                m.uploadDoneNanos = System.nanoTime();
             }
             int status;
             try {

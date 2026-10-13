@@ -4,8 +4,12 @@ package com.stkouyu;
 /**
  * Evaluation kernels (Shengtong names). Supported on the Yugu platform: {@code word.eval},
  * {@code word.eval.pro}, {@code sent.eval}, {@code sent.eval.pro}, {@code para.eval},
- * {@code word.eval.cn}, {@code sent.eval.cn}, {@code para.eval.cn}, plus {@code alpha.eval} and
- * {@code pinyin}. Every other kernel answers with errId 60003 without network I/O.
+ * {@code word.eval.cn}, {@code sent.eval.cn}, {@code para.eval.cn}, plus {@code alpha.eval},
+ * {@code pinyin} and the Chinese open question {@code open.eval.cn} (since 2.1.2), which have no
+ * constant here: pass the string. Every other kernel ({@link #EN_CHOICE_REC}, {@link #EN_OPEN_EVAL},
+ * {@link #EN_ASR_REC}, {@link #EN_ASR_EVAL}, {@link #EN_ALIGN_EVAL}, French, Japanese, Korean) answers
+ * with errId 60003 and {@code 不支持的评测内核：<coreType>} without network I/O and logs one WARN line, or
+ * throws IllegalArgumentException with that text after {@code YuguCompat.setThrowOnUnsupportedCoreType(true)}.
  */
 public class CoreType {
     public static final String EN_SENT_EVAL = "sent.eval";

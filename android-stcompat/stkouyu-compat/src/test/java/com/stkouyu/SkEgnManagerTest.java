@@ -63,7 +63,7 @@ public class SkEgnManagerTest extends CompatTestBase {
         assertEquals(Arrays.asList("onStartInitEngine", "onInitEngineSuccess"), ev.log);
         assertNotEquals(0L, SkEgnManager.engine);
         assertEquals("cloud", m.getCurrentEngineType());
-        assertEquals("yugu-stkouyu-compat/2.1.2 (api 1.0.62)", m.getSDKVersion());
+        assertEquals("yugu-stkouyu-compat/2.2.0 (api 1.0.62)", m.getSDKVersion());
         assertEquals(SkEgnManager.engine_status.IDLE, m.getEngineStatus());
         assertMainThreadOnly();
         m.recycle();
@@ -217,6 +217,7 @@ public class SkEgnManagerTest extends CompatTestBase {
         m.startRecord(new RecordSetting(CoreType.EN_OPEN_EVAL, "x"), ev.recorder);
         Main.idle();
         assertEquals(60003, ev.result().getInt("errId"));
+        assertEquals("不支持的评测内核：open.eval", ev.result().getString("error"));
         Events e2 = new Events();
         m.startRecord(new RecordSetting(CoreType.EN_SENT_EVAL, ""), e2.record);
         Main.idle();
@@ -231,6 +232,7 @@ public class SkEgnManagerTest extends CompatTestBase {
         m.startRecord((RecordSetting) null, ev.recorder);
         Main.idle();
         assertEquals(60003, ev.result().getInt("errId"));
+        assertEquals("不支持的评测内核：未指定", ev.result().getString("error"));
     }
 
     @Test

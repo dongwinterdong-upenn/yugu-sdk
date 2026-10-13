@@ -1,6 +1,6 @@
 # 优谷雅言语音评测 PC Web SDK
 
-`@shengzhiai/yugu-web-sdk` 是优谷雅言语音评测平台的浏览器端 SDK，版本 `2.1.0`，按 Apache-2.0 许可发布。SDK 是推荐的接入方式，REST 与 WebSocket 直连只作为没有 SDK 的语言的兜底方式。同一个包也可以在 Node.js 18 及以上版本中运行。
+`@shengzhiai/yugu-web-sdk` 是优谷雅言语音评测平台的浏览器端 SDK，版本 `2.1.1`，按 Apache-2.0 许可发布。SDK 是推荐的接入方式，REST 与 WebSocket 直连只作为没有 SDK 的语言的兜底方式。同一个包也可以在 Node.js 18 及以上版本中运行。
 
 SDK 封装整段评测，声通兼容评测，实时流式评测，语音合成，报告查询与浏览器录音，内置幂等键，重试退避，断线重连，类型化错误，音频预检与完整的 TypeScript 类型。运行时没有任何第三方依赖。
 
@@ -29,10 +29,10 @@ SDK 发布在优谷雅言自建 npm 仓库 `https://open.shengzhiai.com/npm/`。
 然后安装指定版本：
 
 ```bash
-npm install @shengzhiai/yugu-web-sdk@2.1.0
+npm install @shengzhiai/yugu-web-sdk@2.1.1
 ```
 
-`pnpm` 与 Yarn 1 读取同一个 `.npmrc`，Yarn 2 及以上版本在 `.yarnrc.yml` 的 `npmScopes` 里配置同一个地址。查看全部可用版本用 `npm view @shengzhiai/yugu-web-sdk versions`，回退到历史版本时把 `@2.1.0` 换成目标版本号。
+`pnpm` 与 Yarn 1 读取同一个 `.npmrc`，Yarn 2 及以上版本在 `.yarnrc.yml` 的 `npmScopes` 里配置同一个地址。查看全部可用版本用 `npm view @shengzhiai/yugu-web-sdk versions`，回退到历史版本时把 `@2.1.1` 换成目标版本号。
 
 ### script 标签引入
 
@@ -63,7 +63,7 @@ import { YuguClient, YuguRecorder } from '@shengzhiai/yugu-web-sdk';
 mkdir yugu-quickstart && cd yugu-quickstart
 npm init -y
 echo "@shengzhiai:registry=https://open.shengzhiai.com/npm/" > .npmrc
-npm install @shengzhiai/yugu-web-sdk@2.1.0
+npm install @shengzhiai/yugu-web-sdk@2.1.1
 ```
 
 3. 新建 `quickstart.mjs`：
@@ -139,6 +139,8 @@ YUGU_APP_KEY=沙箱appKey YUGU_SECRET_KEY=沙箱secretKey node quickstart.mjs he
 | `close()` | `Promise<void>` | 释放客户端，可重复调用 |
 | `isClosed()` | 布尔值 | 是否已经关闭 |
 
+`getReport` 返回响应的 `data` 节点，其中 `reportStatus` 为 `final` 时报告是 AI 终稿，为 `pending` 时是 AI 稿生成期间的即时稿，稍后再查可取到终稿，为 `instant` 时不会再有 AI 稿，为 `none` 时没有报告，声通兼容评测的记录另带分段耗时 `timing`，保留 7 天。
+
 ### 客户端选项
 
 | 选项 | 默认值 | 含义 |
@@ -160,13 +162,24 @@ YUGU_APP_KEY=沙箱appKey YUGU_SECRET_KEY=沙箱secretKey node quickstart.mjs he
 | `eventListener` | 无 | 指标回调 |
 | `audioPrecheck` | `WARN` | 音频预检模式 |
 | `strictAudio` | `false` | 结果带警告码 1001 时抛出 `AudioQualityException` |
-| `userAgent` | `yugu-web-sdk/2.1.0` | 浏览器中通过 `X-Yugu-SDK` 请求头发送，其他环境通过 `User-Agent` 发送 |
+| `userAgent` | `yugu-web-sdk/2.1.1` | 浏览器中通过 `X-Yugu-SDK` 请求头发送，其他环境通过 `User-Agent` 发送 |
 | `fetch`，`WebSocket`，`crypto` | 全局对象 | 注入自定义实现，Node.js 中注入 `ws` 包的 WebSocket |
 | `random` | `Math.random` | 退避抖动的随机源，测试中可传入固定种子的随机函数 |
 
 ### 单次调用选项
 
 REST 调用的最后一个参数可传 `idempotencyKey`，`timeoutMs`，`totalTimeoutMs`，`retry`，`signal`，`headers`。`signal` 接受 `AbortSignal`，中止后调用以 `RequestCancelledException` 结束。整段评测另外接受 `image`，`filename`，`contentType`，`audioFormat`，`sampleRate`，`audioPrecheck`，`strictAudio`。实时评测的选项见实时评测一节。
+
+### 中文开放题
+
+`2.1.1` 起 `COMPAT_CORE_TYPES` 含中文开放题 `open.eval.cn`，与原生 `open` 用同一套评分，语言固定为中文。`params.refText` 必填，与声通的用法相同，填一条或多条参考答案，多条用竖线隔开，也可以填题目，由评分模型判断是哪一种，`refPinyin` 不能代替 `refText`，为空时 `evaluateCompat` 与 `streamEvaluateCompat` 在发请求前抛出 `InvalidParameterException`，错误码 90010。`qType`，`keypoints`，`keywords` 放在 `params` 里，`qType` 为 5 时按看图说话评，为 6 时按情景问答评，其他取值或不传时按自由表达评，细则见 [`CONTRACT.md`](../CONTRACT.md) 3.2 节。
+
+```js
+const r = await client.evaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', qType: 6 }, file);
+console.log(r.overall, r.open.content.overall, r.open.feedback.strengths);
+```
+
+结果的分项与原生开放题相同，在 `open` 里，`coreType` 为请求的 `open.eval.cn`。另有与声通相同的 `dims.pronunciation`，`dims.fluency`，`dims.integrity` 与每分钟字数 `speed`，`words` 与 `sentences` 为空数组。实时评测带 `realtime_feedback: true` 时，`onPartial` 只有 `bytes`，`hasProgress` 为 `false`。
 
 ## TypeScript
 
@@ -211,7 +224,7 @@ const firstSentence = result.sentences[0]?.details?.map((w) => `${w.word}:${w.sc
 | `alpha` 字母 | `overall` | `dims`，`words[]`，`asrText.mismatches` |
 | `pinyin` 拼音 | `overall` | `dims`，`words[].pinyin`，`sentences[].details[]` |
 
-声通兼容结果的取分字段与同名原生题型一致，`mode` 为 `compat`。全部字段的含义见 [`RESULTS.md`](../RESULTS.md)，线上真实返回的样例在 `spec/fixtures/platform/`，SDK 的解析测试逐一覆盖这些样例。
+声通兼容结果的取分字段与同名原生题型一致，`open.eval.cn` 与 `open` 一致，`mode` 为 `compat`。全部字段的含义见 [`RESULTS.md`](../RESULTS.md)，线上真实返回的样例在 `spec/fixtures/platform/`，SDK 的解析测试逐一覆盖这些样例。
 
 ## 错误处理
 
@@ -552,4 +565,4 @@ Node.js 20 及以上版本不需要这一步。录音器只能在浏览器中使
 
 ## 版本与许可
 
-当前版本 `2.1.0`，对应平台接口 v1 与契约 `2.1`，变更记录见 `CHANGELOG.md`。各端版本对应关系见 [`COMPATIBILITY.md`](../COMPATIBILITY.md)，从 `1.x` 升级的步骤见 [`MIGRATION-2.0.md`](../MIGRATION-2.0.md) 与 `CHANGELOG.md` 的破坏性变更一节，接口与协议帧的权威说明见 [`CONTRACT.md`](../CONTRACT.md)。SDK 按 Apache License 2.0 许可发布，许可全文见 `LICENSE`，版权与第三方说明见 `NOTICE`。
+当前版本 `2.1.1`，对应平台接口 v1 与契约 `2.1`，变更记录见 `CHANGELOG.md`。各端版本对应关系见 [`COMPATIBILITY.md`](../COMPATIBILITY.md)，从 `1.x` 升级的步骤见 [`MIGRATION-2.0.md`](../MIGRATION-2.0.md) 与 `CHANGELOG.md` 的破坏性变更一节，接口与协议帧的权威说明见 [`CONTRACT.md`](../CONTRACT.md)。SDK 按 Apache License 2.0 许可发布，许可全文见 `LICENSE`，版权与第三方说明见 `NOTICE`。

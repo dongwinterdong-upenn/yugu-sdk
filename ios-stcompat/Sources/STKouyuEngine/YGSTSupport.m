@@ -14,7 +14,13 @@
 
 // ------------------------------------------------------------------ settings
 
-@implementation YGSTSettings
+@implementation YGSTEngineCredentials
+@end
+
+@implementation YGSTSettings {
+    YGSTEngineCredentials *_engineCredentials; // guarded by @synchronized(self)
+    const void *_engineOwner;                  // compared, never dereferenced
+}
 
 + (instancetype)shared {
     static YGSTSettings *shared;
@@ -34,6 +40,27 @@
         _configuredBaseURL = @YGST_DEFAULT_BASE_URL;
     }
     return self;
+}
+
+- (void)setEngineCredentials:(YGSTEngineCredentials *)credentials owner:(const void *)owner {
+    @synchronized(self) {
+        _engineCredentials = credentials;
+        _engineOwner = owner;
+    }
+}
+
+- (void)clearEngineCredentialsOfOwner:(const void *)owner {
+    @synchronized(self) {
+        if (_engineOwner != owner) return;
+        _engineCredentials = nil;
+        _engineOwner = NULL;
+    }
+}
+
+- (YGSTEngineCredentials *)engineCredentials {
+    @synchronized(self) {
+        return _engineCredentials;
+    }
 }
 
 @end
@@ -165,7 +192,8 @@ BOOL YGSTTimingWanted(void) {
     if (_logged || _t.mode == YGST_TM_NONE || YGSTLogLevel() < YGST_LEVEL_INFO) return;
     _logged = YES;
     ygst_buf_init(&b);
-    if (ygst_timing_summary(&_t, YGSTNonEmpty(tokenId).UTF8String, &b) == 0) {
+    // 2.2.0: recordId=<id> after tokenId, "-" without one
+    if (ygst_timing_summary(&_t, YGSTNonEmpty(tokenId).UTF8String, self.recordId.UTF8String, &b) == 0) {
         YGSTLogEmit(YGST_LEVEL_INFO, YGSTStringFromBuf(&b));
     }
     if (YGSTLogLevel() >= YGST_LEVEL_DEBUG) {
@@ -275,6 +303,16 @@ NSString *YGSTCompatMessage(int errId) {
         m = e ? e->message : "";
     }
     return [NSString stringWithUTF8String:m] ?: @"";
+}
+
+NSString *YGSTUnsupportedCoreTypeMessage(NSString *requested) {
+    ygst_buf b;
+    NSString *s;
+    ygst_buf_init(&b);
+    ygst_coretype_unsupported_message(requested.UTF8String, &b);
+    s = YGSTStringFromBuf(&b);
+    ygst_buf_free(&b);
+    return s.length ? s : YGSTCompatMessage(YGST_ERRID_CORETYPE_UNSUPPORTED);
 }
 
 NSString *YGSTErrorJSON(NSString *tokenId, int errId, NSString *message, NSString *appKey) {
@@ -508,6 +546,7 @@ YGSTUploadResult *YGSTUploadResultMake(const ygst_classification *c, ygst_action
     YGSTUploadResult *r = [[YGSTUploadResult alloc] init];
     r.attempts = call->total_attempts;
     r.replayed = replayed;
+    r.httpStatus = c->http_status;
     if (kind == YGST_ACT_SUCCESS && body && c->result.p) {
         r.success = YES;
         r.body = body;
@@ -773,6 +812,142 @@ NSString *YGSTLocalMessageForError(NSError *error) {
             YGSTLogf(YGST_LEVEL_WARN, @"evaluation failed after %d attempt(s): errId %d %@", r.attempts, r.errId,
                      r.message);
         }
+        ygst_classification_free(&c);
+        _completion = nil;
+        if (completion) completion(r);
+    }
+}
+
+@end
+
+// ------------------------------------------------------------------ v1 API calls (2.2.0)
+
+@implementation YGSTApiCall {
+    NSURLSession *_session;
+    dispatch_queue_t _queue;
+    ygst_call _call;
+    NSString *_method;
+    NSURL *_url;
+    NSString *_appKey;
+    NSString *_signature;
+    NSString *_key;
+    NSData *_body;
+    NSString *_contentType;
+    NSString *_operation;
+    NSTimeInterval _timeout;
+    void (^_completion)(YGSTUploadResult *result);
+}
+
+- (instancetype)initWithURLSession:(NSURLSession *)session queue:(dispatch_queue_t)queue {
+    if ((self = [super init])) {
+        _session = session;
+        _queue = queue;
+    }
+    return self;
+}
+
+- (void)startWithMethod:(NSString *)method
+                    url:(NSURL *)url
+                 appKey:(NSString *)appKey
+              signature:(NSString *)signature
+         idempotencyKey:(NSString *)idempotencyKey
+                   body:(NSData *)body
+            contentType:(NSString *)contentType
+         attemptTimeout:(NSTimeInterval)attemptTimeout
+                 policy:(const ygst_retry_policy *)policy
+              operation:(NSString *)operation
+             completion:(void (^)(YGSTUploadResult *result))completion {
+    uint64_t seed = 0;
+    _method = [method copy];
+    _url = url;
+    _appKey = [appKey copy];
+    _signature = [signature copy];
+    _key = [idempotencyKey copy];
+    _body = body;
+    _contentType = [contentType copy];
+    _operation = [operation copy];
+    _timeout = attemptTimeout > 0 ? attemptTimeout : 60;
+    _completion = [completion copy];
+    YGSTRandomBytes((unsigned char *)&seed, sizeof seed);
+    ygst_call_init(&_call, policy, seed, YGSTMonotonicMs());
+    dispatch_async(_queue, ^{
+        [self attempt];
+    });
+}
+
+- (void)attempt {
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:_url
+                                                       cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                   timeoutInterval:_timeout];
+    NSURLSessionDataTask *task;
+    req.HTTPMethod = _method;
+    if (_body) {
+        req.HTTPBody = _body;
+        [req setValue:_contentType forHTTPHeaderField:@"Content-Type"];
+    }
+    [req setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+    [req setValue:_appKey forHTTPHeaderField:@"X-App-Key"];
+    [req setValue:[NSString stringWithFormat:@"%lld", (long long)(YGSTNowMs() / 1000)]
+        forHTTPHeaderField:@"X-Timestamp"];
+    [req setValue:YGSTRandomHex(8) forHTTPHeaderField:@"X-Nonce"];
+    [req setValue:_signature forHTTPHeaderField:@"X-Signature"];
+    if (_key) [req setValue:_key forHTTPHeaderField:@"Idempotency-Key"];
+    [req setValue:@YGST_USER_AGENT forHTTPHeaderField:@"User-Agent"];
+    YGSTLogf(YGST_LEVEL_DEBUG, @"%@: %@ %@ attempt %d", _operation, _method, _url.path, _call.total_attempts + 1);
+    task = [_session dataTaskWithRequest:req
+                       completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                           dispatch_async(self->_queue, ^{
+                               [self attemptFinished:data response:response error:error];
+                           });
+                       }];
+    [task resume];
+}
+
+- (void)attemptFinished:(NSData *)data response:(NSURLResponse *)response error:(NSError *)error {
+    ygst_outcome o;
+    ygst_classification c;
+    ygst_action a;
+    NS_VALID_UNTIL_END_OF_SCOPE NSString *localMessage = nil;
+    NSHTTPURLResponse *http = nil;
+    BOOL replayed = NO;
+    memset(&o, 0, sizeof o);
+    o.retry_after_ms = -1;
+    if (error) {
+        o.local_code = YGSTLocalCodeForError(error);
+        localMessage = YGSTLocalMessageForError(error);
+    } else {
+        NSString *ra, *rep;
+        http = [response isKindOfClass:[NSHTTPURLResponse class]] ? (NSHTTPURLResponse *)response : nil;
+        o.http_status = http ? (int)http.statusCode : 0;
+        if (!http) o.local_code = YGST_LOCAL_PROTOCOL;
+        ra = YGSTHeader(http, @"Retry-After");
+        if (ra) {
+            long ms = 0;
+            if (ygst_parse_retry_after(ra.UTF8String, YGSTNowMs(), &ms) == 0) o.retry_after_ms = ms;
+        }
+        rep = YGSTHeader(http, @"Idempotency-Replayed");
+        replayed = rep && [rep caseInsensitiveCompare:@"true"] == NSOrderedSame;
+        o.replayed = replayed;
+        o.body = (const char *)data.bytes;
+        o.body_len = data.length;
+    }
+    o.local_message = localMessage.UTF8String;
+    ygst_classification_init(&c);
+    ygst_classify_api(&o, &c);
+    a = ygst_call_next(&_call, &c, o.retry_after_ms, YGSTMonotonicMs());
+    if (a.kind == YGST_ACT_RETRY) {
+        NSString *what = o.local_code ? [NSString stringWithFormat:@"local %d", o.local_code]
+                                      : [NSString stringWithFormat:@"HTTP %d code=%d", o.http_status, c.biz_code];
+        YGSTLogf(YGST_LEVEL_WARN, @"%@: retry %d/%d in %ld ms: %@", _operation, _call.attempt, _call.policy.max_retries,
+                 a.delay_ms, what);
+        ygst_classification_free(&c);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)a.delay_ms * (int64_t)NSEC_PER_MSEC), _queue, ^{
+            [self attempt];
+        });
+        return;
+    } else {
+        void (^completion)(YGSTUploadResult *) = _completion;
+        YGSTUploadResult *r = YGSTUploadResultMake(&c, a.kind, a.err_id, data, &_call, replayed);
         ygst_classification_free(&c);
         _completion = nil;
         if (completion) completion(r);

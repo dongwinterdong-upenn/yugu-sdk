@@ -1,6 +1,6 @@
 ```hero
 eyebrow: 优谷雅言开放平台
-version: 2.1.0
+version: 2.1.1
 title: 语音评测 SDK
 lead: 五端 SDK 与两个声通平替层，覆盖整段评测，实时评测，语音合成与报告查询。写操作自动带幂等键，网络抖动时按策略重试，实时评测断线后整段重放，重试与重连都不会重复计费。
 actions:
@@ -8,7 +8,8 @@ actions:
   - { label: 接口参考, href: 'page:api' }
   - { label: 从声通迁移, href: 'page:migrate-shengtong' }
 facts:
-  - { k: 当前版本, v: 2.1.0 }
+  - { k: 当前版本, v: 2.1.1，iOS 2.1.0 }
+  - { k: 声通平替, v: 2.2.0 }
   - { k: 服务基址, v: open.shengzhiai.com }
   - { k: 许可, v: Apache-2.0 }
 code:

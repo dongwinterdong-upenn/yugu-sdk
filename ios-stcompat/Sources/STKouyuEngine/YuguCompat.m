@@ -81,4 +81,12 @@
     [YGSTSettings shared].streamUpload = streamUpload;
 }
 
++ (BOOL)throwOnUnsupportedCoreType {
+    return [YGSTSettings shared].throwOnUnsupportedCoreType;
+}
+
++ (void)setThrowOnUnsupportedCoreType:(BOOL)throwOnUnsupportedCoreType {
+    [YGSTSettings shared].throwOnUnsupportedCoreType = throwOnUnsupportedCoreType;
+}
+
 @end

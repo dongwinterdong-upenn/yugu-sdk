@@ -1,7 +1,7 @@
 // Fixed values of the wire contract and the SDK identity.
 
 export const SDK_NAME = 'yugu-miniprogram-sdk';
-export const SDK_VERSION = '2.1.0';
+export const SDK_VERSION = '2.1.1';
 export const USER_AGENT = SDK_NAME + '/' + SDK_VERSION;
 
 export const DEFAULT_BASE_URL = 'https://open.shengzhiai.com';
@@ -10,11 +10,18 @@ export const DEFAULT_WS_BASE_URL = 'wss://open.shengzhiai.com';
 /** coreType values of native REST and native WS evaluation. */
 export const CORE_TYPES = Object.freeze(['word', 'sentence', 'passage', 'connected', 'open', 'alpha', 'pinyin']);
 
-/** Shengtong style coreType paths of compat REST `POST /{coreType}` and compat WS `/{coreType}`. */
+/**
+ * Shengtong style coreType paths of compat REST `POST /{coreType}` and compat WS `/{coreType}`.
+ * open.eval.cn (2.1.1) is the Chinese open question: its refText, model answers separated by | or the
+ * question, is required and must not be blank.
+ */
 export const COMPAT_CORE_TYPES = Object.freeze([
   'word.eval', 'word.eval.pro', 'sent.eval', 'sent.eval.pro', 'para.eval', 'alpha.eval',
-  'word.eval.cn', 'sent.eval.cn', 'para.eval.cn', 'pinyin',
+  'word.eval.cn', 'sent.eval.cn', 'para.eval.cn', 'pinyin', 'open.eval.cn',
 ]);
+
+/** Compat coreType of the Chinese open question (2.1.1). */
+export const OPEN_QUESTION_CORE_TYPE = 'open.eval.cn';
 
 export const PATH_EVALUATE = '/api/v1/evaluate';
 export const PATH_TTS = '/api/v1/tts/generate';

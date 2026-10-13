@@ -32,11 +32,17 @@ public object CompatCoreType {
     public const val PARA_EVAL_CN: String = "para.eval.cn"
     public const val PINYIN: String = "pinyin"
 
+    /**
+     * 中文开放题，`2.1.1` 起支持。[CompatConfig.refText] 必填，填一条或多条参考答案，多条用竖线隔开，
+     * 也可以填题目，`refPinyin` 不能代替。结果的分项在 [EvalResult.open]，没有 `words` 与 `sentences`。
+     */
+    public const val OPEN_EVAL_CN: String = "open.eval.cn"
+
     /** 全部取值。 */
     @JvmField
     public val ALL: Set<String> = setOf(
         WORD_EVAL, WORD_EVAL_PRO, SENT_EVAL, SENT_EVAL_PRO, PARA_EVAL,
-        ALPHA_EVAL, WORD_EVAL_CN, SENT_EVAL_CN, PARA_EVAL_CN, PINYIN,
+        ALPHA_EVAL, WORD_EVAL_CN, SENT_EVAL_CN, PARA_EVAL_CN, PINYIN, OPEN_EVAL_CN,
     )
 }
 
@@ -241,6 +247,8 @@ public data class EvaluateConfig @JvmOverloads constructor(
  * 声通兼容评测配置，用于兼容 REST `POST /{coreType}` 与兼容实时评测 `WS /{coreType}`。
  * [params] 为其余表单字段，例如 `agegroup`，`scale`，`paragraph_need_word_score`，原样发送。
  * [realtimeFeedback] 只对实时评测有效，开启后参数帧带 `"realtime_feedback": true`，服务端在收音过程中下发朗读进度。
+ * [refText] 各内核都必填，[refPinyin] 不能代替。`open.eval.cn` 的 [refText] 填一条或多条参考答案，多条用竖线隔开，
+ * 也可以填题目，`qType`，`keypoints`，`keywords` 放进 [params]，实时评测的中间结果只有 `bytes`，没有朗读进度。
  */
 public data class CompatConfig @JvmOverloads constructor(
     val coreType: String,
@@ -268,7 +276,13 @@ public data class CompatConfig @JvmOverloads constructor(
 
     internal fun validate() {
         if (coreType !in CompatCoreType.ALL) throw invalidArgument("兼容 coreType 取值不合法：$coreType，可选 ${CompatCoreType.ALL}")
-        if (refText.isBlank()) throw invalidArgument("refText 不能为空")
+        // refText is required for every compat kernel, so no refPinyin ever stands in for it. The open question
+        // (2.1.1) says what goes there: model answers separated by |, or the question (shims 2.1.2 alike).
+        if (refText.isBlank()) {
+            throw invalidArgument(
+                if (coreType == CompatCoreType.OPEN_EVAL_CN) "refText 不能为空，open.eval.cn 填参考答案或题目，多条参考答案用竖线隔开" else "refText 不能为空",
+            )
+        }
         if (coreType == CompatCoreType.PINYIN && refPinyin.isNullOrBlank() && params["refPinyin"].isNullOrBlank()) {
             throw invalidArgument("coreType=pinyin 时 refPinyin 必填")
         }

@@ -1,4 +1,4 @@
-// Type declarations of @shengzhiai/yugu-miniprogram-sdk 2.1.0.
+// Type declarations of @shengzhiai/yugu-miniprogram-sdk 2.1.1.
 // They depend on the ES2017 library only (no DOM, no Node types), like the mini program runtime.
 // Field names follow CONTRACT.md; nested score objects keep the platform's field names.
 
@@ -11,16 +11,19 @@ export type { ErrorTableEntry } from './error-table';
 
 // ---------------------------------------------------------------- constants
 
-export declare const SDK_VERSION: '2.1.0';
+export declare const SDK_VERSION: '2.1.1';
 /** Sent as the X-Yugu-SDK header, wx.request cannot set User-Agent. */
-export declare const USER_AGENT: 'yugu-miniprogram-sdk/2.1.0';
+export declare const USER_AGENT: 'yugu-miniprogram-sdk/2.1.1';
 
 /** coreType of native evaluation (REST /api/v1/evaluate and WS /api/v1/ws/evaluate). */
 export type CoreType = 'word' | 'sentence' | 'passage' | 'connected' | 'open' | 'alpha' | 'pinyin';
-/** Shengtong style coreType paths of compat REST POST /{coreType} and compat WS /{coreType}. */
+/**
+ * Shengtong style coreType paths of compat REST POST /{coreType} and compat WS /{coreType}. open.eval.cn
+ * (2.1.1) is the Chinese open question: refText required, scores in EvalResult.open, partials carry bytes only.
+ */
 export type CompatCoreType =
   | 'word.eval' | 'word.eval.pro' | 'sent.eval' | 'sent.eval.pro' | 'para.eval' | 'alpha.eval'
-  | 'word.eval.cn' | 'sent.eval.cn' | 'para.eval.cn' | 'pinyin';
+  | 'word.eval.cn' | 'sent.eval.cn' | 'para.eval.cn' | 'pinyin' | 'open.eval.cn';
 /** en-US is the platform default. Other values are passed through. */
 export type Language = 'zh-CN' | 'en-US' | 'en-GB' | (string & {});
 
@@ -417,7 +420,7 @@ export interface ClientSettings {
   audioPrecheck?: AudioPrecheckMode;
   /** Throw AudioQualityException when evaluate returns warning 1001. Default false. */
   strictAudio?: boolean;
-  /** Value of the X-Yugu-SDK header. Default yugu-miniprogram-sdk/2.1.0. */
+  /** Value of the X-Yugu-SDK header. Default yugu-miniprogram-sdk/2.1.1. */
   userAgent?: string;
   /** Default ReconnectPolicy of sessions; false disables reconnects. */
   reconnect?: Partial<ReconnectPolicy> | false;
@@ -516,6 +519,10 @@ export type EvaluateParams = EvaluateConfig & AudioFormatHints & AudioSource & {
 };
 
 export type EvaluateCompatParams = AudioFormatHints & AudioSource & {
+  /**
+   * Reference text. For open.eval.cn one or more model answers separated by |, or the question; it must not
+   * be blank and refPinyin cannot replace it. qType, keypoints and keywords go into fields.
+   */
   refText?: string;
   /** Alias of refText. */
   referenceText?: string;
@@ -920,6 +927,7 @@ export type StreamEvaluateParams = EvaluateConfig & {
 };
 
 export interface StreamCompatParams {
+  /** Reference text. For open.eval.cn model answers separated by |, or the question; must not be blank. */
   refText?: string;
   referenceText?: string;
   text?: string;

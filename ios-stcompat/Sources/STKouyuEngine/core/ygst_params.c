@@ -114,6 +114,43 @@ int ygst_validate_request(ygst_ct_status status, const char *core_type, const ch
     return YGST_ERRID_REFTEXT_EMPTY;
 }
 
+ygst_ct_status ygst_coretype_resolve_text(const char *core_type, char *out, size_t cap) {
+    if (!out || cap == 0) return YGST_CT_UNKNOWN;
+    out[0] = 0;
+    if (ygst_is_blank(core_type)) return YGST_CT_UNKNOWN;
+    return ygst_coretype_resolve(core_type, 0, out, cap);
+}
+
+int ygst_coretype_requested(const char *core_type_ns, unsigned long kytesttype, ygst_buf *out) {
+    const char *mapped;
+    if (!out) return -1;
+    if (!ygst_is_blank(core_type_ns)) {
+        ygst_buf_append_trimmed(out, core_type_ns);
+    } else if ((mapped = ygst_coretype_for_enum(kytesttype)) != NULL) {
+        ygst_buf_append_str(out, mapped);
+    } else {
+        char tmp[48];
+        snprintf(tmp, sizeof tmp, "KYTestType %lu", kytesttype);
+        ygst_buf_append_str(out, tmp);
+    }
+    ygst_buf_cstr(out);
+    return out->oom ? -1 : 0;
+}
+
+int ygst_coretype_unsupported_message(const char *requested, ygst_buf *out) {
+    const char *base = ygst_compat_message(YGST_ERRID_CORETYPE_UNSUPPORTED);
+    if (!out) return -1;
+    ygst_buf_append_str(out, base ? base : "");
+    ygst_buf_append_str(out, "\xEF\xBC\x9A"); /* U+FF1A FULLWIDTH COLON */
+    if (ygst_is_blank(requested)) {
+        ygst_buf_append_str(out, "\xE6\x9C\xAA\xE6\x8C\x87\xE5\xAE\x9A"); /* 未指定 */
+    } else {
+        ygst_buf_append_trimmed(out, requested);
+    }
+    ygst_buf_cstr(out);
+    return out->oom ? -1 : 0;
+}
+
 /* ------------------------------------------------------------------ number text */
 
 static void fix_decimal_point(char *s) {

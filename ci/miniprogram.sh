@@ -87,14 +87,14 @@ const required = ['package.json', 'miniprogram_dist/index.js', 'types/index.d.ts
 const missing = required.filter((f) => !files.includes(f));
 const unexpected = files.filter((f) => /^(src|test|types-test|scripts|coverage|node_modules|ci-out)\//.test(f));
 console.log(`${pack.name}@${pack.version}: ${files.length} files, ${pack.size} bytes packed, ${pack.unpackedSize} bytes unpacked`);
-if (pack.name !== '@shengzhiai/yugu-miniprogram-sdk' || pack.version !== '2.1.0') { console.error('unexpected name or version'); process.exit(1); }
+if (pack.name !== '@shengzhiai/yugu-miniprogram-sdk' || pack.version !== '2.1.1') { console.error('unexpected name or version'); process.exit(1); }
 if (missing.length || unexpected.length) { console.error('missing: ' + missing.join(', ') + ' unexpected: ' + unexpected.join(', ')); process.exit(1); }
 EOF
 
 STEP="demo against the packed tarball"
 TMP="$(mktemp -d)"
 npm pack --pack-destination "$TMP" > /dev/null 2>&1
-tar -xzf "$TMP"/shengzhiai-yugu-miniprogram-sdk-2.1.0.tgz -C "$TMP"
+tar -xzf "$TMP"/shengzhiai-yugu-miniprogram-sdk-2.1.1.tgz -C "$TMP"
 YUGU_SDK_PACKAGE_DIR="$TMP/package" node --test --test-reporter=spec test/integration/demo.test.mjs > "$OUT/demo-output.txt" 2>&1 || { cat "$OUT/demo-output.txt"; rm -rf "$TMP"; exit 1; }
 grep -E '^ℹ (tests|pass|fail)' "$OUT/demo-output.txt" || true
 rm -rf "$TMP"

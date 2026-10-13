@@ -143,7 +143,7 @@ PY
 
 # ---------------------------------------------------------------------------- 4 verify publication
 BASE="$REPO/com/shengzhiai/yugu/yugu-android-sdk"
-V=2.1.0
+V=2.1.1
 for f in $V/yugu-android-sdk-$V.aar $V/yugu-android-sdk-$V.pom $V/yugu-android-sdk-$V-sources.jar \
          $V/yugu-android-sdk-$V-javadoc.jar $V/yugu-android-sdk-$V.module maven-metadata.xml; do
   [ -s "$BASE/$f" ] || fail "missing published file $f"

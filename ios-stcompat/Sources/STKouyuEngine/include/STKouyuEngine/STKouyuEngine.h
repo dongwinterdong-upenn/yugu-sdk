@@ -14,7 +14,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 #endif
 
-//! 包版本号，2.1
+//! 包版本号，2.2
 FOUNDATION_EXPORT double STKouyuEngineVersionNumber;
 
 //! 包版本字符串

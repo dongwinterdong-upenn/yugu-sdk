@@ -246,8 +246,9 @@ static void test_summary_line(void) {
     /* streamed: the rest of the upload after stop, the wait for the whole final (no first byte),
      * the format of the Android drop-in */
     fill_ws(&t);
-    CHECK_INT(ygst_timing_summary(&t, TOKEN, &out), 0);
-    CHECK_STR(ygst_buf_cstr(&out), "timing tokenId=" TOKEN " mode=ws audio=31.20s afterStop=5643ms upload=120ms "
+    CHECK_INT(ygst_timing_summary(&t, TOKEN, "eval_77c081e19541", &out), 0);
+    CHECK_STR(ygst_buf_cstr(&out), "timing tokenId=" TOKEN " recordId=eval_77c081e19541 mode=ws audio=31.20s "
+                                   "afterStop=5643ms upload=120ms "
                                    "wait=5480ms download=- parse=40ms deliver=3ms handshake=85ms queued=6400B "
                                    "final=1532118B wire=- deflate server.total=5321ms server.engine=4100ms "
                                    "server.platform=1221ms");
@@ -258,15 +259,16 @@ static void test_summary_line(void) {
     t.attempts = 2;
     t.replayed = 1;
     ygst_buf_reset(&out);
-    CHECK_INT(ygst_timing_summary(&t, TOKEN, &out), 0);
+    CHECK_INT(ygst_timing_summary(&t, TOKEN, "eval_77c081e19541", &out), 0);
     CHECK(strstr(ygst_buf_cstr(&out), " wait=5180ms download=300ms ") != NULL);
     CHECK(strstr(ygst_buf_cstr(&out), " final=1532118B wire=120001B connections=2 server.total=5321ms") != NULL);
     CHECK(strstr(ygst_buf_cstr(&out), "server.platform=1221ms replayed") != NULL);
     /* one request after stop: upload from stop to the last byte of the body, the transport's split */
     fill_rest(&t);
     ygst_buf_reset(&out);
-    CHECK_INT(ygst_timing_summary(&t, TOKEN, &out), 0);
-    CHECK_STR(ygst_buf_cstr(&out), "timing tokenId=" TOKEN " mode=rest audio=12.30s afterStop=6150ms upload=1884ms "
+    CHECK_INT(ygst_timing_summary(&t, TOKEN, "eval_9a8b", &out), 0);
+    CHECK_STR(ygst_buf_cstr(&out), "timing tokenId=" TOKEN " recordId=eval_9a8b mode=rest audio=12.30s afterStop=6150ms "
+                                   "upload=1884ms "
                                    "wait=4120ms download=85ms parse=40ms deliver=10ms attempts=1 sent=394012B "
                                    "body=1532118B wire=122880B gzip server.total=5321ms server.engine=4100ms "
                                    "server.platform=1221ms");
@@ -275,7 +277,7 @@ static void test_summary_line(void) {
     t.encoding[0] = 0;
     ygst_timing_set_fallback(&t, "WebSocket handshake refused \"503\"\n");
     ygst_buf_reset(&out);
-    CHECK_INT(ygst_timing_summary(&t, TOKEN, &out), 0);
+    CHECK_INT(ygst_timing_summary(&t, TOKEN, "eval_9a8b", &out), 0);
     CHECK(strstr(ygst_buf_cstr(&out), " mode=ws>rest audio=12.30s afterStop=6150ms upload=1884ms ") != NULL);
     CHECK(strstr(ygst_buf_cstr(&out), " wire=122880B server.total=5321ms") != NULL);
     CHECK(strstr(ygst_buf_cstr(&out), "server.platform=1221ms fallback=\"WebSocket handshake refused '503' \"") != NULL);
@@ -294,25 +296,27 @@ static void test_summary_line(void) {
     t.audio_bytes = 61518;
     t.upload_bytes = 61900;
     ygst_buf_reset(&out);
-    CHECK_INT(ygst_timing_summary(&t, TOKEN, &out), 0);
-    CHECK_STR(ygst_buf_cstr(&out), "timing tokenId=" TOKEN " mode=rest audio=- afterStop=2505ms upload=- wait=- "
+    /* an error has no record: "-" */
+    CHECK_INT(ygst_timing_summary(&t, TOKEN, NULL, &out), 0);
+    CHECK_STR(ygst_buf_cstr(&out), "timing tokenId=" TOKEN " recordId=- mode=rest audio=- afterStop=2505ms upload=- wait=- "
                                    "download=- parse=1ms deliver=4ms attempts=3 sent=61900B body=- wire=- errId=20009");
     /* nothing known */
     ygst_timing_init(&t);
     ygst_buf_reset(&out);
-    CHECK_INT(ygst_timing_summary(&t, NULL, &out), 0);
-    CHECK_STR(ygst_buf_cstr(&out), "timing tokenId= mode=local audio=- afterStop=- upload=- wait=- download=- parse=- "
+    CHECK_INT(ygst_timing_summary(&t, NULL, "", &out), 0);
+    CHECK_STR(ygst_buf_cstr(&out), "timing tokenId= recordId=- mode=local audio=- afterStop=- upload=- wait=- download=- "
+                                   "parse=- "
                                    "deliver=- attempts=0 sent=- body=- wire=-");
     /* audio rounds half up to hundredths; phases out of order count as unknown */
     fill_ws(&t);
     t.audio_bytes = 160; /* 5 ms */
     t.ws_end_ms = 30000; /* before stop */
     ygst_buf_reset(&out);
-    CHECK_INT(ygst_timing_summary(&t, TOKEN, &out), 0);
+    CHECK_INT(ygst_timing_summary(&t, TOKEN, "eval_1", &out), 0);
     CHECK(strstr(ygst_buf_cstr(&out), " audio=0.01s ") != NULL);
     CHECK(strstr(ygst_buf_cstr(&out), " upload=- wait=7800ms ") != NULL);
-    CHECK_INT(ygst_timing_summary(NULL, TOKEN, &out), -1);
-    CHECK_INT(ygst_timing_summary(&t, TOKEN, NULL), -1);
+    CHECK_INT(ygst_timing_summary(NULL, TOKEN, "eval_1", &out), -1);
+    CHECK_INT(ygst_timing_summary(&t, TOKEN, "eval_1", NULL), -1);
     ygst_buf_free(&out);
 }
 

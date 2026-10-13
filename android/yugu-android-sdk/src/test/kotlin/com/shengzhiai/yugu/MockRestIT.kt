@@ -294,8 +294,30 @@ class MockRestIT {
         assertTrue(log.any { it.str("path") == "/sent.eval.cn" && it.str("idempotencyKey") != null })
         assertTrue(log.any { it.str("path") == "/api/v1/tts/generate" && it.str("idempotencyKey") != null })
         assertNull(log.first { it.str("path")!!.startsWith("/api/v1/report/") }.str("idempotencyKey"))
-        assertTrue(log.all { it.str("userAgent") == "yugu-android-sdk/2.1.0" })
+        assertTrue(log.all { it.str("userAgent") == "yugu-android-sdk/2.1.1" })
         assertEquals(3, m.billing().int("billed"))
+    }
+
+    @Test
+    fun openQuestionCompatAgainstPlatformRules() {
+        // open.eval.cn (2.1.1): signed like every compat call, accepted and billed once by the platform rules
+        builder().build().use { c ->
+            val r = c.evaluateCompat(
+                CompatConfig(CompatCoreType.OPEN_EVAL_CN, "我是学生|我不是学生", params = mapOf("qType" to "6")),
+                TestEnv.fixtureBytes("audio/zh_open_answer.wav"),
+            )
+            assertEquals(1, r.eof)
+            assertEquals(96.0, r.overall!!, 1e-9)
+            assertNotNull(r.open!!.content)
+            assertNotNull(r.open!!.delivery)
+            assertEquals("answers", r.open!!.audit!!.raw["refKind"])
+            assertTrue(r.words.isEmpty())
+        }
+        val entry = m.log().single { it.str("path") == "/open.eval.cn" }
+        assertNotNull(entry.str("idempotencyKey"))
+        assertEquals("我是学生|我不是学生", entry.obj("fields")!!.str("refText"))
+        assertEquals("6", entry.obj("fields")!!.str("qType"))
+        assertEquals(1, m.billing().int("billed"))
     }
 
     @Test

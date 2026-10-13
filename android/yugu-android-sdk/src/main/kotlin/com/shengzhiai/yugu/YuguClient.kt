@@ -489,7 +489,7 @@ public class YuguClient private constructor(builder: Builder) : Closeable {
         /** 为 true 时整段评测结果带 1001 警告即抛 [AudioQualityException]，默认 false。 */
         public fun strictAudio(enabled: Boolean): Builder = apply { strictAudio = enabled }
 
-        /** `User-Agent`，默认 `yugu-android-sdk/2.1.0`。 */
+        /** `User-Agent`，默认 `yugu-android-sdk/2.1.1`。 */
         public fun userAgent(ua: String): Builder = apply { userAgent = ua }
 
         /** 实时评测重连策略。 */

@@ -81,7 +81,7 @@ test('evaluate sends the 415-safe multipart body, signs {config}, identifies the
   assert.ok(body.includes('Content-Disposition: form-data; name="config"\r\nContent-Type: application/json; charset=utf-8\r\n\r\n' + Buffer.from(configText).toString('latin1')));
   assert.ok(body.includes('name="audio"; filename="audio.wav"\r\nContent-Type: audio/wav'));
   assert.equal(header(req, 'X-Signature'), signParams({ config: configText }, AUTH.secretKey));
-  assert.equal(header(req, 'X-Yugu-SDK'), 'yugu-miniprogram-sdk/2.1.0');
+  assert.equal(header(req, 'X-Yugu-SDK'), 'yugu-miniprogram-sdk/2.1.1');
   assert.equal(header(req, 'User-Agent'), undefined);
   assert.match(header(req, 'Idempotency-Key'), /^[0-9a-f]{32}$/);
   assert.equal(r.idempotencyKey, header(req, 'Idempotency-Key'));
@@ -358,6 +358,33 @@ test('evaluateCompat signs exactly the text fields that are sent', async () => {
   assert.ok(body.includes('name="paragraph_need_word_score"\r\n\r\n1\r\n'));
   await c.evaluateCompat('pinyin', { referenceText: '重庆', refPinyin: 'chong2 qing4', audio: WAV });
   assert.ok(Buffer.from(reqs[1].data).toString('utf8').includes('name="refPinyin"\r\n\r\nchong2 qing4'));
+});
+
+test('evaluateCompat open.eval.cn (2.1.1): own path, signed fields, refText required before any request', async () => {
+  const open = fixtureJson('platform/compat_open.eval.cn.json');
+  const answer = toArrayBuffer(fixtureBytes('audio/zh_open_answer.wav'));
+  const { c, reqs } = client([ok(open), ok(open)]);
+  const r = await c.evaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', fields: { qType: 6, keypoints: '学生' }, audio: answer });
+  const req = reqs[0];
+  assert.equal(req.url, 'https://open.shengzhiai.com/open.eval.cn');
+  assert.equal(header(req, 'X-Signature'), signParams({ refText: '我是学生|我不是学生', qType: '6', keypoints: '学生' }, AUTH.secretKey));
+  const body = Buffer.from(req.data).toString('utf8');
+  assert.ok(body.includes('name="refText"\r\n\r\n我是学生|我不是学生\r\n'));
+  assert.ok(body.includes('name="qType"\r\n\r\n6\r\n'));
+  assert.equal(r.overall, 96);
+  assert.equal(r.coreType, 'open', 'the platform reports the scoring mode');
+  assert.equal(r.open.delivery.overall, 88);
+  assert.equal(r.open.feedback.suggestions.length, 2);
+  assert.deepEqual([r.words.length, r.sentences.length], [0, 0]);
+  // refText, the model answers or the question, is required; a refPinyin does not replace it
+  const rejected = (e) => e instanceof InvalidParameterException && e.code === 90010 && /open\.eval\.cn/.test(e.message);
+  for (const p of [{}, { refText: '' }, { refText: ' \t' }, { referenceText: '  ' }, { refPinyin: 'wo3 shi4 xue2 sheng1', language: 'zh-CN' }]) {
+    await assert.rejects(c.evaluateCompat('open.eval.cn', { ...p, audio: answer }), rejected, JSON.stringify(p));
+  }
+  assert.equal(reqs.length, 1, 'rejected before any request');
+  await c.evaluateCompat('open.eval.cn', { referenceText: '我是学生', audio: answer });
+  assert.ok(Buffer.from(reqs[1].data).toString('utf8').includes('name="refText"\r\n\r\n我是学生\r\n'), 'referenceText is the alias');
+  await assert.rejects(c.evaluateCompat('open.eval', { refText: 'What do you do?', audio: answer }), (e) => e.code === 90010);
 });
 
 test('evaluateCompat needs signature auth: a token alone fails before any request', async () => {

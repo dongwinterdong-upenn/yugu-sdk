@@ -43,6 +43,8 @@ typedef double NSTimeInterval;
 #define NS_ASSUME_NONNULL_END _Pragma("clang assume_nonnull end")
 #define NS_VALID_UNTIL_END_OF_SCOPE __attribute__((objc_precise_lifetime))
 #define NS_DESIGNATED_INITIALIZER __attribute__((objc_designated_initializer))
+/* as CF_SWIFT_NAME in the SDK: libclang checks the Swift name against the declaration */
+#define NS_SWIFT_NAME(_name) __attribute__((swift_name(#_name)))
 #define NS_ENUM(_type, _name) enum _name : _type _name; enum _name : _type
 #define NS_OPTIONS(_type, _name) enum _name : _type _name; enum _name : _type
 /* API_AVAILABLE(macos(10.15), ios(13.0), ...) as availability attributes, like the SDK, so that a
@@ -300,16 +302,27 @@ typedef NS_OPTIONS(NSUInteger, NSDataWritingOptions) {
 // ------------------------------------------------------------------ errors and exceptions
 
 typedef NSString *NSErrorDomain;
+typedef NSString *NSErrorUserInfoKey;
+
+FOUNDATION_EXPORT NSErrorUserInfoKey const NSLocalizedDescriptionKey;
 
 @interface NSError : NSObject <NSCopying>
++ (instancetype)errorWithDomain:(NSErrorDomain)domain code:(NSInteger)code userInfo:(NSDictionary<NSErrorUserInfoKey, id> *)dict;
 @property (readonly, copy) NSErrorDomain domain;
 @property (readonly) NSInteger code;
+@property (readonly, copy) NSDictionary<NSErrorUserInfoKey, id> *userInfo;
 @property (readonly, copy) NSString *localizedDescription;
 @end
 
+typedef NSString *NSExceptionName;
+
+FOUNDATION_EXPORT NSExceptionName const NSInvalidArgumentException;
+
 @interface NSException : NSObject <NSCopying>
-@property (readonly, copy) NSString *name;
++ (NSException *)exceptionWithName:(NSExceptionName)name reason:(NSString *)reason userInfo:(NSDictionary *)userInfo;
+@property (readonly, copy) NSExceptionName name;
 @property (readonly, copy) NSString *reason;
+@property (readonly, copy) NSDictionary *userInfo;
 @end
 
 FOUNDATION_EXPORT NSErrorDomain const NSURLErrorDomain;

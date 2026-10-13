@@ -43,6 +43,7 @@ const state = {
   nonces: new Map(),     // appKey|nonce -> first seen ms (the platform rejects reuse within 300 s)
   slowMs: 0,             // extra processing time of the next request, set by the slow: fault
   recordings: new Map(), // /rec/<day>/<file> -> uploaded audio, for attachAudioUrl
+  reportLookups: new Map(), // recordId -> lookups so far, for the pending-then-final report sequence
   seq: 0,
 };
 
@@ -57,6 +58,7 @@ function reset() {
   state.nonces = new Map();
   state.slowMs = 0;
   state.recordings = new Map();
+  state.reportLookups = new Map();
 }
 
 function takeFault(pathname, headerFault) {
@@ -426,11 +428,29 @@ async function tts(req, res, body, entry) {
   sendJson(res, result.status, result.body, result.headers || {});
 }
 
+// 2026-10-13 与平台同形：data 带 score，report，reportStatus，声通兼容评测的记录另带 timing。
+// 记录号含 pending 时前两次查询是即时稿（reportStatus pending），第三次起是 AI 终稿，供 SDK 测等终稿的轮询。
+// 次数记在 state.reportLookups，/__mock/reset 时清空。
 function report(req, res, recordId) {
   const auth = authenticate(req, res, [{}]);
   if (!auth) return;
   if (!recordId.startsWith('eval_')) return platformError(res, 400, 40001, '评测记录不存在: ' + recordId);
-  sendJson(res, 200, { code: 0, message: 'success', data: { recordId, overall: 93.7, report: { summary: 'mock report' } }, timestamp: Date.now() });
+  const n = (state.reportLookups.get(recordId) || 0) + 1;
+  state.reportLookups.set(recordId, n);
+  const pending = recordId.includes('pending') && n <= 2;
+  const body = pending
+    ? { summary: '即时稿：整体读得流畅。', suggestions: ['注意后鼻音。'] }
+    : {
+        source: 'llm',
+        summary: 'mock report',
+        dimensions: { integrity: '读得完整。', accuracy: '个别字的声调可以更准。' },
+        dimensionSuggestions: { accuracy: ['“清”的后鼻音收得再完整一些。'] },
+        suggestions: ['“清”的后鼻音收得再完整一些。'],
+        skillInsights: [{ aspect: '情景再现', observation: '读出了画面感。', quote: '白毛浮绿水', confidence: 'medium' }],
+      };
+  const data = { recordId, overall: 93.7, score: { overall: 93.7, integrity: 100 }, report: body, reportStatus: pending ? 'pending' : 'final',
+    timing: { receivedAt: 1791886000000, totalMs: 2610, engineMs: 2420, platformMs: 190, audioBytes: 96044, channel: 'rest' } };
+  sendJson(res, 200, { code: 0, message: 'success', data, timestamp: Date.now() });
 }
 
 // ---------------------------------------------------------------- WebSocket

@@ -71,8 +71,8 @@ public class ApiSurfaceTest extends CompatTestBase {
 
     @Test
     public void yuguCompatHooks() {
-        assertEquals("2.1.2", YuguCompat.VERSION);
-        assertEquals("yugu-stkouyu-compat/2.1.2 (api 1.0.62)", YuguCompat.getVersion());
+        assertEquals("2.2.0", YuguCompat.VERSION);
+        assertEquals("yugu-stkouyu-compat/2.2.0 (api 1.0.62)", YuguCompat.getVersion());
         assertNull(YuguCompat.getBaseUrl());
         YuguCompat.setBaseUrl("wss://sandbox.example.com/");
         assertEquals("https://sandbox.example.com", YuguCompat.getBaseUrl());
@@ -96,7 +96,11 @@ public class ApiSurfaceTest extends CompatTestBase {
         assertEquals(1000, CompatConfig.connectTimeoutMs());
         assertEquals(2000, CompatConfig.readTimeoutMs());
         assertEquals(3000, CompatConfig.totalTimeoutMs());
+        assertFalse(YuguCompat.isThrowOnUnsupportedCoreType());
+        YuguCompat.setThrowOnUnsupportedCoreType(true);
+        assertTrue(YuguCompat.isThrowOnUnsupportedCoreType());
         YuguCompat.reset();
+        assertFalse(YuguCompat.isThrowOnUnsupportedCoreType());
         assertNull(YuguCompat.getBaseUrl());
         assertSame(RetryPolicy.DEFAULT, CompatConfig.retryPolicy());
         assertEquals(-1, CompatConfig.connectTimeoutMs());

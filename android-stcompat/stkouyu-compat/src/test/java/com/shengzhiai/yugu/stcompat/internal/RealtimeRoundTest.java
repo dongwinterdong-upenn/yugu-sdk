@@ -295,7 +295,7 @@ public class RealtimeRoundTest {
         cfg.phases.parsed();
         cfg.phases.delivered();
         String line = cfg.phases.summary();
-        assertTrue(line, line.startsWith("timing tokenId=" + TOKEN + " mode=ws "));
+        assertTrue(line, line.startsWith("timing tokenId=" + TOKEN + " recordId=- mode=ws "));
         int bytes = FINAL.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
         assertTrue(line, line.contains(" final=" + bytes + "B wire=" + wire + "B deflate"));
         assertTrue(line, line.matches(".* afterStop=\\d+ms upload=\\d+ms wait=\\d+ms download=\\d+ms parse=\\d+ms deliver=\\d+ms"

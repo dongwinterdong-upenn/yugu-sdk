@@ -202,6 +202,43 @@ public class UrlConnectionTransportTest {
         assertEquals("identity", server.requestHeaders.poll(5, TimeUnit.SECONDS).get("accept-encoding"));
     }
 
+    /** SDK 2.2.0: the JSON body of speech synthesis and the GET of the report lookup. */
+    @Test
+    public void jsonBodyAndGetWithoutBody() throws Exception {
+        byte[] json = "{\"text\":\"你好\"}".getBytes(StandardCharsets.UTF_8);
+        server.answer(200, "", "{\"code\":0,\"data\":{}}".getBytes(StandardCharsets.UTF_8));
+        Map<String, String> h = new LinkedHashMap<>();
+        h.put("X-App-Key", "app");
+        HttpTransport.Request post = new HttpTransport.Request("POST", server.url(), h, json, "application/json; charset=utf-8",
+                5000, 5000);
+        assertNull(post.body);
+        HttpTransport.Response r = new UrlConnectionTransport().execute(post, new CancelToken());
+        assertEquals(200, r.status);
+        Map<String, String> sent = server.requestHeaders.poll(5, TimeUnit.SECONDS);
+        assertEquals("application/json; charset=utf-8", sent.get("content-type"));
+        assertEquals(String.valueOf(json.length), sent.get("content-length"));
+        assertEquals(new String(json, StandardCharsets.UTF_8),
+                new String(server.requestBodies.poll(5, TimeUnit.SECONDS), StandardCharsets.UTF_8));
+        assertEquals(json.length, r.metrics.uploadBytes);
+        assertTrue(r.metrics.uploadDoneNanos > 0);
+
+        server.answer(200, "", "{\"code\":0,\"data\":{}}".getBytes(StandardCharsets.UTF_8));
+        HttpTransport.Request get = new HttpTransport.Request("GET", server.url(), new LinkedHashMap<String, String>(), null,
+                null, 5000, 5000);
+        HttpTransport.Response g = new UrlConnectionTransport().execute(get, null);
+        assertEquals(200, g.status);
+        Map<String, String> getHeaders = server.requestHeaders.poll(5, TimeUnit.SECONDS);
+        assertNull("no body, no Content-Type", getHeaders.get("content-type"));
+        assertEquals(0, server.requestBodies.poll(5, TimeUnit.SECONDS).length);
+        assertEquals(-1, g.metrics.uploadBytes);
+
+        server.answer(201, "", new byte[0]);
+        HttpTransport.Request untyped = new HttpTransport.Request("PUT", server.url(), new LinkedHashMap<String, String>(),
+                new byte[] {1, 2}, null, 5000, 5000);
+        assertEquals(201, new UrlConnectionTransport().execute(untyped, null).status);
+        assertEquals("application/octet-stream", server.requestHeaders.poll(5, TimeUnit.SECONDS).get("content-type"));
+    }
+
     @Test
     public void decompressionStopsAtTheBodyCap() throws Exception {
         byte[] packed = gzip(new byte[UrlConnectionTransport.MAX_BODY + 1024 * 1024]);

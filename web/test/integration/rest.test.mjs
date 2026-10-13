@@ -236,8 +236,22 @@ describe('other REST calls against the mock platform', () => {
     assert.ok(reportLog.every((e) => e.idempotencyKey === null));
     const writes = (await mock.log()).filter((e) => e.method === 'POST');
     assert.ok(writes.every((e) => /^[0-9a-f]{32}$/.test(e.idempotencyKey)));
-    assert.ok(writes.every((e) => e.userAgent === 'yugu-web-sdk/2.1.0'));
+    assert.ok(writes.every((e) => e.userAgent === 'yugu-web-sdk/2.1.1'));
     const bill = await mock.billing();
     assert.deepEqual(bill.records.map((x) => x.op).sort(), ['compat', 'evaluate', 'tts']);
+  });
+
+  test('compat open.eval.cn (2.1.1): signature accepted, routed to /open.eval.cn, billed once', async () => {
+    const c = client();
+    const r = await c.evaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', qType: 6 }, readAudio('zh_open_answer.wav'));
+    assert.equal(r.coreType, 'open.eval.cn');
+    assert.equal(r.overall, 96);
+    assert.equal(r.open.openTaskAudit.refKind, 'answers');
+    const log = (await mock.log()).filter((e) => e.path === '/open.eval.cn');
+    assert.equal(log.length, 1);
+    assert.match(log[0].idempotencyKey, /^[0-9a-f]{32}$/);
+    assert.deepEqual(log[0].fields, { refText: '我是学生|我不是学生', qType: '6' });
+    assert.deepEqual((await mock.billing()).records.map((x) => x.op), ['compat']);
+    await c.close();
   });
 });

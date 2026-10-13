@@ -10,6 +10,7 @@
  * feedback round over the compat WebSocket (handshake, frames, progress, reconnect decisions).
  * Since 2.1.1 the same round streams every recording by default, and the per-phase timing of an
  * evaluation (its log lines, the Server-Timing header and the platform timing object) is here.
+ * Since 2.2.0 the requests, answers and decisions of TtsClient and ReportClient are here as well.
  * The Objective-C layer only moves bytes between this core and NSURLSession / AVFoundation.
  *
  * Internal header. Not part of the public module.
@@ -24,7 +25,7 @@
 extern "C" {
 #endif
 
-#define YGST_SDK_VERSION "2.1.2"
+#define YGST_SDK_VERSION "2.2.0"
 #define YGST_USER_AGENT "yugu-ios-stcompat-sdk/" YGST_SDK_VERSION
 #define YGST_DEFAULT_BASE_URL "https://open.shengzhiai.com"
 
@@ -46,6 +47,7 @@ extern "C" {
 #define YGST_LOCAL_CANCELLED 90003
 #define YGST_LOCAL_PROTOCOL 90005
 #define YGST_LOCAL_RESULT_TIMEOUT 90007
+#define YGST_LOCAL_INVALID_ARGUMENT 90010
 #define YGST_LOCAL_TLS 90011
 
 /* Audio limits: errId 60005 below 1 s, 60009 above 50 MB or 300 s (spec/errors.json). */
@@ -79,6 +81,8 @@ int ygst_has_suffix_ci(const char *s, const char *suffix);
 /* Copies s into out (cap bytes) without leading and trailing ASCII whitespace. */
 size_t ygst_trim_copy(const char *s, char *out, size_t cap);
 int ygst_is_blank(const char *s);
+/* Appends s without leading and trailing ASCII whitespace, whatever its length. NULL appends nothing. */
+int ygst_buf_append_trimmed(ygst_buf *b, const char *s);
 
 /* ------------------------------------------------------------------ crypto */
 
@@ -181,6 +185,15 @@ int ygst_fields_apply_coretype_rules(ygst_fields *f, const char *core_type);
 /* Local request validation before any I/O: 0, 60003 (coreType) or 60006 (refText). */
 int ygst_validate_request(ygst_ct_status status, const char *core_type, const char *ref_text,
                           const char *ref_pinyin);
+/* skegn_start (2.2.0): request.coreType as text. Blank or missing is no coreType at all (UNKNOWN,
+ * out ""); there is no KYTestType to fall back to. */
+ygst_ct_status ygst_coretype_resolve_text(const char *core_type, char *out, size_t cap);
+/* The coreType a KYTestConfig asks for, as the 60003 text names it: coreTypeNS trimmed when it is
+ * not blank, else the Shengtong string of the KYTestType value, else "KYTestType <n>". */
+int ygst_coretype_requested(const char *core_type_ns, unsigned long kytesttype, ygst_buf *out);
+/* The error text of errId 60003 (2.2.0): "不支持的评测内核：<requested coreType, trimmed>", with
+ * "未指定" for a blank or missing coreType. The first part is the 60003 text of spec/errors.json. */
+int ygst_coretype_unsupported_message(const char *requested, ygst_buf *out);
 
 /* ------------------------------------------------------------------ KYTestConfig to form fields */
 
@@ -730,9 +743,11 @@ int ygst_timing_member(ygst_span root, ygst_timing *t, ygst_span *timing);
 /* Records why the WebSocket failed before end (ws>rest), shortened, quotes replaced. */
 void ygst_timing_set_fallback(ygst_timing *t, const char *reason);
 /* The INFO line, the format of the Android drop-in, without a trailing newline:
- *   timing tokenId=<t> mode=ws audio=31.20s afterStop=5650ms upload=120ms wait=5480ms download=-
- *   parse=40ms deliver=3ms handshake=85ms queued=6400B final=1532118B wire=- deflate
+ *   timing tokenId=<t> recordId=<r> mode=ws audio=31.20s afterStop=5650ms upload=120ms wait=5480ms
+ *   download=- parse=40ms deliver=3ms handshake=85ms queued=6400B final=1532118B wire=- deflate
  *   server.total=5321ms server.engine=4100ms server.platform=1221ms
+ * recordId (2.2.0): the recordId of the result, "-" when it has none (an error, NULL or ""), so that
+ * the line matches the platform's timing of that record;
  * mode rest|ws|ws>rest; afterStop: stop to the result callback; upload: stop to the last byte sent
  * (end frame, or the request body of the last attempt); wait: from there to the first byte of the
  * result (WebSocket without first-byte time: to the whole final); download: first to last byte;
@@ -740,7 +755,7 @@ void ygst_timing_set_fallback(ygst_timing *t, const char *reason);
  * connections=N when more than one. REST: attempts=N sent=<request>B body=<decoded>B
  * wire=<received>B and the Content-Encoding. Then the server.* times present, replayed, errId=N of an
  * error, fallback="<reason>" of ws>rest. Unknown values print as "-". */
-int ygst_timing_summary(const ygst_timing *t, const char *token_id, ygst_buf *out);
+int ygst_timing_summary(const ygst_timing *t, const char *token_id, const char *record_id, ygst_buf *out);
 /* DEBUG: every phase that happened, in ms after the first one:
  *   timing tokenId=<t> phases start=+0ms connect=+5ms ... delivered=+36843ms */
 int ygst_timing_phases(const ygst_timing *t, const char *token_id, ygst_buf *out);
@@ -749,6 +764,131 @@ int ygst_timing_phases(const ygst_timing *t, const char *token_id, ygst_buf *out
  *   timing tokenId=<t> engineStages text_frontend_ms=1909.3 asr_ms=595.0 receivedAt=.. audioBytes=..
  * Nothing (0, out unchanged) when timing is empty or has none of them. */
 int ygst_timing_stages(ygst_span timing, const char *token_id, ygst_buf *out);
+
+/* ------------------------------------------------------------------ TtsClient and ReportClient (2.2.0) */
+
+/* POST /api/v1/tts/generate and GET /api/v1/report/{recordId} with the appKey and secretKey of the
+ * engine or of the caller (CONTRACT 2.2, 2.3, 4, 6, 7). Everything decided about them is here: the
+ * JSON body and its signed parameters, the report path, the absolute audio URL, the classification
+ * of {code, message, data} answers, the report fields, the wait for the AI final draft and the log
+ * line. The Objective-C layer sends the requests with the session, the retry controller (ygst_call)
+ * and the error mapping of the evaluations. */
+
+#define YGST_TTS_PATH "api/v1/tts/generate"
+#define YGST_REPORT_POLL_MS 1000 /* waitForFinalMs: one lookup per second while the report is pending */
+
+typedef struct {
+    const char *text;        /* required */
+    const char *language;    /* strings: NULL or "" is not sent */
+    const char *voice;
+    const char *format;
+    int has_speed;           /* integers: sent when has_* is set */
+    long long speed;
+    int has_pitch;
+    long long pitch;
+    int has_volume;
+    long long volume;
+    int has_sample_rate;
+    long long sample_rate;
+    const char *emotion;
+    const char *style;
+    const char *pinyin;
+    const char *genre;
+} ygst_tts_request;
+
+void ygst_tts_request_init(ygst_tts_request *r);
+/* The JSON body with the members that are set, in the order text, language, voice, format, speed,
+ * pitch, volume, sampleRate, emotion, style, pinyin, genre, and its signed parameters (CONTRACT 2.3:
+ * the top-level scalar members, each with its literal text, integers in plain decimal). 0,
+ * YGST_LOCAL_INVALID_ARGUMENT when text is blank, -1 on bad input or allocation failure. */
+int ygst_tts_body(const ygst_tts_request *r, ygst_buf *json, ygst_fields *sign);
+
+typedef struct {
+    ygst_buf audio_url;      /* data.audioUrl as returned, empty when absent */
+    ygst_buf format;         /* data.format */
+    int has_duration;
+    double duration;         /* data.duration in seconds, a text such as "1.348" or a number */
+} ygst_tts_answer;
+
+void ygst_tts_answer_init(ygst_tts_answer *a);
+void ygst_tts_answer_free(ygst_tts_answer *a);
+/* data: the "data" object of a TTS answer. 0, -1 when it is not an object. */
+int ygst_tts_parse(ygst_span data, ygst_tts_answer *a);
+/* The audioUrl of a TTS answer as an absolute URL (CONTRACT 4.1): http and https URLs stay as they
+ * are, /audio/... becomes <base>/tts/audio/..., another path <base><path>, anything else
+ * <base>/<url>. Nothing is appended for a NULL or empty audioUrl. 0, or -1. */
+int ygst_tts_absolute_url(const char *base, const char *audio_url, ygst_buf *out);
+
+/* api/v1/report/<recordId trimmed, percent-encoded>, relative to the base URL. 0, or
+ * YGST_LOCAL_INVALID_ARGUMENT when the recordId is blank. */
+int ygst_report_path(const char *record_id, ygst_buf *out);
+/* <base>/<path> with the trailing slashes of base removed. 0, or -1. */
+int ygst_api_url(const char *base, const char *path, ygst_buf *out);
+
+/* {code, message, data} answers of the v1 API. HTTP 2xx with "code" 0 or absent and an object
+ * "data": a success, c->root is the body and c->result its "data". HTTP 2xx with another code: a
+ * platform error with that code, retried when spec/errors.json says so. HTTP 2xx without a JSON
+ * object or without a data object: 90005. Every other outcome exactly like ygst_classify. */
+int ygst_classify_api(const ygst_outcome *o, ygst_classification *c);
+
+typedef struct {
+    ygst_buf record_id;      /* data.recordId when it is a string */
+    ygst_buf report_status;  /* data.reportStatus: final, pending, instant, none; empty when absent */
+    int has_summary;
+    ygst_buf summary;        /* data.report.summary */
+    int has_overall;
+    double overall;          /* data.score.overall */
+    ygst_span report;        /* data.report, data.score and data.timing when they are objects, */
+    ygst_span score;         /* p NULL otherwise */
+    ygst_span timing;
+    ygst_span suggestions;   /* data.report.suggestions when it is an array, p NULL otherwise */
+} ygst_report;
+
+void ygst_report_init(ygst_report *r);
+void ygst_report_free(ygst_report *r);
+/* data: the "data" object of a report answer. 0, -1 when it is not an object. */
+int ygst_report_parse(ygst_span data, ygst_report *r);
+/* The next string item of a suggestions array, other items skipped. 1 with one in out (replaced),
+ * 0 at the end or for anything but an array. *pos starts at 0. */
+int ygst_report_next_suggestion(ygst_span suggestions, size_t *pos, ygst_buf *out);
+int ygst_report_is_pending(const ygst_report *r);
+int ygst_report_is_final(const ygst_report *r);
+/* waitForFinalMs: after an answer, the milliseconds until the next lookup, or -1 to return this
+ * answer. A pending answer is looked up again after YGST_REPORT_POLL_MS while that lookup starts
+ * within wait_ms of the call's start (monotonic milliseconds); wait_ms <= 0 is one lookup. */
+long ygst_report_poll_delay(long long wait_ms, int64_t started_ms, int64_t now_ms, int pending);
+
+typedef enum {
+    YGST_RP_RETURN = 1, /* the call ends with the latest answer */
+    YGST_RP_AGAIN = 2,  /* look up again in delay_ms */
+    YGST_RP_FAIL = 3    /* the call ends with the error of this lookup */
+} ygst_rp_kind;
+
+typedef struct {
+    ygst_rp_kind kind;
+    long delay_ms;  /* AGAIN */
+    int degraded;   /* RETURN after a failed lookup: the latest answer is an earlier one, log one WARN line */
+} ygst_rp_action;
+
+/* getReport after one lookup, as the Android shim decides it. ok: the lookup answered, pending: its
+ * reportStatus is pending; answered: an earlier lookup of this call answered. An answer is looked up
+ * again while ygst_report_poll_delay allows it, else returned. A failed lookup ends the call with its
+ * error when it was the first; after an answer the call ends with the latest answer, degraded. */
+ygst_rp_action ygst_report_after_lookup(long long wait_ms, int64_t started_ms, int64_t now_ms, int ok, int pending,
+                                        int answered);
+/* The WARN line of a degraded getReport, without the report text:
+ *   getReport recordId=eval_x lookup failed while waiting: code=20009 lookups=3, returning the latest answer */
+int ygst_report_lookup_failed_line(const char *record_id, int code, int lookups, ygst_buf *out);
+
+/* The log line of one call, without the secret, signatures, audio or report text:
+ *   tts status=ok attempts=1 ms=842
+ *   getReport recordId=eval_3fb4 status=final lookups=3 attempts=3 ms=2150
+ *   getReport recordId=eval_x status=error code=40001 lookups=1 attempts=1 ms=35
+ * record_id NULL leaves recordId out ("" prints "-", whitespace and control bytes print "_"); code
+ * other than 0 prints status=error code=<code>, otherwise status (NULL or "" prints "-");
+ * lookups below 0 is left out. */
+int ygst_api_log_line(const char *op, const char *record_id, const char *status, int code, int lookups,
+                      int attempts, long long ms, ygst_buf *out);
 
 #ifdef __cplusplus
 }

@@ -31,7 +31,7 @@ public final class CompatErrIds {
         m.put(RETRYABLE, "网络或服务端临时故障，可重评，autoRetry 默认重评此码");
         m.put(AUDIO_FILE_MISSING, "音频文件不存在或不可读");
         m.put(AUDIO_EMPTY, "音频为空");
-        m.put(CORE_TYPE_UNSUPPORTED, "coreType 不支持");
+        m.put(CORE_TYPE_UNSUPPORTED, "不支持的评测内核");
         m.put(MICROPHONE_UNAVAILABLE, "麦克风不可用或没有录音权限");
         m.put(AUDIO_TOO_SHORT, "音频短于 1 秒");
         m.put(REF_TEXT_EMPTY, "refText 为空");
@@ -54,5 +54,19 @@ public final class CompatErrIds {
             e = ErrorTable.LOCAL.get(errId);
         }
         return e != null ? e.message : "error " + errId;
+    }
+
+    /** Placeholder for a blank or missing coreType in the 60003 text. */
+    public static final String CORE_TYPE_NOT_GIVEN = "未指定";
+
+    /**
+     * {@code error} text of errId 60003, shared with the iOS layer (SDK 2.2.0): the message of the table, a
+     * full-width colon and the requested coreType trimmed, for example {@code 不支持的评测内核：open.eval};
+     * {@code 不支持的评测内核：未指定} when the coreType is blank or missing. The same text is the message of
+     * the IllegalArgumentException of {@code YuguCompat.setThrowOnUnsupportedCoreType(true)}.
+     */
+    public static String unsupportedCoreType(String coreType) {
+        String ct = coreType == null ? "" : coreType.trim();
+        return message(CORE_TYPE_UNSUPPORTED) + "：" + (ct.isEmpty() ? CORE_TYPE_NOT_GIVEN : ct);
     }
 }

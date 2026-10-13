@@ -5,7 +5,7 @@
 | 项 | 内容 |
 |---|---|
 | 包名 | `@shengzhiai/yugu-miniprogram-sdk` |
-| 当前版本 | `2.1.0`，2026-10-12 |
+| 当前版本 | `2.1.1`，2026-10-13 |
 | npm 源 | `https://open.shengzhiai.com/npm/`，匿名只读 |
 | 服务基址 | `https://open.shengzhiai.com`，`wss://open.shengzhiai.com` |
 | 基础库 | `2.20.1` 及以上 |
@@ -21,7 +21,7 @@
 
 ```bash
 echo "@shengzhiai:registry=https://open.shengzhiai.com/npm/" >> .npmrc
-npm install @shengzhiai/yugu-miniprogram-sdk@2.1.0
+npm install @shengzhiai/yugu-miniprogram-sdk@2.1.1
 ```
 
 工程里还没有 `package.json` 时先执行 `npm init -y`。npm 源不需要账号，已发布的版本不会被覆盖，退回历史版本时把版本号换成目标版本重新安装即可。
@@ -140,6 +140,17 @@ secretKey 写进小程序包就可能被反编译取得，正式环境不要在�
 
 `evaluate` 的参数为 `coreType`，`referenceText`，`language`，`includeReport`，`includeStandardAudio`，`includeAsrText`，`slack`，`scale`，`precision`，`agegroup`，`toneWeight`，`refPinyin`，`phonemeOutput`，`taskType`，`paragraphNeedWordScore` 与音频 `audio`，含义见 `CONTRACT.md` 第 3.1 节。契约之外的新字段放在 `extra` 里原样透传。看图说话题用 `image` 传图片。`evaluateCompat` 用声通参数名 `refText`，`language`，`refPinyin`，其余表单字段放在 `fields` 里。`streamEvaluate` 的参数与 `evaluate` 相同，不带音频，另有 `realtimeFeedback`，`streamEvaluateCompat` 的参数为 `refText`，`language`，`refPinyin`，`realtimeFeedback` 与 `fields`，`realtimeFeedback` 的用法见“朗读进度”。
 
+### 中文开放题
+
+`2.1.1` 起 `COMPAT_CORE_TYPES` 含中文开放题 `open.eval.cn`，与原生 `open` 用同一套评分，语言固定为中文。`refText` 必填，与声通的用法相同，填一条或多条参考答案，多条用竖线隔开，也可以填题目，由评分模型判断是哪一种，`refPinyin` 不能代替 `refText`，为空或只有空白时 `evaluateCompat` 与 `streamEvaluateCompat` 在发请求前以错误码 90010 失败。`qType`，`keypoints`，`keywords` 放在 `fields` 里，`qType` 为 5 时按看图说话评，为 6 时按情景问答评，其他取值或不传时按自由表达评，细则见 `CONTRACT.md` 的 3.2 节。
+
+```js
+const r = await client.evaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', fields: { qType: 6 }, audioPath: tempFilePath });
+console.log(r.overall, r.open.content.overall, r.open.feedback.strengths);
+```
+
+结果的分项与原生开放题相同，在 `open` 里，`coreType` 为平台回传的 `open`。另有与声通相同的 `dims.pronunciation`，`dims.fluency`，`dims.integrity` 与每分钟字数 `speed`，`words` 与 `sentences` 为空数组。实时评测打开 `realtimeFeedback` 后，`onPartial` 只有 `bytes`，`hasProgress` 为 `false`。
+
 ## 客户端配置
 
 | 配置 | 默认值 | 说明 |
@@ -157,7 +168,7 @@ secretKey 写进小程序包就可能被反编译取得，正式环境不要在�
 | `eventListener` | 无 | 指标回调，见“日志与指标” |
 | `audioPrecheck` | `WARN` | 音频预检模式 `OFF`，`WARN`，`REJECT` |
 | `strictAudio` | `false` | 评测结果带警告 1001 时抛出 `AudioQualityException` |
-| `userAgent` | `yugu-miniprogram-sdk/2.1.0` | 通过请求头 `X-Yugu-SDK` 发送，小程序不能改写 `User-Agent` |
+| `userAgent` | `yugu-miniprogram-sdk/2.1.1` | 通过请求头 `X-Yugu-SDK` 发送，小程序不能改写 `User-Agent` |
 | `reconnect` | 见“实时评测” | 部分覆盖重连策略，`false` 关闭重连 |
 | `audioBufferPolicy` | `REPLAY` | 实时评测音频缓冲策略 `REPLAY`，`DROP`，`FAIL` |
 | `heartbeatIntervalMs` | 15000 | 应用层心跳间隔，0 关闭心跳 |
@@ -221,7 +232,7 @@ ctl.abort(); // 页面退出时取消，Promise 以 RequestCancelledException �
 | `alpha` | `alpha.eval` | `overall` | `dims`，`words` |
 | `pinyin` | `pinyin` | `overall` | `dims`，`words`，引擎按句子题评分，`coreType` 报告为 `sentence` |
 | `connected` | 无 | `overall`，即 `connected.overall` | `connected.linking`，`elision`，`reduction`，`rhythm`，`nBoundaries`，`boundaries[]` |
-| `open` | 无 | `overall` | `open.content`，`open.languageUse`，`open.delivery`，`open.transcript`，`open.feedback`，`open.openTaskAudit` |
+| `open` | `open.eval.cn` | `overall` | `open.content`，`open.languageUse`，`open.delivery`，`open.transcript`，`open.feedback`，`open.openTaskAudit` |
 
 `connected.boundaries` 的每一项给出 `between` 两个词，`tags` 应有的连读类型，`realized` 实际实现程度，`start_ms` 与 `end_ms`。`open.delivery` 含 `fluency`，`pronunciation`，`speech_rate`，`speech_rate_label`，`n_pauses`。嵌套对象保持平台原有字段名，原始 JSON 始终可以从 `raw` 取到。
 
@@ -233,6 +244,8 @@ if (r.open) {
 ```
 
 语音合成返回 `TtsResult`：`audioUrl` 为平台原值，`fullUrl` 为可直接播放的完整地址，另有 `duration`，`format`，`idempotencyKey`，`replayed`。
+
+报告查询 `getReport` 返回响应的 `data` 节点，其中 `reportStatus` 为 `final` 时报告是 AI 终稿，为 `pending` 时是 AI 稿生成期间的即时稿，稍后再查可取到终稿，为 `instant` 时不会再有 AI 稿，为 `none` 时没有报告，声通兼容评测的记录另带分段耗时 `timing`，保留 7 天。
 
 ## TypeScript
 

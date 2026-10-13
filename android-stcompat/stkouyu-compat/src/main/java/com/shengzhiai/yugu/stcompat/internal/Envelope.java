@@ -162,6 +162,24 @@ public final class Envelope {
                 + "}";
     }
 
+    /**
+     * Top-level {@code recordId} of a platform body for the timing log (SDK 2.2.0): the string value, the
+     * raw text of another scalar, null when absent, empty, JSON null or the body is no JSON object.
+     */
+    public static String recordIdOf(String platformBody) {
+        String raw;
+        try {
+            raw = RawJson.members(platformBody == null ? "" : platformBody.trim()).get("recordId");
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        if (raw == null) {
+            return null;
+        }
+        String v = RawJson.isString(raw) ? RawJson.unquote(raw) : raw.trim();
+        return v.isEmpty() || "null".equals(v) || v.startsWith("{") || v.startsWith("[") ? null : v;
+    }
+
     public static String error(String tokenId, int errId, String message, String appKey) {
         return "{\"tokenId\":" + RawJson.quote(nz(tokenId))
                 + ",\"errId\":" + errId

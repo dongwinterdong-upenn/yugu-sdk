@@ -5,11 +5,11 @@ import java.util.Random;
 
 /**
  * Process-wide configuration of the compat layer, set through {@code com.stkouyu.YuguCompat}
- * (base URL, log level, retry policy, timeouts, streaming upload) and by tests (transport,
- * WebSocket connector, audio input, sleeper).
+ * (base URL, log level, retry policy, timeouts, streaming upload, exception for an unsupported
+ * coreType) and by tests (transport, WebSocket connector, audio input, sleeper).
  */
 public final class CompatConfig {
-    public static final String VERSION = "2.1.2";
+    public static final String VERSION = "2.2.0";
     public static final String API_VERSION = "1.0.62";
     public static final String SDK_VERSION = "yugu-stkouyu-compat/" + VERSION + " (api " + API_VERSION + ")";
     public static final String USER_AGENT = "yugu-stkouyu-compat/" + VERSION;
@@ -29,6 +29,7 @@ public final class CompatConfig {
     private static volatile int readTimeoutMs = -1;
     private static volatile long totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS;
     private static volatile boolean streamUpload = true;
+    private static volatile boolean throwOnUnsupportedCoreType;
     private static volatile HttpTransport transport = new UrlConnectionTransport();
     private static volatile WsConnection.Connector wsConnector = WsClient.CONNECTOR;
     private static volatile AudioInput.Factory audioInputFactory = AudioRecordInput.FACTORY;
@@ -90,6 +91,18 @@ public final class CompatConfig {
         streamUpload = enabled;
     }
 
+    /**
+     * An unsupported coreType throws IllegalArgumentException from startRecord, existsAudioTrans and
+     * skegn_start instead of answering errId 60003 through the callback (default false, SDK 2.2.0).
+     */
+    public static boolean throwOnUnsupportedCoreType() {
+        return throwOnUnsupportedCoreType;
+    }
+
+    public static void setThrowOnUnsupportedCoreType(boolean enabled) {
+        throwOnUnsupportedCoreType = enabled;
+    }
+
     public static HttpTransport transport() {
         return transport;
     }
@@ -139,6 +152,7 @@ public final class CompatConfig {
         readTimeoutMs = -1;
         totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS;
         streamUpload = true;
+        throwOnUnsupportedCoreType = false;
         transport = new UrlConnectionTransport();
         wsConnector = WsClient.CONNECTOR;
         audioInputFactory = AudioRecordInput.FACTORY;

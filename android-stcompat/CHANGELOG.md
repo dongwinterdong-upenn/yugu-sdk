@@ -2,6 +2,32 @@
 
 `com.shengzhiai.yugu:stkouyu-compat` 的版本记录。格式参照 Keep a Changelog，版本号遵循语义化版本，破坏性变更只在主版本号升级时出现。
 
+## 版本 `2.2.0` 2026-10-13
+
+报告查询与语音合成，不支持的内核给出写明内核的错误，也可以改为抛出异常。
+
+### 新增
+
+- `com.shengzhiai.yugu.stcompat.ReportClient` 按评测结果的 `recordId` 查询网站上展示的 AI 报告，`GET /api/v1/report/{recordId}`，含整体点评，各维度点评与建议，带置信度的技能观察与逐条改进建议。`TtsClient` 调用语音合成 `POST /api/v1/tts/generate`，返回音频地址与可以直接播放的完整地址。两者的 `create()` 取 `initEngine` 的 appKey，secretKey 与服务地址，也可以传入密钥与平台地址。同步方法 `getReport` 与 `tts` 不能在主线程调用，异步方法 `getReportAsync` 与 `ttsAsync` 在主线程回调。用法见 README 的语音合成与报告一节。
+- 调用失败时抛出非受检异常 `YuguApiException`，`getCode()` 为平台错误码，例如 40001 评测记录不存在，网络或服务端临时故障在重试用尽后为 20009，`getHttpStatus()` 为 HTTP 状态。
+- 报告查询的结果给出 `reportStatus`：`final` 为 AI 终稿，`pending` 为即时稿，AI 终稿正在生成，`instant` 为不会有 AI 终稿的即时稿，`none` 为没有报告。`ReportOptions.setWaitForFinalMs` 大于 0 时，结果为 `pending` 就每隔 1000 毫秒再查一次，直到不再是 `pending` 或用完这段时间。兼容接口评测的记录另有 `timing`，保留 7 天。
+- `YuguCompat.setThrowOnUnsupportedCoreType(true)` 之后，`startRecord` 与 `existsAudioTrans` 的各个重载以及 `SkEgn.skegn_start` 遇到不支持的内核时抛出 `IllegalArgumentException`，消息与错误 JSON 的 `error` 相同，不再回调。默认关闭，`YuguCompat.reset()` 恢复关闭。
+- 分段耗时日志的 `timing` 行在 `tokenId` 之后给出 `recordId`，用来与平台按记录保存的分段耗时对应，以错误 JSON 结束时记为 `-`。
+
+### 变更
+
+- 不支持的内核：错误 JSON 的 `error` 由 `coreType 不支持` 改为写明内核，例如 `不支持的评测内核：open.eval`，`coreType` 为空或未设置时为 `不支持的评测内核：未指定`。每次拒绝记录一条写明内核与 errId 60003 的 WARN 日志，`SkEgn.skegn_start` 在 `2.1.2` 中不记录日志。
+- `SkEgn.skegn_start` 遇到不支持的内核时随即回调 errId 60003 的错误 JSON，不必等到 `skegn_stop`。这次评测之后调用 `skegn_feed` 与 `skegn_stop` 返回 -1，`skegn_get_last_error()` 分别为 21 与 24，与 iOS 平替层一致。
+- `getSDKVersion()` 返回 `yugu-stkouyu-compat/2.2.0 (api 1.0.62)`，请求头 `User-Agent` 为 `yugu-stkouyu-compat/2.2.0`。
+
+### 与声通 SDK 的差异
+
+- `TtsClient`，`ReportClient` 及其请求，选项与结果类和 `YuguApiException` 在 `com.shengzhiai.yugu.stcompat` 包中，声通 SDK 没有这些类。`com.stkouyu` 包的接口与声通 jar 一致，新增的方法只在 `YuguCompat` 中。
+
+### 破坏性变更
+
+- 无。不支持内核时 errId 仍为 60003，只有 `error` 的文字改变，按 errId 判断的代码不受影响。`SkEgn` 的这一错误 JSON 提前到 `skegn_start` 时回调，其余请求，结果与回调不变。
+
 ## 版本 `2.1.2` 2026-10-13
 
 支持声通中文开放题 `open.eval.cn`。

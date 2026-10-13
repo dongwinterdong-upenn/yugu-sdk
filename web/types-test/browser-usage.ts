@@ -170,6 +170,9 @@ async function compatAndOthers(blob: Blob): Promise<void> {
   void badCt;
   const r = await client.evaluateCompat(ct, { refText: 'How are you', paragraph_need_word_score: 1 }, blob);
   console.info(r.mode, r.coreType, NATIVE_CORE_TYPES.length);
+  const openCt: CompatCoreType = 'open.eval.cn';
+  const answer = await client.evaluateCompat(openCt, { refText: '我是学生|我不是学生', qType: 6 }, blob);
+  console.info(answer.open?.content?.overall, answer.open?.feedback?.strengths, answer.dims.pronunciation);
   const tts: TtsResult = await client.tts({ text: '你好', voice: 'xiaoyan', format: 'mp3', speed: 50 });
   // @ts-expect-error unknown TTS format
   await client.tts({ text: '你好', format: 'flac' });

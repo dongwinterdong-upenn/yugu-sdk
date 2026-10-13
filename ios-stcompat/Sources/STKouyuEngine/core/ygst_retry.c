@@ -381,6 +381,64 @@ int ygst_classify(const ygst_outcome *o, ygst_classification *c) {
     return 0;
 }
 
+/* 2.2.0, TtsClient and ReportClient: the {code, message, data} envelope of the v1 API. Local failures
+ * and non-2xx answers are classified by ygst_classify; a 2xx answer by its envelope. */
+int ygst_classify_api(const ygst_outcome *o, ygst_classification *c) {
+    static const char *const MESSAGE_KEYS[] = {"message", "msg", "error", NULL};
+    ygst_span root, data;
+    long long code = 0;
+    int rc;
+    if (!o || !c) return -1;
+    rc = ygst_classify(o, c);
+    if (o->local_code || o->http_status < 200 || o->http_status >= 300) return rc;
+    c->success = 0;
+    c->local_code = 0;
+    c->biz_code = 0;
+    c->has_record_id = 0;
+    c->has_audio_url = 0;
+    c->record_id_raw.p = NULL;
+    c->record_id_raw.n = 0;
+    c->root.p = NULL;
+    c->root.n = 0;
+    c->result.p = NULL;
+    c->result.n = 0;
+    ygst_buf_reset(&c->record_id);
+    ygst_buf_reset(&c->audio_url);
+    ygst_buf_reset(&c->message);
+    ygst_buf_cstr(&c->record_id);
+    ygst_buf_cstr(&c->audio_url);
+    if (!o->body || !o->body_len || ygst_json_parse(o->body, o->body_len, &root) != 0 || ygst_json_type(root) != 'o') {
+        c->local_code = YGST_LOCAL_PROTOCOL;
+        set_message(&c->message, "invalid platform response: not a JSON object");
+        c->retryable = 0;
+        c->err_id = YGST_LOCAL_PROTOCOL;
+        return 0;
+    }
+    if (member_int(root, "code", &code) && code != 0) {
+        /* a platform error answered with a 2xx status */
+        c->biz_code = (int)code;
+        first_string(root, MESSAGE_KEYS, &c->message);
+        ygst_buf_cstr(&c->message);
+        c->retryable = ygst_is_retryable(0, c->biz_code, o->http_status);
+        c->err_id = ygst_errid_for(0, c->biz_code, o->http_status, c->retryable);
+        return 0;
+    }
+    if (ygst_json_member(root, "data", &data) == 1 && ygst_json_type(data) == 'o') {
+        c->success = 1;
+        c->root = root;
+        c->result = data;
+        c->retryable = 0;
+        c->err_id = 0;
+        ygst_buf_cstr(&c->message);
+        return 0;
+    }
+    c->local_code = YGST_LOCAL_PROTOCOL;
+    set_message(&c->message, "invalid platform response: response has no data");
+    c->retryable = 0;
+    c->err_id = YGST_LOCAL_PROTOCOL;
+    return 0;
+}
+
 int ygst_error_message(const ygst_classification *c, int err_id, int attempts, ygst_buf *out) {
     const char *m = c->message.data ? (const char *)c->message.data : "";
     if (err_id == YGST_ERRID_RETRYABLE) {

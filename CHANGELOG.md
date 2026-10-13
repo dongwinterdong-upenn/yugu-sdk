@@ -2,6 +2,26 @@
 
 格式参照 Keep a Changelog，版本号规则见 `COMPATIBILITY.md`。各端的详细变更见各端目录下的 CHANGELOG.md。
 
+## 版本 `2.2.0`，2026-10-13
+
+安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个声通平替发 `2.2.0`。安卓，Java，网页，小程序四个原生包发 `2.1.1`，iOS 原生包仍为 `2.1.0`。
+
+### 新增
+- 两个平替层新增语音合成 `TtsClient` 与报告查询 `ReportClient`。安卓在 `com.shengzhiai.yugu.stcompat` 包里，iOS 在 `YuguCompat.h` 里，Swift 名为 `TtsClient` 与 `ReportClient`。默认用初始化引擎时的 appKey 与 secretKey，也可以单独指定。报告查询设 `waitForFinalMs` 时每秒再查一次，直到 AI 终稿就绪或时间用完。
+- 两个平替层的 `YuguCompat` 新增开关，打开后不支持的内核在开始评测时直接抛异常，安卓为 `IllegalArgumentException`，iOS 为 `NSInvalidArgumentException`，默认关闭。
+- 平台侧：声通兼容接口的评测记录记下所属账号，用同一个 appKey 可以按 `recordId` 查报告。报告查询新增 `reportStatus`，说明是不是 AI 终稿，声通兼容评测另带分段耗时 `timing`，保留 7 天，见 `CONTRACT.md` 4.2 节。
+
+### 变更
+- 不支持的内核：errId 60003 的 `error` 改为“不支持的评测内核：<内核>”，未指定内核时为“未指定”，每个入口都记一行警告日志。安卓 `skegn_start` 当场回调，之后 `skegn_feed` 与 `skegn_stop` 返回 -1，与 iOS 一致。iOS `skegn_start` 的内核只含空白时回 60003，此前按 `word.eval` 评测。
+- 日志级别为 INFO 时，分段耗时一行在 `tokenId` 之后另有 `recordId`，可与报告查询返回的 `timing` 对照。
+- 安卓，Java，网页，小程序四个原生包的兼容评测放开中文开放题 `open.eval.cn`，此前在本地就被挡下。`refText` 必填，不能用 `refPinyin` 代替。
+- 平台侧：AI 终稿拿到逐字比对事实，多读与重复读不再被说成读错，完整度一段只有增读或重复时不再说漏读。即时稿的语速建议按文体标准区间判断，报告里不再出现语速数字区间。英文题的中文版与英文终稿同时生成，英文终稿约 11 秒就绪。
+- 文档：结果字段新增“增读与重复读”一节，写明标识，计分，排序与时间区间。
+
+### 兼容性
+- 两个平替与 `2.1.2` 源码兼容，二进制兼容，替换版本号即可升级。交给应用的结果 JSON 不变，只有 60003 的 `error` 文案变了，按 `errId` 判断的代码不受影响。
+- 四个原生包与 `2.1.0` 源码兼容，二进制兼容。
+
 ## 版本 `2.1.2`，2026-10-13
 
 只发了安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个声通平替，其余五端仍为 `2.1.0`。

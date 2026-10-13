@@ -255,17 +255,29 @@ public class EnvelopeTest {
 
     @Test
     public void errorEnvelope() throws Exception {
-        JSONObject e = new JSONObject(Envelope.error(TOKEN, 60003, "coreType 不支持", "ak"));
+        JSONObject e = new JSONObject(Envelope.error(TOKEN, 60003, "不支持的评测内核：open.eval", "ak"));
         Iterator<String> keys = e.keys();
         for (String k : new String[] {"tokenId", "errId", "error", "eof", "applicationId"}) {
             assertEquals(k, keys.next());
         }
         assertEquals(60003, e.getInt("errId"));
-        assertEquals("coreType 不支持", e.getString("error"));
+        assertEquals("不支持的评测内核：open.eval", e.getString("error"));
         assertEquals(1, e.getInt("eof"));
         JSONObject n = new JSONObject(Envelope.error(null, 20009, null, null));
         assertEquals("", n.getString("tokenId"));
         assertEquals("", n.getString("applicationId"));
+    }
+
+    @Test
+    public void recordIdOfThePlatformBodyForTheTimingLine() {
+        assertEquals("eval_7954d149c40a", Envelope.recordIdOf("{\"recordId\":\"eval_7954d149c40a\",\"result\":{}}"));
+        assertEquals("12345", Envelope.recordIdOf(" {\"recordId\": 12345 ,\"result\":{}} "));
+        assertEquals(null, Envelope.recordIdOf("{\"recordId\":\"\",\"result\":{}}"));
+        assertEquals(null, Envelope.recordIdOf("{\"recordId\":null}"));
+        assertEquals(null, Envelope.recordIdOf("{\"recordId\":{\"a\":1}}"));
+        assertEquals(null, Envelope.recordIdOf("{\"result\":{\"recordId\":\"inner\"}}"));
+        assertEquals(null, Envelope.recordIdOf("not json"));
+        assertEquals(null, Envelope.recordIdOf(null));
     }
 
     @Test

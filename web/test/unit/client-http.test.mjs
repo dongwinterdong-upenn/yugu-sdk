@@ -76,7 +76,7 @@ describe('evaluate: request construction (DESIGN 5.2)', () => {
     assert.equal(h['X-App-Key'], 'ak_test_key');
     assert.ok(Math.abs(Number(h['X-Timestamp']) - Date.now() / 1000) < 5, 'timestamp in seconds');
     assert.match(h['X-Nonce'], /^[0-9a-f]{16}$/);
-    assert.equal(h['User-Agent'], 'yugu-web-sdk/2.1.0');
+    assert.equal(h['User-Agent'], 'yugu-web-sdk/2.1.1');
     assert.equal(h.Accept, 'application/json');
     assert.ok(init.body instanceof ArrayBuffer);
     const parts = parseMultipart(init.body, h['Content-Type']);
@@ -436,6 +436,41 @@ describe('evaluateCompat, tts, getReport', () => {
     const nul = fakeFetch([{ json: compat }]);
     await client(nul).evaluateCompat('word.eval', null, WAV);
     assert.equal(parseMultipart(nul.calls[0].init.body, nul.calls[0].init.headers['Content-Type']).length, 1);
+  });
+
+  test('compat open.eval.cn (2.1.1): own path, signed fields, refText required before any request', async () => {
+    const open = readJson('platform/compat_open.eval.cn.json');
+    const answer = readAudio('zh_open_answer.wav');
+    const f = fakeFetch([{ json: open }]);
+    const r = await client(f).evaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', qType: 6, keypoints: '学生' }, answer);
+    const { url, init } = f.calls[0];
+    assert.equal(url, `${BASE}/open.eval.cn`);
+    const parts = parseMultipart(init.body, init.headers['Content-Type']);
+    assert.deepEqual(parts.map((p) => p.name), ['refText', 'qType', 'keypoints', 'audio']);
+    assert.deepEqual(parts.slice(0, 3).map((p) => p.value), ['我是学生|我不是学生', '6', '学生']);
+    assert.equal(init.headers['X-Signature'], await signHmacSha256({ refText: '我是学生|我不是学生', qType: '6', keypoints: '学生' }, SECRET));
+    assert.equal(r.mode, 'compat');
+    assert.equal(r.coreType, 'open.eval.cn');
+    assert.equal(r.overall, 96);
+    assert.equal(r.open.delivery.overall, 88);
+    assert.equal(r.open.feedback.suggestions.length, 2);
+    assert.deepEqual([r.words.length, r.sentences.length], [0, 0]);
+    // refText, the model answers or the question, is required; a refPinyin does not replace it
+    const none = fakeFetch([{ json: open }]);
+    const c = client(none);
+    for (const params of [null, {}, { refText: '' }, { refText: ' \t' }, { refText: '', refPinyin: 'wo3 shi4 xue2 sheng1', language: 'zh-CN' }]) {
+      await assert.rejects(
+        c.evaluateCompat('open.eval.cn', params, answer),
+        (e) => e instanceof InvalidParameterException && e.code === 90010 && /open\.eval\.cn/.test(e.message),
+        JSON.stringify(params),
+      );
+    }
+    assert.equal(none.calls.length, 0, 'rejected before any request');
+    // text, the platform's alias of refText, counts
+    await c.evaluateCompat('open.eval.cn', { text: '我是学生' }, answer);
+    assert.equal(none.calls.length, 1);
+    // the English open question stays unsupported
+    await assert.rejects(c.evaluateCompat('open.eval', { refText: 'What do you do?' }, answer), (e) => e.code === 90010);
   });
 
   test('tts: JSON body, defaults, signature over top-level scalars, envelope errors retried', async () => {

@@ -68,7 +68,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class YuguClient implements AutoCloseable {
     /** SDK version. */
-    public static final String VERSION = "2.1.0";
+    public static final String VERSION = "2.1.1";
     /** Default User-Agent. */
     public static final String USER_AGENT = "yugu-java-sdk/" + VERSION;
     /** Core types of the native endpoints. */
@@ -77,6 +77,8 @@ public final class YuguClient implements AutoCloseable {
     /** Core types of the compat endpoints. */
     public static final List<String> COMPAT_CORE_TYPES = CompatConfig.CORE_TYPES;
 
+    /** The compat core type of Shengtong's Chinese open question (2.1.1), whose refText is required. */
+    private static final String OPEN_QUESTION = "open.eval.cn";
     private static final String TAG = "client";
     private static final AtomicInteger INSTANCES = new AtomicInteger();
 
@@ -703,6 +705,11 @@ public final class YuguClient implements AutoCloseable {
         }
         if (!COMPAT_CORE_TYPES.contains(config.getCoreType())) {
             throw invalid("unknown compat coreType " + config.getCoreType() + ", expected one of " + COMPAT_CORE_TYPES);
+        }
+        // The open question's refText, model answers separated by | or the question, is required and no refPinyin
+        // stands in for it (as in the 2.1.2 shims). Checked on the refText that is sent, so a blank one fails too.
+        if (OPEN_QUESTION.equals(config.getCoreType()) && isEmpty(config.toFormFields().get("refText"))) {
+            throw invalid("refText is required for " + OPEN_QUESTION + ": model answers separated by | or the question");
         }
         return config.getCoreType();
     }

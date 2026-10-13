@@ -6,6 +6,8 @@
 //  的 app、audio 与 request；feed 收集音频；skegn_stop 后用与 KYTestEngine 相同的请求、重试与
 //  结果 JSON 评测，结果经 callback(usrdata, tokenId, SKEGN_MESSAGE_TYPE_JSON, json, size)
 //  在内部队列回调。日志级别为 info 时每次评测之后打印一行分段耗时（2.1.1）。
+//  2.2.0：不支持的 coreType 立即回调“不支持的评测内核：<coreType>”并打印一行 warn 日志；
+//  YuguCompat.throwOnUnsupportedCoreType 为 YES 时 skegn_start 返回 -1，最近错误码为 60003，打印 error 日志。
 //
 //  Copyright 2026 优谷雅言 open.shengzhiai.com
 //  SPDX-License-Identifier: Apache-2.0
@@ -235,6 +237,14 @@ struct skegn *skegn_new(const char *cfg) {
     h->magic = YGST_SKEGN_MAGIC;
     h->engine = (void *)CFBridgingRetain(e);
     [YGSTSettings shared].configuredBaseURL = e.baseURL;
+    {
+        // 2.2.0: TtsClient and ReportClient made with clientFromEngine use these
+        YGSTEngineCredentials *credentials = [[YGSTEngineCredentials alloc] init];
+        credentials.appKey = appKey;
+        credentials.secretKey = secret;
+        credentials.baseURL = e.baseURL;
+        [[YGSTSettings shared] setEngineCredentials:credentials owner:(__bridge const void *)e];
+    }
     YGSTLogf(YGST_LEVEL_INFO, @"skegn_new: appKey %@, platform %@", YGSTMaskedAppKey(appKey), e.baseURL);
     g_skegn_last_error = YGST_SGN_NONE;
     return h;
@@ -244,6 +254,7 @@ int skegn_delete(struct skegn *engine) {
     YGSTCEngine *e = YGSTEngineFromHandle(engine);
     if (!e) return YGSTSkegnFail(YGST_SGN_ENGINE_IS_NULL);
     skegn_cancel(engine);
+    [[YGSTSettings shared] clearEngineCredentialsOfOwner:(__bridge const void *)e];
     engine->magic = 0;
     CFBridgingRelease(engine->engine);
     engine->engine = NULL;
@@ -257,6 +268,9 @@ int skegn_start(struct skegn *engine, const char *param, char id[64], skegn_call
     YGSTCSession *s;
     __block int rc = 0;
     NSString *rejection = nil;
+    NSString *rejectionLog = nil;
+    NSString *requested;
+    ygst_ct_status status;
     char coreType[128];
     if (!e) return YGSTSkegnFail(YGST_SGN_ENGINE_IS_NULL);
     if (!id) return YGSTSkegnFail(YGST_SGN_ID_IS_NULL);
@@ -267,14 +281,23 @@ int skegn_start(struct skegn *engine, const char *param, char id[64], skegn_call
         YGSTLogf(YGST_LEVEL_ERROR, @"skegn_start: param has no request object");
         return YGSTSkegnFail(YGST_SGN_BAD_PRAMA);
     }
+    // 2.2.0: request.coreType as text; blank or missing is no coreType (60003 "不支持的评测内核：未指定")
+    requested = YGSTDictString(request, @"coreType");
+    status = ygst_coretype_resolve_text(requested.UTF8String, coreType, sizeof coreType);
+    if (status != YGST_CT_SUPPORTED && [YGSTSettings shared].throwOnUnsupportedCoreType) {
+        // the C interface cannot throw: -1 with last error 60003, no callback, nothing started
+        YGSTLogf(YGST_LEVEL_ERROR, @"skegn_start rejected: errId %d, %@ (YuguCompat.throwOnUnsupportedCoreType)",
+                 YGST_ERRID_CORETYPE_UNSUPPORTED, YGSTUnsupportedCoreTypeMessage(requested));
+        id[0] = 0;
+        return YGSTSkegnFail(YGST_ERRID_CORETYPE_UNSUPPORTED);
+    }
     audio = [p[@"audio"] isKindOfClass:[NSDictionary class]] ? p[@"audio"] : nil;
     app = [p[@"app"] isKindOfClass:[NSDictionary class]] ? p[@"app"] : nil;
 
     s = [[YGSTCSession alloc] init];
     s.tokenId = YGSTNewTokenId();
     s.timing->_t.start_ms = YGSTMonotonicMs();
-    s.coreTypeStatus = ygst_coretype_resolve(YGSTDictString(request, @"coreType").UTF8String, 0, coreType, sizeof coreType);
-    if (!YGSTDictString(request, @"coreType").length) s.coreTypeStatus = YGST_CT_UNKNOWN;
+    s.coreTypeStatus = status;
     s.coreType = [NSString stringWithUTF8String:coreType] ?: @"";
     s.userId = YGSTDictString(app, @"userId") ?: @"";
     s.refText = YGSTDictString(request, @"refText") ?: @"";
@@ -307,7 +330,14 @@ int skegn_start(struct skegn *engine, const char *param, char id[64], skegn_call
     {
         int invalid = ygst_validate_request(s.coreTypeStatus, s.coreType.UTF8String, s.refText.UTF8String,
                                             YGSTDictString(request, @"refPinyin").UTF8String);
-        if (invalid) rejection = YGSTErrorJSON(s.tokenId, invalid, YGSTCompatMessage(invalid), e.appKey);
+        if (invalid) {
+            // 2.2.0: never silent, one WARN line naming the coreType and the errId when it is answered
+            NSString *message = invalid == YGST_ERRID_CORETYPE_UNSUPPORTED ? YGSTUnsupportedCoreTypeMessage(requested)
+                                                                           : YGSTCompatMessage(invalid);
+            rejection = YGSTErrorJSON(s.tokenId, invalid, message, e.appKey);
+            rejectionLog = [NSString stringWithFormat:@"skegn_start %@ not started: errId %d, %@", s.tokenId, invalid,
+                                                      message];
+        }
     }
 
     YGSTSkegnSync(e, ^{
@@ -325,6 +355,7 @@ int skegn_start(struct skegn *engine, const char *param, char id[64], skegn_call
         e.session = s;
         if (rejection) {
             s.stopped = YES; /* answered locally, no network I/O */
+            YGSTLogEmit(YGST_LEVEL_WARN, rejectionLog);
             dispatch_async(e.queue, ^{
                 YGSTSkegnDeliver(s, rejection);
             });
@@ -452,6 +483,7 @@ int skegn_stop(struct skegn *engine) {
                             }
                             s.timing->_t.ok = json != nil;
                             s.timing->_t.err_id = json ? 0 : (result.success ? YGST_LOCAL_PROTOCOL : result.errId);
+                            s.timing.recordId = json ? result.recordId : nil; // 2.2.0: recordId of the timing line
                             if (!json) json = YGSTErrorJSON(s.tokenId, result.success ? YGST_LOCAL_PROTOCOL : result.errId,
                                                             result.message, e.appKey);
                             s.timing->_t.parsed_ms = YGSTMonotonicMs();

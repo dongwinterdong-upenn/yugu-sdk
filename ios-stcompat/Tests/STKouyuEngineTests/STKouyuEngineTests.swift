@@ -56,7 +56,7 @@ final class SwiftSurfaceTests: XCTestCase {
         XCTAssertEqual(KY_MultiEngine.rawValue, 2)
         XCTAssertEqual(KYTestType_Wordspell.rawValue, 22)
         XCTAssertEqual(KYCompress_Speex.rawValue, 1)
-        XCTAssertEqual(STKouyuEngineVersionNumber, 2.1)
+        XCTAssertEqual(STKouyuEngineVersionNumber, 2.2)
     }
 
     func testEngineSelectorsCompile() {
@@ -120,7 +120,8 @@ final class SwiftSurfaceTests: XCTestCase {
     }
 
     func testYuguCompatSettings() {
-        XCTAssertEqual(YuguCompat.sdkVersion, "2.1.2")
+        XCTAssertEqual(YuguCompat.sdkVersion, "2.2.0")
+        XCTAssertEqual(YuguCompat.userAgent, "yugu-ios-stcompat-sdk/2.2.0")
         XCTAssertEqual(YuguCompat.defaultBaseURL, "https://open.shengzhiai.com")
         YuguCompat.baseURL = "ftp://nope"
         XCTAssertNil(YuguCompat.baseURL)
@@ -335,6 +336,160 @@ final class TimingAndCompressionTests: XCTestCase {
 }
 #endif
 
+/// 2.2.0 unsupported coreType: the text, the WARN line and YuguCompat.throwOnUnsupportedCoreType. Swift
+/// cannot catch Objective-C exceptions, so the Objective-C checks throw and catch them.
+final class UnsupportedCoreTypeTests: XCTestCase {
+    func testSwitchIsOffByDefault() {
+        XCTAssertFalse(YuguCompat.throwOnUnsupportedCoreType)
+    }
+
+    func testTextAndWarnLineOfKYTestEngine() {
+        XCTAssertNil(YGSTCheckUnsupportedCoreType(5))
+    }
+
+    func testSkegnAnswersAtOnce() {
+        XCTAssertNil(YGSTCheckSkegnUnsupportedCoreType(5))
+    }
+
+    func testThrowOnUnsupportedCoreType() {
+        XCTAssertNil(YGSTCheckThrowOnUnsupportedCoreType(5))
+        XCTAssertFalse(YuguCompat.throwOnUnsupportedCoreType)
+    }
+}
+
+/// 2.2.0 TtsClient and ReportClient. The first function only has to compile: every Swift name of the
+/// API (NS_SWIFT_NAME in YuguCompat.h) and the Swift example of README.md.
+final class YuguClientsTests: XCTestCase {
+    /// Never called.
+    private static func swiftNamesResolve() {
+        let tts = TtsClient.fromEngine()
+        let request = TtsRequest(text: "床前明月光")
+        request.language = "zh-CN"
+        request.voice = "xiaoyan"
+        request.format = "mp3"
+        request.speed = 50
+        request.pitch = 50
+        request.volume = 50
+        request.sampleRate = 16000
+        request.emotion = "warm"
+        request.style = "温柔地朗读"
+        request.pinyin = "chuang2 qian2 ming2 yue4 guang1"
+        request.genre = "classical_poem"
+        let options = TtsOptions()
+        options.idempotencyKey = "order-42"
+        options.timeout = 30
+        tts.tts(request, options: options) { result, error in
+            if let r = result {
+                print(r.audioUrl ?? "", r.absoluteAudioUrl ?? "", r.duration, r.format ?? "", r.rawJSON)
+            } else if let e = error as NSError? {
+                print(e.domain == YuguCompatErrorDomain, e.code, e.localizedDescription, e.userInfo[YuguCompatHTTPStatusKey] ?? "-")
+            }
+        }
+        _ = TtsClient(appKey: "ak", secretKey: "sk")
+        _ = TtsClient(appKey: "ak", secretKey: "sk", baseURL: "https://open.shengzhiai.com")
+        _ = TtsClient()
+
+        let reports = ReportClient.fromEngine()
+        let wait = ReportOptions()
+        wait.waitForFinalMs = 15000
+        wait.timeout = 10
+        reports.getReport("eval_3fb45f4c8e71", options: wait) { result, error in
+            guard let r = result else {
+                print((error as NSError?)?.code ?? 0, error?.localizedDescription ?? "")
+                return
+            }
+            let overall: Double? = r.overall?.doubleValue
+            print(r.recordId, r.reportStatus ?? "-", r.isFinal, r.summary ?? "", r.suggestions, overall ?? 0,
+                  r.report ?? [:], r.score ?? [:], r.timing ?? [:], r.dataJSON)
+        }
+        reports.getReport("eval_3fb45f4c8e71", options: nil) { _, _ in }
+        _ = ReportClient(appKey: "ak", secretKey: "sk", baseURL: nil)
+        YuguCompat.throwOnUnsupportedCoreType = false
+    }
+
+    /// Never called: the Swift example of README.md, word for word.
+    private static func readmeSwiftExample() {
+        let request = TtsRequest(text: "床前明月光")
+        request.language = "zh-CN"
+        request.voice = "xiaoyan"
+        TtsClient.fromEngine().tts(request, options: nil) { result, error in
+            if let r = result {
+                print(r.absoluteAudioUrl ?? "", r.duration)
+            } else if let e = error as NSError? {
+                print(e.code, e.localizedDescription)
+            }
+        }
+
+        let options = ReportOptions()
+        options.waitForFinalMs = 15000
+        ReportClient.fromEngine().getReport("eval_3fb45f4c8e71", options: options) { result, error in
+            guard let r = result else { print(error?.localizedDescription ?? ""); return }
+            print(r.reportStatus ?? "-", r.isFinal, r.summary ?? "", r.suggestions)
+        }
+    }
+
+    func testDefaults() {
+        XCTAssertEqual(TtsOptions().timeout, 60)
+        XCTAssertNil(TtsOptions().idempotencyKey)
+        XCTAssertEqual(ReportOptions().timeout, 30)
+        XCTAssertEqual(ReportOptions().waitForFinalMs, 0)
+        let request = TtsRequest(text: "x")
+        XCTAssertEqual(request.text, "x")
+        XCTAssertNil(request.speed)
+        XCTAssertNil(request.language)
+        XCTAssertEqual(TtsRequest().text, "")
+        XCTAssertEqual(YuguCompatErrorDomain, "YuguCompatErrorDomain")
+    }
+
+    func testWithoutEngineAndBadSettings() {
+        XCTAssertNil(YGSTCheckClientsWithoutEngine(15))
+    }
+
+    private func mockBase() throws -> String {
+        guard let base = ProcessInfo.processInfo.environment["YUGU_MOCK_BASE_URL"] else {
+            throw XCTSkip("YUGU_MOCK_BASE_URL is not set")
+        }
+        return base
+    }
+
+    func testTtsClientAgainstMockPlatform() throws {
+        XCTAssertNil(YGSTCheckTtsClient(try mockBase(), 30))
+    }
+
+    func testReportClientAgainstMockPlatform() throws {
+        XCTAssertNil(YGSTCheckReportClient(try mockBase(), 30))
+    }
+
+    /// The Swift names at run time: explicit credentials, completion on the main queue.
+    func testReportFromSwift() throws {
+        let base = try mockBase()
+        let client = ReportClient(appKey: "mock-app-key", secretKey: "mock-secret-key", baseURL: base)
+        let done = expectation(description: "report")
+        let recordId = "eval_swift_" + String(UUID().uuidString.prefix(8))
+        client.getReport(recordId, options: nil) { result, error in
+            XCTAssertTrue(Thread.isMainThread)
+            XCTAssertNil(error)
+            XCTAssertEqual(result?.reportStatus, "final")
+            XCTAssertEqual(result?.isFinal, true)
+            XCTAssertEqual(result?.summary, "mock report")
+            XCTAssertEqual(result?.overall?.doubleValue, 93.7)
+            XCTAssertEqual(result?.report?["source"] as? String, "llm")
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 30)
+        let failed = expectation(description: "error")
+        client.getReport("nope", options: nil) { result, error in
+            let e = error as NSError?
+            XCTAssertNil(result)
+            XCTAssertEqual(e?.domain, YuguCompatErrorDomain)
+            XCTAssertEqual(e?.code, 40001)
+            XCTAssertEqual(e?.userInfo[YuguCompatHTTPStatusKey] as? Int, 400)
+            failed.fulfill()
+        }
+        wait(for: [failed], timeout: 30)
+    }
+}
+
 final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
     private var engine: KYTestEngine!
     private var scores: [String] = []
@@ -398,6 +553,8 @@ final class EngineBehaviourTests: XCTestCase, KYTestEngineDelegate {
         config.refText = "x"
         _ = engine.start(with: config, result: { r in
             XCTAssertEqual(self.json(r)["errId"] as? Int, 60003)
+            // 2.2.0: the text names the kernel that was asked for
+            XCTAssertEqual(self.json(r)["error"] as? String, "不支持的评测内核：open.eval")
             done.fulfill()
         }) { _, _ in }
         wait(for: [done], timeout: 5)

@@ -10,12 +10,14 @@ import java.util.Locale;
  * one summary line ({@code timing ...}) is logged right before the result callback:
  *
  * <pre>
- * timing tokenId=.. mode=ws audio=4.48s afterStop=1830ms upload=95ms wait=1490ms download=180ms parse=12ms
- *   deliver=3ms handshake=120ms queued=6400B final=41210B wire=6120B deflate server.total=1410ms
- *   server.engine=1205ms server.platform=205ms
+ * timing tokenId=.. recordId=eval_7954d149c40a mode=ws audio=4.48s afterStop=1830ms upload=95ms wait=1490ms
+ *   download=180ms parse=12ms deliver=3ms handshake=120ms queued=6400B final=41210B wire=6120B deflate
+ *   server.total=1410ms server.engine=1205ms server.platform=205ms
  * </pre>
  *
  * <ul>
+ * <li>recordId (SDK 2.2.0): the platform's record of the result, so the line can be matched with the
+ * platform's per-record timing; {@code -} when the evaluation ended with an error JSON</li>
  * <li>mode: {@code ws} streamed while recording, {@code rest} uploaded after stop,
  * {@code ws>rest} streamed but the channel failed before end, so the recording was uploaded</li>
  * <li>afterStop: stop pressed (stopRecord, VAD end, duration, 300 s limit; for existsAudioTrans and
@@ -41,6 +43,7 @@ public final class EvalTiming {
     private final long t0 = now();
 
     // guarded by this; times are System.nanoTime(), 0 when not reached
+    private String recordId;
     private String mode = MODE_REST;
     private String fallbackReason;
     private long audioBytes = -1;
@@ -288,6 +291,11 @@ public final class EvalTiming {
         replayed |= r;
     }
 
+    /** The result's recordId, null or empty when it has none (printed as {@code -}). */
+    public synchronized void recordId(String id) {
+        recordId = id == null || id.trim().isEmpty() ? null : id.trim();
+    }
+
     /** The result JSON for the app was built. */
     public void parsed() {
         long at = now();
@@ -331,7 +339,8 @@ public final class EvalTiming {
         long first = ws ? wsFinalFirstByteAt : restHeadersAt;
         long done = ws ? wsFinalAt : restBodyAt;
         StringBuilder sb = new StringBuilder(320);
-        sb.append("timing tokenId=").append(tokenId).append(" mode=").append(mode);
+        sb.append("timing tokenId=").append(tokenId).append(" recordId=").append(recordId != null ? recordId : "-");
+        sb.append(" mode=").append(mode);
         sb.append(" audio=").append(audioSeconds >= 0 ? String.format(Locale.ROOT, "%.2fs", audioSeconds) : "-");
         sb.append(" afterStop=").append(ms(stopAt, deliveredAt));
         sb.append(" upload=").append(ms(stopAt, sent));

@@ -58,6 +58,9 @@ export const CLIENT_DEFAULTS = Object.freeze({
   userAgent: DEFAULT_USER_AGENT,
 });
 
+/** Compat coreType of the Chinese open question (2.1.1), whose refText is required. */
+const OPEN_QUESTION_CORE_TYPE = 'open.eval.cn';
+
 const RESERVED_QUERY = new Set(['appKey', 'timestamp', 'nonce', 'signature', 'token', 'idempotencyKey']);
 
 function checkMs(value, name, min, max) {
@@ -284,6 +287,7 @@ export class YuguClient {
       throw localError(90010, '声通兼容整段评测需要 appKey 加 secretKey 签名鉴权，平台要求请求头 X-App-Key');
     }
     const fields = this._compatFields(params);
+    this._checkOpenQuestionRefText(coreType, fields);
     const input = await resolveAudioInput(audio, opts, 'audio');
     const localWarnings = this._runPrecheck(input.bytes, opts, 'evaluateCompat');
     const parts = Object.keys(fields).map((name) => ({ name, value: fields[name] }));
@@ -385,6 +389,7 @@ export class YuguClient {
     const so = this._sessionOptions(options);
     const frame = Object.assign({}, params || {});
     delete frame.idempotencyKey;
+    this._checkOpenQuestionRefText(coreType, frame);
     return this._openSession({ mode: 'compat', coreType, path: `/${coreType}`, params: frame, listener, options: so });
   }
 
@@ -489,6 +494,16 @@ export class YuguClient {
   _checkCompatCoreType(coreType) {
     if (!COMPAT_CORE_TYPES.includes(coreType)) {
       throw localError(90010, `不支持的声通兼容 coreType：${String(coreType)}，可选 ${COMPAT_CORE_TYPES.join('，')}`);
+    }
+  }
+
+  // The open question's refText as sent, model answers separated by | or the question, must not be blank, and
+  // no refPinyin stands in for it (as in the 2.1.2 shims). text, the platform's alias of refText, counts too.
+  _checkOpenQuestionRefText(coreType, sent) {
+    if (coreType !== OPEN_QUESTION_CORE_TYPE) return;
+    const filled = (v) => v !== null && v !== undefined && String(v).trim() !== '';
+    if (!filled(sent.refText) && !filled(sent.text)) {
+      throw localError(90010, 'open.eval.cn 的 refText 必填，填参考答案或题目，多条参考答案用竖线隔开');
     }
   }
 

@@ -1,12 +1,12 @@
 # 优谷雅言 PC Web SDK 演示
 
-独立的演示工程，通过 npm 仓库安装 `@shengzhiai/yugu-web-sdk@2.1.0`，在浏览器里录音或选择音频文件，调用整段评测与实时评测，展示总分，维度分与逐字分。工程只依赖 SDK 本体，静态服务器用 Node.js 内置模块实现。
+独立的演示工程，通过 npm 仓库安装 `@shengzhiai/yugu-web-sdk@2.1.1`，在浏览器里录音或选择音频文件，调用整段评测与实时评测，展示总分，维度分与逐字分。工程只依赖 SDK 本体，静态服务器用 Node.js 内置模块实现。
 
 ## 目录结构
 
 | 路径 | 说明 |
 |---|---|
-| `package.json` | 依赖 `@shengzhiai/yugu-web-sdk` 的 `2.1.0` 版本 |
+| `package.json` | 依赖 `@shengzhiai/yugu-web-sdk` 的 `2.1.1` 版本 |
 | `.npmrc` | 把 `@shengzhiai` 作用域指向 `https://open.shengzhiai.com/npm/` |
 | `server.mjs` | 静态服务器，`/sdk/` 路径提供已安装的 SDK 构建文件 |
 | `public/index.html` 与 `public/app.js` | 演示页面与页面逻辑 |
@@ -43,7 +43,7 @@ SDK 尚未发布或机器不能访问 npm 仓库时，从 `npm pack` 生成的�
 ```bash
 cd web && npm pack --pack-destination /tmp/yugu-pack
 cd ../demos/web-demo
-node scripts/install-tarball.mjs /tmp/yugu-pack/shengzhiai-yugu-web-sdk-2.1.0.tgz
+node scripts/install-tarball.mjs /tmp/yugu-pack/shengzhiai-yugu-web-sdk-2.1.1.tgz
 ```
 
 脚本用系统自带的 `tar` 解包，直接写入 `node_modules`，不访问网络。`ci/web.sh` 用同样的方式安装，再通过演示服务器跑一次整段评测与实时评测。

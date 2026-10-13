@@ -8,10 +8,12 @@ import com.shengzhiai.yugu.stcompat.internal.YLog;
 /**
  * Configuration hooks of the Yugu compat layer: the only public class of {@code com.stkouyu}
  * that the Shengtong jar does not have. Apps written for the Shengtong SDK do not need it.
+ * Speech synthesis and report lookup are in {@code com.shengzhiai.yugu.stcompat.TtsClient} and
+ * {@code com.shengzhiai.yugu.stcompat.ReportClient}.
  */
 public final class YuguCompat {
     /** Version of the compat layer. */
-    public static final String VERSION = "2.1.2";
+    public static final String VERSION = "2.2.0";
 
     public static final int LOG_OFF = 0;
     public static final int LOG_ERROR = 1;
@@ -25,6 +27,7 @@ public final class YuguCompat {
     /**
      * Platform base URL, for example a sandbox or a private deployment. Wins over
      * {@code EngineSetting.setServerAddress}. null restores the default {@code https://open.shengzhiai.com}.
+     * TtsClient and ReportClient created without their own base URL use it too.
      *
      * @throws IllegalArgumentException when the URL has no http, https, ws or wss scheme
      */
@@ -84,17 +87,43 @@ public final class YuguCompat {
         return CompatConfig.streamUpload();
     }
 
-    /** Version string, {@code yugu-stkouyu-compat/2.1.2 (api 1.0.62)}. */
+    /**
+     * What an unsupported coreType does (SDK 2.2.0), for example {@code choice.rec}, {@code open.eval},
+     * {@code asr.rec}, {@code asr.eval}, {@code align.eval} or a French, Japanese or Korean kernel.
+     *
+     * <p>false (default): as before, the error JSON with errId 60003 and {@code error}
+     * {@code 不支持的评测内核：<coreType>} arrives through the callback ({@code onScore},
+     * {@code onRecordEnd(json)} or {@code skegn_callback}). true: every {@code startRecord} and
+     * {@code existsAudioTrans} overload and {@code SkEgn.skegn_start} throw
+     * {@link IllegalArgumentException} with that same text instead, before any other check, so also
+     * when the engine is not initialised or busy; no callback follows. Either way one WARN line names
+     * the coreType and errId 60003, and there is no network request and no microphone. Every other
+     * error keeps its callback.
+     */
+    public static void setThrowOnUnsupportedCoreType(boolean enabled) {
+        CompatConfig.setThrowOnUnsupportedCoreType(enabled);
+    }
+
+    /** Whether an unsupported coreType throws, see {@link #setThrowOnUnsupportedCoreType(boolean)}. */
+    public static boolean isThrowOnUnsupportedCoreType() {
+        return CompatConfig.throwOnUnsupportedCoreType();
+    }
+
+    /** Version string, {@code yugu-stkouyu-compat/2.2.0 (api 1.0.62)}. */
     public static String getVersion() {
         return CompatConfig.SDK_VERSION;
     }
 
-    /** Restores base URL, log level, retry policy, timeouts and streaming upload to their defaults. */
+    /**
+     * Restores base URL, log level, retry policy, timeouts, streaming upload and the exception for an
+     * unsupported coreType to their defaults.
+     */
     public static void reset() {
         CompatConfig.setBaseUrlOverride(null);
         CompatConfig.setRetryPolicy(null);
         CompatConfig.setTimeouts(0, 0, 0);
         CompatConfig.setStreamUpload(true);
+        CompatConfig.setThrowOnUnsupportedCoreType(false);
         YLog.resetLevel();
     }
 }

@@ -161,6 +161,31 @@ test('compat REST results of every captured coreType', () => {
   assert.equal(para.sentences.length, 2);
 });
 
+test('compat open.eval.cn (2.1.1): open question scores plus the Shengtong flat fields', () => {
+  const raw = fixtureJson('platform/compat_open.eval.cn.json');
+  const r = parseEvalResult(raw);
+  assert.equal(r.raw, raw);
+  assert.equal(r.recordId, 'open_00289cd06bd0');
+  assert.equal(r.coreType, 'open', 'the platform reports the scoring mode');
+  assert.equal(r.language, 'zh');
+  assert.equal(r.eof, 1);
+  assert.equal(r.overall, 96);
+  assert.deepEqual([r.dims.pronunciation, r.dims.accuracy, r.dims.fluency, r.dims.integrity], [71, 71, 100, 100]);
+  assert.equal(r.speed, 267);
+  assert.deepEqual([r.words.length, r.sentences.length], [0, 0]);
+  assert.equal(r.connected, null);
+  assert.equal(r.open.taskType, 'situational');
+  assert.equal(r.open.transcript, '我是学生。');
+  assert.equal(r.open.hasSpeech, true);
+  assert.equal(r.open.durationSec, 1.64);
+  assert.equal(r.open.content.overall, 100);
+  assert.equal(r.open.languageUse.overall, 100);
+  assert.equal(r.open.delivery.overall, 88);
+  assert.equal(r.open.feedback.strengths, '回答完全符合参考答案，表达清晰准确。');
+  assert.equal(r.open.openTaskAudit.refKind, 'answers');
+  assert.equal(r.raw.result.coherence, 100);
+});
+
 test('WebSocket result frames captured from the platform', () => {
   const native = fixtureJson('platform/ws_native_sentence_frames.json');
   const nr = parseEvalResult(native.find((f) => f.frame.event === 'result').frame);

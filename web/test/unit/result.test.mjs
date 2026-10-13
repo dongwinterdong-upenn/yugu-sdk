@@ -199,6 +199,29 @@ describe('result parsing per mode (real platform responses)', () => {
       assert.equal(r.eof, 1);
     });
   }
+
+  test('compat open.eval.cn (compat_open.eval.cn.json): open question scores plus the Shengtong flat fields', () => {
+    const { raw, r } = parse('compat_open.eval.cn.json', { mode: 'compat', coreType: 'open.eval.cn' });
+    assert.equal(raw.result._coreType, 'open');
+    assert.equal(r.mode, 'compat');
+    assert.equal(r.coreType, 'open.eval.cn');
+    assert.equal(r.recordId, 'open_00289cd06bd0');
+    assert.equal(r.overall, 96);
+    assert.equal(r.dims.pronunciation, 71);
+    assert.equal(r.dims.fluency, 100);
+    assert.equal(r.dims.integrity, 100);
+    assert.equal(r.speed, 267);
+    assert.equal(r.durationSeconds, 1.64);
+    assert.deepEqual([r.words.length, r.sentences.length], [0, 0]);
+    assert.equal(r.connected, null);
+    assert.equal(r.open.taskType, 'situational');
+    assert.equal(r.open.transcript, '我是学生。');
+    assert.equal(r.open.content.overall, 100);
+    assert.equal(r.open.delivery.overall, 88);
+    assert.equal(r.open.feedback.strengths, '回答完全符合参考答案，表达清晰准确。');
+    assert.equal(r.open.openTaskAudit.refKind, 'answers');
+    assert.equal(normalizeEvalResult(raw).coreType, 'open', 'without the requested coreType the platform mode is reported');
+  });
 });
 
 describe('WebSocket result frames', () => {
@@ -255,7 +278,8 @@ describe('warnings and helpers', () => {
   });
   test('constants', () => {
     assert.equal(NATIVE_CORE_TYPES.length, 7);
-    assert.equal(COMPAT_CORE_TYPES.length, 10);
+    assert.equal(COMPAT_CORE_TYPES.length, 11);
+    assert.equal(COMPAT_CORE_TYPES[10], 'open.eval.cn');
     assert.equal(WARNING_MESSAGES[1001], 'No valid audio detected!');
   });
 });

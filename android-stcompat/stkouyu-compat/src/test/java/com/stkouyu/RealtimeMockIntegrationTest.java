@@ -199,6 +199,9 @@ public class RealtimeMockIntegrationTest extends CompatTestBase {
             }
         }
         assertTrue(String.valueOf(lines), summary != null && summary.contains(" mode=ws "));
+        assertTrue("2.2.0: the platform's recordId follows the tokenId: " + summary,
+                summary.startsWith("timing tokenId=" + token + " recordId=" + fin.getString("recordId") + " mode=ws "));
+        assertTrue(fin.getString("recordId").startsWith("eval_"));
         assertFalse("the mock agrees no permessage-deflate: " + summary, summary.contains("deflate"));
         Matcher sizes = Pattern.compile(".* final=(\\d+)B wire=(\\d+)B.*").matcher(summary);
         assertTrue(summary, sizes.matches());

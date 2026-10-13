@@ -168,7 +168,9 @@ def timing_line(c, r, mode):
     """2.1.1: the INFO line of the evaluation with the platform's share; the envelope keys checked by
     success_envelope show that the timing object stayed out of the JSON for the app."""
     line = r.get("timing") or ""
-    c(line.startswith("timing tokenId=%s mode=%s audio=" % (r["tokenId"], mode)), "timing line %r" % line)
+    # 2.2.0: recordId of the result right after tokenId
+    c(line.startswith("timing tokenId=%s recordId=%s mode=%s audio=" % (r["tokenId"], r["json"].get("recordId") or "-", mode)),
+      "timing line %r" % line)
     c(" server.total=" in line and " errId=" not in line, "the platform's timing is in the line: %r" % line)
     return line
 

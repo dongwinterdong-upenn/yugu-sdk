@@ -29,7 +29,7 @@ declare const wx: WxLike;
 declare const audioBuffer: ArrayBuffer;
 declare function show(text: string): void;
 
-const version: '2.1.0' = SDK_VERSION;
+const version: '2.1.1' = SDK_VERSION;
 const ua: string = USER_AGENT;
 const firstCore: CoreType = CORE_TYPES[0];
 const firstCompat: CompatCoreType = COMPAT_CORE_TYPES[0];
@@ -125,6 +125,8 @@ async function rest(): Promise<void> {
   const c: EvalResult = await client.evaluateCompat('sent.eval', compat);
   // @ts-expect-error unknown compat coreType
   await client.evaluateCompat('sent.eval.xx', compat);
+  const answer: EvalResult = await client.evaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', fields: { qType: 6 }, audio: audioBuffer });
+  show(String(answer.open ? answer.open.content : null) + answer.dims.pronunciation);
   const ttsParams: TtsParams = { text: '你好', voice: 'xiaoyan', format: 'mp3', speed: 50 };
   const t: TtsResult = await client.tts(ttsParams);
   const rep: ReportData = await client.getReport(c.recordId || '');

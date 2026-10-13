@@ -71,4 +71,23 @@ FOUNDATION_EXPORT NSString *_Nullable YGSTCheckTimingServerRest(NSString *baseUR
                                                                 NSTimeInterval timeout,
                                                                 NSString *_Nullable *_Nullable report);
 
+/// 2.2.0 without network: an unsupported coreType through both start methods answers 60003 with
+/// "不支持的评测内核：<coreType>" (coreTypeNS trimmed, else the KYTestType's string or value, "未指定" for
+/// no testConfig) in the result and finishBlock JSON, with one WARN line naming it and errId 60003.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckUnsupportedCoreType(NSTimeInterval timeout);
+/// 2.2.0 skegn_start with an unsupported, blank or missing coreType: the 60003 JSON at once, skegn_feed
+/// and skegn_stop -1 with last errors 21 and 24, one WARN line.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckSkegnUnsupportedCoreType(NSTimeInterval timeout);
+/// 2.2.0 YuguCompat.throwOnUnsupportedCoreType YES: both start methods throw NSInvalidArgumentException
+/// with the 60003 text, nothing is called back, other errors keep their callbacks; skegn_start returns
+/// -1 with last error 60003. Switches it back to NO.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckThrowOnUnsupportedCoreType(NSTimeInterval timeout);
+/// 2.2.0 TtsClient against the mock platform: fields, absolute URL, Idempotency-Key, retries, NSError.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckTtsClient(NSString *baseURL, NSTimeInterval timeout);
+/// 2.2.0 ReportClient against the mock platform: fields, pending, waitForFinalMs, NSError.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckReportClient(NSString *baseURL, NSTimeInterval timeout);
+/// 2.2.0 clients without an initialized engine (60007) and with bad explicit settings (90010); skegn_new
+/// gives its credentials and skegn_delete takes them back. No mock needed.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckClientsWithoutEngine(NSTimeInterval timeout);
+
 NS_ASSUME_NONNULL_END

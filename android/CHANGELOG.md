@@ -2,6 +2,18 @@
 
 Android 核心 SDK `com.shengzhiai.yugu:yugu-android-sdk` 的版本记录，格式参照 Keep a Changelog，版本号遵循语义化版本。主版本号变化表示含破坏性变更。
 
+## `2.1.1`，2026-10-13
+
+### 新增
+
+- 声通兼容评测支持中文开放题 `open.eval.cn`，常量为 `CompatCoreType.OPEN_EVAL_CN`，`evaluateCompat` 发往 `POST /open.eval.cn`，`streamEvaluateCompat` 连接 `WS /open.eval.cn`。此前这个内核在本地以错误码 90010 拒绝。`refText` 必填，填一条或多条参考答案，多条用竖线隔开，也可以填题目，`refPinyin` 不能代替，为空时在发请求前以错误码 90010 失败。`qType`，`keypoints`，`keywords` 放进 `params`。结果的分项在 `open`，与原生开放题相同，另有声通的 `pronunciation`，`fluency`，`integrity` 与 `speed`。实时评测的中间结果只有 `bytes`，没有朗读进度。用法见 README 的中文开放题一节。
+- 平台的报告查询返回 `reportStatus` 与 `timing`，`ReportResult.data` 原样保留这两个字段，含义见 README 的接口概览一节。
+
+### 变更
+
+- 请求头 `User-Agent` 为 `yugu-android-sdk/2.1.1`。
+- 与 `2.1.0` 源码兼容，二进制兼容，其他内核的请求与结果不变，英文 `open.eval` 仍在本地以错误码 90010 拒绝。
+
 ## `2.1.0`，2026-10-12
 
 ### 新增

@@ -99,6 +99,22 @@ test('native and compat sessions complete against the platform mock', async () =
   c.close();
 });
 
+test('compat open.eval.cn (2.1.1): routed to /open.eval.cn, partials carry bytes only, one bill', async () => {
+  const c = client();
+  const rl = recordingListener();
+  const s = c.streamEvaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', realtimeFeedback: true }, rl.listener);
+  await stream(s, PCM, 0);
+  await rl.done;
+  const r = rl.first('onResult').args[0];
+  assert.equal(r.overall, 96);
+  assert.ok(r.open.feedback.strengths);
+  const ps = partials(rl);
+  assert.ok(ps.length >= 1 && ps.every((p) => p.bytes > 0 && p.hasProgress === false), 'bytes only, no reading progress');
+  assert.ok((await mock.log()).some((e) => e.method === 'WS' && e.path === '/open.eval.cn'));
+  assert.equal((await wsBilling(s.idempotencyKey)).length, 1);
+  c.close();
+});
+
 test('V-04 server kill: REPLAY reconnects and delivers one result for all audio', async () => {
   const c = client();
   await mock.faults([{ match: WS_NATIVE, fault: 'ws-kill-after:20' }]);

@@ -156,7 +156,7 @@ public class ServerTimingTest {
         t.parsed();
         t.delivered();
         String line = t.summary();
-        assertTrue(line, line.matches("timing tokenId=0123456789abcdef0123456789abcdef mode=rest audio=1\\.92s afterStop=\\d+ms"
+        assertTrue(line, line.matches("timing tokenId=0123456789abcdef0123456789abcdef recordId=- mode=rest audio=1\\.92s afterStop=\\d+ms"
                 + " upload=\\d+ms wait=\\d+ms download=\\d+ms parse=\\d+ms deliver=\\d+ms attempts=2 sent=397244B"
                 + " body=1534212B wire=120344B gzip server.total=812ms server.engine=700ms server.platform=112ms"));
         t.log();
@@ -176,9 +176,10 @@ public class ServerTimingTest {
         t.restAttempt(1);
         t.restResponse(new HttpTransport.Response(400, new LinkedHashMap<String, String>(), "{\"code\":40001}"));
         t.error(40001);
+        t.recordId(" ");
         t.delivered();
         String line = t.summary();
-        assertTrue(line, line.startsWith("timing tokenId=tok mode=ws>rest audio=- afterStop=- upload=- wait=- download="));
+        assertTrue(line, line.startsWith("timing tokenId=tok recordId=- mode=ws>rest audio=- afterStop=- upload=- wait=- download="));
         assertTrue(line, line.contains(" parse=- deliver=- attempts=1 sent=- body=14B wire=- errId=40001 fallback=\"cannot open"));
         t.log();
         assertEquals(1, lines.size());
@@ -213,10 +214,11 @@ public class ServerTimingTest {
         t.wsConnectStart();
         t.serverBody(ServerTiming.fromObject(TIMING));
         t.replayed(true);
+        t.recordId(" eval_7954d149c40a ");
         t.parsed();
         t.delivered();
         String line = t.summary();
-        assertTrue(line, line.matches("timing tokenId=tok mode=ws audio=2\\.00s afterStop=\\d+ms upload=\\d+ms wait=\\d+ms"
+        assertTrue(line, line.matches("timing tokenId=tok recordId=eval_7954d149c40a mode=ws audio=2\\.00s afterStop=\\d+ms upload=\\d+ms wait=\\d+ms"
                 + " download=3ms parse=\\d+ms deliver=\\d+ms handshake=\\d+ms queued=6400B final=41210B wire=6120B deflate"
                 + " connections=2 server.total=5321ms server.engine=4100ms server.platform=1221ms replayed"));
         t.log();

@@ -2,6 +2,19 @@
 
 服务端 Java SDK `com.shengzhiai.yugu:yugu-java-sdk` 的版本记录。格式遵循 Keep a Changelog，见 `https://keepachangelog.com/zh-CN/1.1.0/`，版本号遵循语义化版本，见 `https://semver.org/lang/zh-CN/`。破坏性变更只在主版本号升级时出现，每个版本按新增，变更，修复，破坏性变更分类记录。
 
+## `2.1.1` - 2026-10-13
+
+### 新增
+
+- 声通兼容评测支持中文开放题 `open.eval.cn`，`CompatConfig.CORE_TYPES` 与 `YuguClient.COMPAT_CORE_TYPES` 含这个内核，`evaluateCompat` 发往 `POST /open.eval.cn`，`streamEvaluateCompat` 连接 `wss://open.shengzhiai.com/open.eval.cn`。此前这个内核在本地以错误码 90010 拒绝。`refText` 必填，填一条或多条参考答案，多条用竖线隔开，也可以填题目，`refPinyin` 不能代替，为空时在发请求前抛出 `InvalidParameterException`，错误码 90010。`qType`，`keypoints`，`keywords` 用 `param` 传入。结果由 `getOpen()` 取得，与原生开放题相同，另有声通的 `pronunciation`，`fluency`，`integrity` 与 `speed`。实时评测的中间结果只有字节数，没有朗读进度。用法见 README 的中文开放题一节。
+- 平台的报告查询返回 `reportStatus` 与 `timing`，`ReportResult.getData()` 原样保留这两个字段，含义见 README 的接口一览一节。
+- 测试：线上录下的 `open.eval.cn` 结果样例的解析，请求路径，表单字段与签名，`refText` 为空时的本地校验，基于平台模拟服务的整段评测与实时评测。
+
+### 变更
+
+- 请求带 `User-Agent: yugu-java-sdk/2.1.1`。
+- 其他内核的请求与结果不变，英文 `open.eval` 仍在本地以错误码 90010 拒绝。
+
 ## `2.1.0` - 2026-10-12
 
 ### 新增

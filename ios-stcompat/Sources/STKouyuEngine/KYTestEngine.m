@@ -9,7 +9,10 @@
 //  YuguCompat.streamUpload is NO; a failure before end evaluates the recording in one request after
 //  stop with the same tokenId. With realtime_feedback eof 0 reading progress JSON comes before the
 //  result through the same callbacks (2.1.0). At log level INFO one timing line follows every
-//  evaluation that reached the platform.
+//  evaluation that reached the platform. Since 2.2.0 an unsupported coreType is answered with
+//  "不支持的评测内核：<coreType>" and one WARN line, or throws NSInvalidArgumentException from the start
+//  methods with YuguCompat.throwOnUnsupportedCoreType; initEngine gives TtsClient and ReportClient the
+//  credentials of the engine.
 //
 //  Copyright 2026 优谷雅言 open.shengzhiai.com
 //  SPDX-License-Identifier: Apache-2.0
@@ -53,6 +56,8 @@ static NSString *const YGSTProvisionJSON = @"{\"provision\":\"cloud\",\"message\
 @property (nonatomic) ygst_ct_status coreTypeStatus;
 @property (nonatomic) unsigned long coreTypeEnum;
 @property (nonatomic) BOOL configMissing;
+/// 2.2.0: the 60003 text naming the coreType asked for, nil when the coreType is supported.
+@property (nonatomic, copy) NSString *unsupportedMessage;
 @property (nonatomic, copy) NSString *coreType;
 @property (nonatomic, copy) NSString *coreProvideType;
 @property (nonatomic, copy) NSString *refText;
@@ -266,9 +271,16 @@ static char kYGSTEngineQueueKey;
         [YGSTSettings shared].configuredBaseURL = self->_baseURL;
     }];
     if (ok) {
+        // 2.2.0: TtsClient and ReportClient made with clientFromEngine use these
+        YGSTEngineCredentials *credentials = [[YGSTEngineCredentials alloc] init];
+        credentials.appKey = appKey;
+        credentials.secretKey = secret;
+        credentials.baseURL = baseURL;
+        [[YGSTSettings shared] setEngineCredentials:credentials owner:(__bridge const void *)self];
         YGSTLogf(YGST_LEVEL_INFO, @"engine ready: appKey %@, platform %@, sdk %s", YGSTMaskedAppKey(appKey),
                  [self effectiveBaseURL], YGST_USER_AGENT);
     } else {
+        [[YGSTSettings shared] clearEngineCredentialsOfOwner:(__bridge const void *)self];
         YGSTLogf(YGST_LEVEL_ERROR, @"init engine failed: %@", message);
     }
     if (fb) {
@@ -280,10 +292,43 @@ static char kYGSTEngineQueueKey;
 
 // ------------------------------------------------------------------ start
 
+/// 2.2.0: the 60003 text of a config whose coreType the platform does not evaluate, nil when it does.
+/// It names coreTypeNS trimmed, else the KYTestType's string, else "KYTestType <n>"; "未指定" for no config.
+static NSString *YGSTUnsupportedMessageForConfig(KYTestConfig *c) {
+    char coreType[128];
+    ygst_buf requested;
+    NSString *message;
+    if (!c) return YGSTUnsupportedCoreTypeMessage(nil);
+    if (ygst_coretype_resolve(c.coreTypeNS.UTF8String, (unsigned long)c.coreType, coreType, sizeof coreType) ==
+        YGST_CT_SUPPORTED) {
+        return nil;
+    }
+    ygst_buf_init(&requested);
+    ygst_coretype_requested(c.coreTypeNS.UTF8String, (unsigned long)c.coreType, &requested);
+    message = YGSTUnsupportedCoreTypeMessage(YGSTStringFromBuf(&requested));
+    ygst_buf_free(&requested);
+    return message;
+}
+
+/// 2.2.0, YuguCompat.throwOnUnsupportedCoreType: an unsupported coreType throws on the calling thread
+/// before anything starts (no session, no microphone, no request, no callback), with the 60003 text.
+static void YGSTThrowIfUnsupported(KYTestConfig *c) {
+    NSString *message;
+    if (![YGSTSettings shared].throwOnUnsupportedCoreType) return;
+    message = YGSTUnsupportedMessageForConfig(c);
+    if (!message) return;
+    YGSTLogf(YGST_LEVEL_WARN, @"start rejected: errId %d, %@, thrown as NSInvalidArgumentException "
+                              @"(YuguCompat.throwOnUnsupportedCoreType)",
+             YGST_ERRID_CORETYPE_UNSUPPORTED, message);
+    @throw [NSException exceptionWithName:NSInvalidArgumentException reason:message userInfo:nil];
+}
+
 - (NSString *)startEngineWithTestConfig:(KYTestConfig *)testConfig
                                  result:(KYTestResultBlock)testResultBlock
                             finishBlock:(void (^)(BOOL isSuccess, NSString *str))finishBlock {
-    YGSTSession *s = [self newSessionFromConfig:testConfig];
+    YGSTSession *s;
+    YGSTThrowIfUnsupported(testConfig);
+    s = [self newSessionFromConfig:testConfig];
     s.resultBlock = testResultBlock;
     s.finish = finishBlock;
     dispatch_async(_q, ^{
@@ -301,7 +346,9 @@ static char kYGSTEngineQueueKey;
                        onRecordEndBlock:(void (^)(void))onRecordEndBlock
                            onScoreBlock:(void (^)(NSString *result))onScoreBlock
                             finishBlock:(void (^)(BOOL isSuccess, NSString *str))finishBlock {
-    YGSTSession *s = [self newSessionFromConfig:testConfig];
+    YGSTSession *s;
+    YGSTThrowIfUnsupported(testConfig);
+    s = [self newSessionFromConfig:testConfig];
     s.onStart = onStartBlock;
     s.onStartFail = onStartFailBlock;
     s.onPause = onPauseBlock;
@@ -337,6 +384,7 @@ static const char *YGSTKeep(NSString *s, NSMutableArray<NSData *> *keep) {
     s.timing = [[YGSTTiming alloc] init];
     if (!c) {
         s.configMissing = YES;
+        s.unsupportedMessage = YGSTUnsupportedCoreTypeMessage(nil);
         s.coreTypeStatus = YGST_CT_UNKNOWN;
         s.coreType = @"";
         s.refText = @"";
@@ -350,6 +398,7 @@ static const char *YGSTKeep(NSString *s, NSMutableArray<NSData *> *keep) {
                                              sizeof coreType);
     s.coreType = [NSString stringWithUTF8String:coreType] ?: @"";
     s.coreTypeEnum = (unsigned long)c.coreType;
+    s.unsupportedMessage = s.coreTypeStatus == YGST_CT_SUPPORTED ? nil : YGSTUnsupportedMessageForConfig(c);
     s.coreProvideType = c.coreProvideType ?: @"";
     s.refText = c.refText ?: @"";
     s.refPinyin = c.refPinyin ?: @"";
@@ -510,14 +559,12 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
                               : ygst_validate_request(s.coreTypeStatus, s.coreType.UTF8String, s.refText.UTF8String,
                                                       s.refPinyin.UTF8String);
     if (invalid) {
-        NSString *what = s.configMissing ? @"testConfig is nil"
-                         : invalid == YGST_ERRID_CORETYPE_UNSUPPORTED
-                             ? [NSString stringWithFormat:@"coreType %@ is not supported",
-                                                          s.coreType.length ? s.coreType
-                                                                            : [NSString stringWithFormat:@"KYTestType %lu",
-                                                                                                         s.coreTypeEnum]]
-                             : @"refText is empty";
-        [self reject:s errId:invalid message:nil reason:what delivery:YGSTRejectResult | YGSTRejectDelegate];
+        // 2.2.0: the 60003 text names the coreType, in the error JSON and in the WARN line of reject:
+        NSString *message = invalid == YGST_ERRID_CORETYPE_UNSUPPORTED ? s.unsupportedMessage : nil;
+        NSString *what = invalid != YGST_ERRID_CORETYPE_UNSUPPORTED ? @"refText is empty"
+                         : s.configMissing ? [YGSTNonEmpty(message) stringByAppendingString:@" (testConfig is nil)"]
+                                           : YGSTNonEmpty(message);
+        [self reject:s errId:invalid message:message reason:what delivery:YGSTRejectResult | YGSTRejectDelegate];
         return;
     }
     _session = s;
@@ -1096,6 +1143,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     s.timing->_t.parsed_ms = YGSTMonotonicMs();
     s.timing->_t.ok = errId == 0;
     s.timing->_t.err_id = errId;
+    s.timing.recordId = errId == 0 ? result.recordId : nil; // 2.2.0: recordId=<id> of the timing line
     [self complete:s json:json];
 }
 
@@ -1207,6 +1255,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
         self->_appKey = @"";
         self->_secretKey = @"";
     }];
+    [[YGSTSettings shared] clearEngineCredentialsOfOwner:(__bridge const void *)self];
     dispatch_async(dispatch_get_main_queue(), ^{
         self->_player.delegate = nil;
         [self->_player stop];

@@ -4,7 +4,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 坐标 | `com.shengzhiai.yugu:yugu-android-sdk:2.1.0` |
+| 坐标 | `com.shengzhiai.yugu:yugu-android-sdk:2.1.1` |
 | 仓库 | `https://open.shengzhiai.com/maven/`，公开读取，不需要账号 |
 | 包名 | `com.shengzhiai.yugu` |
 | 最低系统 | Android 5.0，`minSdk 21` |
@@ -32,7 +32,7 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    implementation "com.shengzhiai.yugu:yugu-android-sdk:2.1.0"
+    implementation "com.shengzhiai.yugu:yugu-android-sdk:2.1.1"
 }
 ```
 
@@ -50,7 +50,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.shengzhiai.yugu:yugu-android-sdk:2.1.0")
+    implementation("com.shengzhiai.yugu:yugu-android-sdk:2.1.1")
 }
 ```
 
@@ -145,7 +145,7 @@ client.close()
 | `eventListener` | 无 | 指标回调 |
 | `audioPrecheck` | `WARN` | 本地音频预检方式 |
 | `strictAudio` | false | 整段评测结果带 1001 警告时抛异常 |
-| `userAgent` | `yugu-android-sdk/2.1.0` | 请求头 `User-Agent` |
+| `userAgent` | `yugu-android-sdk/2.1.1` | 请求头 `User-Agent` |
 | `reconnectPolicy` | 见重连一节 | 实时评测重连策略 |
 | `audioBufferPolicy` | `REPLAY` | 实时评测断线期间的音频处理方式 |
 | `resultTimeoutMs` | 300000 | 实时评测调用 `end()` 后等待终评的时限 |
@@ -169,7 +169,9 @@ client.close()
 | `evaluateAsync`，`evaluateCompatAsync`，`ttsAsync`，`getReportAsync` | 同上 | 异步版本，返回可取消的 `YuguCall` |
 | `close()` | 无 | 关闭客户端，可重复调用 |
 
-原生 `coreType`：`word`，`sentence`，`passage`，`connected`，`open`，`alpha`，`pinyin`。声通兼容 `coreType`：`word.eval`，`word.eval.pro`，`sent.eval`，`sent.eval.pro`，`para.eval`，`alpha.eval`，`word.eval.cn`，`sent.eval.cn`，`para.eval.cn`，`pinyin`。
+`getReport` 返回的 `ReportResult.data` 为响应的 `data` 节点，其中 `reportStatus` 为 `final` 时报告是 AI 终稿，为 `pending` 时是 AI 稿生成期间的即时稿，稍后再查可取到终稿，为 `instant` 时不会再有 AI 稿，为 `none` 时没有报告，声通兼容评测的记录另带分段耗时 `timing`，保留 7 天。
+
+原生 `coreType`：`word`，`sentence`，`passage`，`connected`，`open`，`alpha`，`pinyin`。声通兼容 `coreType`：`word.eval`，`word.eval.pro`，`sent.eval`，`sent.eval.pro`，`para.eval`，`alpha.eval`，`word.eval.cn`，`sent.eval.cn`，`para.eval.cn`，`pinyin`，`open.eval.cn`，各内核的 `refText` 都必填，`open.eval.cn` 的用法见下方中文开放题一节。
 
 `EvaluateConfig` 字段与平台 `config` 段一一对应：`coreType`，`referenceText`，`language`，`includeReport`，`includeStandardAudio`，`includeAsrText`，`slack`，`scale`，`precision`，`agegroup`，`toneWeight`，`refPinyin`，`phonemeOutput`，`taskType`，`paragraphNeedWordScore`。平台新增而 SDK 尚未列出的字段放进 `extra`。值为 null 的字段不发送，由平台取默认值。另有 `realtimeFeedback`，默认 false，只对原生实时评测有效，为 true 时开始帧带 `"realtimeFeedback": true`，打开朗读进度，整段评测的 `config` 段不带该字段。
 
@@ -184,6 +186,20 @@ client.evaluate(
 )
 ```
 
+### 中文开放题
+
+`2.1.1` 起声通兼容评测支持中文开放题 `CompatCoreType.OPEN_EVAL_CN`，即 `open.eval.cn`，与原生 `open` 用同一套评分，语言固定为中文。`refText` 必填，与声通的用法相同，填一条或多条参考答案，多条用竖线隔开，也可以填题目，由评分模型判断是哪一种，`refPinyin` 不能代替 `refText`。`qType`，`keypoints`，`keywords` 放进 `params`，`qType` 为 5 时按看图说话评，为 6 时按情景问答评，其他取值或不设置时按自由表达评，细则见 [CONTRACT.md](../CONTRACT.md) 3.2 节。
+
+```kotlin
+val result = client.evaluateCompat(
+    CompatConfig(CompatCoreType.OPEN_EVAL_CN, "我是学生|我不是学生", params = mapOf("qType" to "6")),
+    AudioInput.fromFile(File(filesDir, "answer.wav")),
+)
+Log.i("yugu", "总分 ${result.overall}，内容 ${result.open?.content?.overall}，点评 ${result.open?.feedback?.strengths}")
+```
+
+结果的分项与原生开放题相同，在 `open` 里，`coreType` 为平台回传的 `open`。另有与声通相同的 `dimensions.pronunciation`，`fluency`，`integrity` 与每分钟字数 `speed`，没有 `words` 与 `sentences`。实时评测打开 `realtimeFeedback` 后，中间结果只有已收音频的字节数 `bytes`，没有朗读进度。
+
 ## 各评测模式的取分字段
 
 结果统一解析为 `EvalResult`。`raw` 为整个响应，`resultRaw` 为 `result` 节点，`rawJson` 为响应原文，SDK 未建模的字段可从这三处读取。平台各字段的含义见 [`RESULTS.md`](../RESULTS.md)。
@@ -196,6 +212,7 @@ client.evaluate(
 | `connected` | `overall`，取 `result.connected_overall` | `connected.linking`，`rhythm`，`elision`，`reduction` | `connected.boundaries` 每个词间边界的 `between`，`tags`，`realized`，`startMs`，`endMs` |
 | `open` | `overall` | `open.content`，`open.languageUse`，`open.delivery` | `open.transcript`，`open.feedback`，`open.audit` |
 | 声通兼容 | `overall` | 同原生对应模式 | `words`，`sentences` |
+| 声通兼容 `open.eval.cn` | `overall` | 同 `open`，另有 `dimensions.pronunciation`，`fluency`，`integrity` | `open.transcript`，`open.feedback`，`open.audit` |
 
 其余公共字段：`recordId` 评测记录号，`speed` 语速，`rearTone` 句末调型，`duration` 与 `durationSeconds` 时长，`coreType` 与 `language` 平台回传的模式与语种，`report` 评测报告，`standardAudio` 示范音，`warnings` 平台警告，`localWarnings` 本地预检警告，`idempotencyKey` 本次使用的幂等键，`replayed` 是否为幂等重放。
 
@@ -668,6 +685,7 @@ SDK 的重试与重连都复用同一个幂等键，平台对同一个键只计�
 
 | SDK 版本 | 接口版本 | Android | 编译环境 |
 |---|---|---|---|
+| `2.1.1` | API v1，契约 v2.1 | 5.0 及以上，`minSdk 21` | Java 8 字节码，Kotlin 1.9，OkHttp 4.12 |
 | `2.1.0` | API v1，契约 v2.1 | 5.0 及以上，`minSdk 21` | Java 8 字节码，Kotlin 1.9，OkHttp 4.12 |
 | `2.0.0` | API v1，契约 v2 | 5.0 及以上，`minSdk 21` | Java 8 字节码，Kotlin 1.9，OkHttp 4.12 |
 | `1.0.0` | API v1 | 7.0 及以上，`minSdk 24` | 源码包，已停止维护 |

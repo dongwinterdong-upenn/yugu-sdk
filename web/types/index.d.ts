@@ -1,4 +1,4 @@
-// Type definitions for @shengzhiai/yugu-web-sdk 2.1.0
+// Type definitions for @shengzhiai/yugu-web-sdk 2.1.1
 // Copyright 2026 优谷雅言 open.shengzhiai.com. Licensed under the Apache License, Version 2.0.
 // Field names follow CONTRACT.md. CI checks that every runtime export has a declaration here.
 
@@ -360,7 +360,7 @@ export interface YuguClientOptions {
   audioPrecheck?: AudioPrecheckMode;
   /** Throw AudioQualityException when the result carries warning 1001. Default false. */
   strictAudio?: boolean;
-  /** Sent as X-Yugu-SDK in browsers and as User-Agent elsewhere. Default yugu-web-sdk/2.1.0 */
+  /** Sent as X-Yugu-SDK in browsers and as User-Agent elsewhere. Default yugu-web-sdk/2.1.1 */
   userAgent?: string;
   /** Default: global fetch. */
   fetch?: FetchLike;
@@ -461,7 +461,9 @@ export type CompatCoreType =
   | 'word.eval.cn'
   | 'sent.eval.cn'
   | 'para.eval.cn'
-  | 'pinyin';
+  | 'pinyin'
+  /** Chinese open question (2.1.1): refText required, scores in EvalResult.open, partials carry bytes only. */
+  | 'open.eval.cn';
 
 /** config part of POST /api/v1/evaluate (EvaluateConfigDTO, CONTRACT 1). */
 export interface EvaluateConfig {
@@ -509,6 +511,10 @@ export type CompatParamValue = string | number | boolean | null | undefined;
 
 /** Form fields of POST /{coreType}; known fields are listed, others pass through. */
 export interface CompatParams {
+  /**
+   * Reference text. Required for open.eval.cn: one or more model answers separated by |, or the question;
+   * refPinyin cannot replace it. qType, keypoints and keywords of open.eval.cn pass through as fields.
+   */
   refText?: string;
   text?: string;
   language?: string;

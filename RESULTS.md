@@ -42,7 +42,7 @@ SDK 结果模型的总分访问器在 connected 模式下取 `connected_overall`
 | `pinyin`，`symbolpinyin`，`tone` | string | 中文拼音，带调拼音，声调 `tone1` 到 `tone5` |
 | `charType` | int | 0 为字词，1 为标点 |
 | `readType` | int | 0 正常，1 增读，2 漏读，3 重复读。声通兼容接口默认不给 1 与 3，请求带 `readtype_diagnosis=1` 时才有 |
-| `read_status` | string | correct，mispronounced，skipped，inserted |
+| `read_status` | string | correct，mispronounced，skipped，inserted，repeated |
 | `scores.overall` | int | 字词得分 |
 | `scores.pronunciation` | int | 字词发音分 |
 | `scores.tone` | int | 中文字声调分 |
@@ -51,6 +51,15 @@ SDK 结果模型的总分访问器在 connected 模式下取 `connected_overall`
 | `phonemes` | array | 音素详情，`phoneme`，`pronunciation`，`span` |
 | `phonics` | array | 英文字母组合与发音对应，`spell`，`overall` |
 | `pause` | object | 词后停顿，`type`，`duration` |
+
+### 增读与重复读
+
+- 标识：`readType` 1 为增读，即参考文本里没有的字，`read_status` 为 `inserted`。`readType` 3 为重复读，`read_status` 为 `repeated`。两类的 `scores.overall` 都是 0。
+- 返回：声通兼容接口的固定内容题型，即各语种的 `word`，`sent`，`para`，默认不返回这两类，请求带 `readtype_diagnosis=1` 时返回。漏读的字属于参考文本，`readType` 为 2，照常返回。原生接口照常返回全部。英文题型的 `words` 只列参考文本里的词，多读的词不单独列出。
+- 计分：带不带 `readtype_diagnosis` 只影响返回哪些字词，分数相同。增读与重复读的字不计入准确度。完整度按参考文本里读到的字计算，增读与重复读只轻微扣分，最多扣 5 分，整篇重读一遍与开头报题目不扣，多读的字超过参考文本字数一半时视为读了别的内容，扣分明显加重。
+- 排序：`words` 按读出的先后排列，增读的字排在实际读出的位置，例如开头多读的字排在第一个参考字之前，重复读的字紧跟在被重复的字之后。
+- 时间：`span` 从录音开头算起，单位 10 毫秒，增读与重复读的字各有自己的 `span`。
+- 分句：`sentences` 的 `details` 只含参考文本的字。分句的 `span` 从该句第一个参考字起到最后一个参考字止，句中的增读落在其中，开头与结尾多读的字不在任何分句的 `span` 里。
 
 ## 连读 connected
 

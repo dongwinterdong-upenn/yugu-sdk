@@ -7,7 +7,10 @@ import { WARNING_TABLE } from './error-table.js';
 /** Native coreType values (CONTRACT 1). */
 export const NATIVE_CORE_TYPES = Object.freeze(['word', 'sentence', 'passage', 'connected', 'open', 'alpha', 'pinyin']);
 
-/** Shengtong compatible coreType paths (CONTRACT 3.2). */
+/**
+ * Shengtong compatible coreType paths (CONTRACT 3.2). open.eval.cn (2.1.1) is the Chinese open question:
+ * its refText, model answers separated by | or the question, is required.
+ */
 export const COMPAT_CORE_TYPES = Object.freeze([
   'word.eval',
   'word.eval.pro',
@@ -19,6 +22,7 @@ export const COMPAT_CORE_TYPES = Object.freeze([
   'sent.eval.cn',
   'para.eval.cn',
   'pinyin',
+  'open.eval.cn',
 ]);
 
 /** Warning code to English server message, kept from 1.x. */

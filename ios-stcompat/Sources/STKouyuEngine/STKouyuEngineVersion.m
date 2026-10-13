@@ -9,6 +9,6 @@
 
 #import "include/STKouyuEngine/STKouyuEngine.h"
 
-double STKouyuEngineVersionNumber = 2.1;
+double STKouyuEngineVersionNumber = 2.2;
 
-const unsigned char STKouyuEngineVersionString[] = "@(#)PROGRAM:STKouyuEngine  PROJECT:yugu-ios-stcompat-2.1.2\n";
+const unsigned char STKouyuEngineVersionString[] = "@(#)PROGRAM:STKouyuEngine  PROJECT:yugu-ios-stcompat-2.2.0\n";

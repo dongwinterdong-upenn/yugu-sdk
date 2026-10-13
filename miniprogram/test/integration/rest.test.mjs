@@ -51,7 +51,7 @@ test('415 regression: a config part without application/json is rejected, the SD
   assert.equal(log.length, 2);
   assert.match(log[1].contentType, /^multipart\/form-data; boundary=----YuguFormBoundary/);
   assert.deepEqual(log[1].config, SENTENCE);
-  assert.equal(log[1].sdk, 'yugu-miniprogram-sdk/2.1.0');
+  assert.equal(log[1].sdk, 'yugu-miniprogram-sdk/2.1.1');
 });
 
 test('every REST call with signature auth and with token auth', async () => {
@@ -84,6 +84,20 @@ test('every REST call with signature auth and with token auth', async () => {
   const billing = await mock.billing();
   assert.equal(billing.billed, 8, 'evaluate, tts and four compat calls with signature auth, evaluate and tts with a token');
   assert.equal((await mock.log()).filter((e) => /^\/(sent|word|para)\.eval|^\/pinyin/.test(e.path)).length, 4);
+});
+
+test('compat open.eval.cn (2.1.1): signature accepted, routed to /open.eval.cn, billed once', async () => {
+  const c = client();
+  const r = await c.evaluateCompat('open.eval.cn', { refText: '我是学生|我不是学生', fields: { qType: 6 }, audio: toArrayBuffer(fixtureBytes('audio/zh_open_answer.wav')) });
+  assert.equal(r.overall, 96);
+  assert.equal(r.open.openTaskAudit.refKind, 'answers');
+  assert.deepEqual([r.words.length, r.sentences.length], [0, 0]);
+  const log = await evalLog('/open.eval.cn');
+  assert.equal(log.length, 1);
+  assert.match(log[0].idempotencyKey, /^[0-9a-f]{32}$/);
+  assert.deepEqual(log[0].fields, { refText: '我是学生|我不是学生', qType: '6' });
+  assert.equal((await mock.billing()).billed, 1);
+  c.close();
 });
 
 test('auth failures map to AuthException without retries', async () => {

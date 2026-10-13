@@ -56,6 +56,7 @@ typedef void(^KYPlayFinishBlock)(void);
 
 /**
  开始评测，返回本次评测的 tokenId，tokenId 同时是平台请求的幂等键。
+ 不支持的评测内核回调 errId 60003，YuguCompat.throwOnUnsupportedCoreType 为 YES 时抛出 NSInvalidArgumentException。
 
  @param testConfig  评测参数
  @param testResultBlock 结果回调，参数为结果 JSON 或错误 JSON
@@ -65,6 +66,7 @@ typedef void(^KYPlayFinishBlock)(void);
 
 /**
  开始评测，带录音过程回调，返回 tokenId。
+ 不支持的评测内核回调 errId 60003，YuguCompat.throwOnUnsupportedCoreType 为 YES 时抛出 NSInvalidArgumentException。
 
  @param testConfig  评测参数
  @param onStartBlock 录音开始

@@ -2,7 +2,7 @@
 //
 // STKouyuEngine: drop-in replacement of the Shengtong (声通) iOS framework STKouyuEngine.framework
 // that evaluates on the Yugu (优谷雅言) cloud platform. Published as
-// https://open.shengzhiai.com/git/stkouyu-ios-compat.git, tag 2.1.2.
+// https://open.shengzhiai.com/git/stkouyu-ios-compat.git, tag 2.2.0.
 //
 // Copyright 2026 优谷雅言 open.shengzhiai.com
 // SPDX-License-Identifier: Apache-2.0

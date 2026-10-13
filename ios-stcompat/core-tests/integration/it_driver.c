@@ -28,6 +28,15 @@
  *        [--fault F] [--scale X] [--custom K=V]...
  *        [--timing] [(--realtime | --stream) [--chunk-bytes N] [--pace-ms N] [--feed-after-start]
  *         [--ws-fault F] [--ping-interval-ms N] [--pong-timeout-ms N] [--attempt-timeout-ms N]]
+ *        [--core-type-enum N] [--skegn]
+ *        [--tts --tts-text T [--tts-set NAME=VALUE]... [--idempotency-key K]]
+ *        [--report RECORD_ID [--wait-for-final-ms N]]
+ *
+ * 2.2.0: an unsupported coreType answers 60003 with "不支持的评测内核：<coreType>"; --core-type-enum is
+ * the KYTestType of a blank --core-type, --skegn resolves --core-type like skegn_start. --tts and
+ * --report run TtsClient.tts and ReportClient.getReport through the C core the way YuguClients.m does
+ * (signing, headers, retry controller, waitForFinalMs) and print one JSON line with "op" instead of
+ * the evaluation line.
  *
  * --base-url goes through the same resolution as KYStartEngineConfig.server. https needs a build
  * with -DYGST_IT_TLS and -lssl -lcrypto: OpenSSL with SNI, TLS 1.2 or later and certificate plus
@@ -1002,6 +1011,16 @@ typedef struct {
     int ping_interval_ms;   /* -1: the controller default */
     int pong_timeout_ms;
     int attempt_timeout_ms; /* -1: read_timeout_ms like a REST attempt */
+    /* 2.2.0 */
+    unsigned long core_type_enum; /* KYTestConfig.coreType when --core-type is blank (KYTestEngine) */
+    int skegn;                    /* resolve --core-type like skegn_start: blank is no coreType */
+    int tts;                      /* TtsClient: POST /api/v1/tts/generate */
+    const char *tts_text;
+    ygst_fields tts_set;          /* the other members, name=value, integers parsed */
+    const char *idempotency_key;  /* TtsOptions.idempotencyKey */
+    int report;                   /* ReportClient: GET /api/v1/report/{recordId} */
+    const char *report_id;
+    long long wait_for_final_ms;  /* ReportOptions.waitForFinalMs */
 } options;
 
 static void emit_full(const char *token, const char *outcome, int attempts, int replayed, long elapsed,
@@ -1046,13 +1065,14 @@ static ygst_retry_policy policy_of(const options *o) {
 /* 2.1.1: an evaluation that reached the platform ends with the INFO line and the two DEBUG lines
  * of ygst_timing, as the "timing", "timingPhases" and "timingStages" members. Parsed and delivered
  * are now: the driver has no app callback. */
-static void timing_members(ygst_timing *tm, const char *token, ygst_span timing_obj, ygst_buf *ex) {
+static void timing_members(ygst_timing *tm, const char *token, const char *record_id, ygst_span timing_obj,
+                           ygst_buf *ex) {
     ygst_buf line;
     if (!tm || tm->mode == YGST_TM_NONE) return;
     if (!tm->parsed_ms) tm->parsed_ms = mono_ms();
     tm->delivered_ms = mono_ms();
     ygst_buf_init(&line);
-    ygst_timing_summary(tm, token, &line);
+    ygst_timing_summary(tm, token, record_id, &line);
     ygst_buf_append_str(ex, "\"timing\":");
     ygst_json_escape(ex, ygst_buf_cstr(&line));
     ygst_buf_reset(&line);
@@ -1092,7 +1112,9 @@ static void emit_result(const options *o, const char *token, const char *core_ty
         tm->ok = 1;
         tm->parsed_ms = mono_ms();
         ygst_timing_member(cls->root, tm, &timing_obj);
-        timing_members(tm, token, timing_obj, &ex);
+        /* 2.2.0: the recordId of the result, as YGSTUploadResult.recordId on iOS */
+        timing_members(tm, token, cls->has_record_id && cls->record_id.data ? (const char *)cls->record_id.data : NULL,
+                       timing_obj, &ex);
     }
     emit_full(token, "result", attempts, replayed, (long)(mono_ms() - started), ygst_buf_cstr(&ex), ygst_buf_cstr(&env));
     ygst_buf_free(&env);
@@ -1111,7 +1133,7 @@ static void emit_timed_error(const options *o, const char *token, int err_id, co
     if (extra) ygst_buf_append_str(&ex, extra);
     tm->ok = 0;
     tm->err_id = err_id;
-    timing_members(tm, token, none, &ex);
+    timing_members(tm, token, NULL, none, &ex);
     emit_error(o, token, err_id, message, attempts, started, ygst_buf_cstr(&ex));
     ygst_buf_free(&ex);
 }
@@ -1536,6 +1558,397 @@ static void run_realtime(const options *o, const char *token, const char *core_t
     ygst_buf_free(&x.rest_reason);
 }
 
+/* ------------------------------------------------------------------ TtsClient and ReportClient (2.2.0) */
+
+typedef struct {
+    int ok;
+    int err_id;
+    int http_status;
+    int attempts;
+    ygst_buf message; /* error text, as the NSError description on iOS */
+    ygst_buf body;    /* the last answer */
+    ygst_span data;   /* its "data" object on success, into body */
+} api_result;
+
+static void api_result_init(api_result *r) {
+    memset(r, 0, sizeof *r);
+    ygst_buf_init(&r->message);
+    ygst_buf_init(&r->body);
+}
+
+static void api_result_free(api_result *r) {
+    ygst_buf_free(&r->message);
+    ygst_buf_free(&r->body);
+}
+
+/* One call of the v1 API under the call controller, as YGSTApiCall does on iOS: a fresh timestamp and
+ * nonce on every attempt, the same signature and Idempotency-Key (TTS only), ygst_classify_api. */
+static void api_call(const options *o, const target *tgt, const char *method, const char *url, const ygst_buf *body,
+                     const char *key, const char *signature, api_result *out) {
+    ygst_retry_policy policy = policy_of(o);
+    ygst_call call;
+    http_result hr;
+    ygst_buf empty;
+    const char *fault = o->fault;
+    const char *path = url + tgt->path_offset;
+    ygst_buf_init(&empty);
+    ygst_call_init(&call, &policy, (uint64_t)now_ms(), mono_ms());
+    ygst_buf_init(&hr.body);
+    for (;;) {
+        unsigned char nrnd[8];
+        char nonce[17];
+        ygst_buf head;
+        ygst_outcome oc;
+        ygst_classification cls;
+        ygst_action act;
+        random_bytes(nrnd, sizeof nrnd);
+        ygst_hex_lower(nrnd, sizeof nrnd, nonce);
+        if (o->fixed_nonce) snprintf(nonce, sizeof nonce, "%s", o->fixed_nonce);
+        ygst_buf_init(&head);
+        ygst_buf_append_str(&head, method);
+        ygst_buf_append_char(&head, ' ');
+        ygst_buf_append_str(&head, path);
+        ygst_buf_append_str(&head, " HTTP/1.1\r\nHost: ");
+        ygst_buf_append_str(&head, tgt->authority);
+        ygst_buf_append_str(&head, "\r\n");
+        if (body) {
+            ygst_buf_append_str(&head, "Content-Type: application/json; charset=utf-8\r\nContent-Length: ");
+            ygst_buf_append_int(&head, (long long)body->len);
+            ygst_buf_append_str(&head, "\r\n");
+        }
+        ygst_buf_append_str(&head, "Accept: application/json\r\nX-App-Key: ");
+        ygst_buf_append_str(&head, o->app_key);
+        ygst_buf_append_str(&head, "\r\nX-Timestamp: ");
+        ygst_buf_append_int(&head, (long long)(now_ms() / 1000));
+        ygst_buf_append_str(&head, "\r\nX-Nonce: ");
+        ygst_buf_append_str(&head, nonce);
+        ygst_buf_append_str(&head, "\r\nX-Signature: ");
+        ygst_buf_append_str(&head, signature);
+        ygst_buf_append_str(&head, "\r\n");
+        if (key) {
+            ygst_buf_append_str(&head, "Idempotency-Key: ");
+            ygst_buf_append_str(&head, key);
+            ygst_buf_append_str(&head, "\r\n");
+        }
+        ygst_buf_append_str(&head, "User-Agent: " YGST_USER_AGENT "\r\n");
+        if (fault) {
+            ygst_buf_append_str(&head, "X-Mock-Fault: ");
+            ygst_buf_append_str(&head, fault);
+            ygst_buf_append_str(&head, "\r\n");
+        }
+        ygst_buf_append_str(&head, "Connection: close\r\n\r\n");
+        http_post(tgt, o->ca_file, o->connect_timeout_ms, ygst_buf_cstr(&head), body ? body : &empty,
+                  o->read_timeout_ms, &hr);
+        ygst_buf_free(&head);
+        memset(&oc, 0, sizeof oc);
+        oc.http_status = hr.status;
+        oc.local_code = hr.local_code;
+        oc.body = (const char *)hr.body.data;
+        oc.body_len = hr.body.len;
+        oc.retry_after_ms = hr.retry_after_ms;
+        oc.replayed = hr.replayed;
+        oc.local_message = hr.message[0] ? hr.message : NULL;
+        ygst_classification_init(&cls);
+        ygst_classify_api(&oc, &cls);
+        act = ygst_call_next(&call, &cls, hr.retry_after_ms, mono_ms());
+        fprintf(stderr, "%s attempt %d: status=%d local=%d biz=%d retryable=%d -> action=%d delay=%ld err=%d %s\n",
+                method, call.total_attempts, hr.status, hr.local_code, cls.biz_code, cls.retryable, act.kind,
+                act.delay_ms, act.err_id, ygst_buf_cstr(&cls.message));
+        if (act.kind != YGST_ACT_RETRY) {
+            out->attempts = call.total_attempts;
+            out->http_status = hr.status;
+            if (act.kind == YGST_ACT_SUCCESS) {
+                size_t off = (size_t)(cls.result.p - (const char *)hr.body.data);
+                out->ok = 1;
+                out->body = hr.body; /* the data span points into it */
+                ygst_buf_init(&hr.body);
+                out->data.p = (const char *)out->body.data + off;
+                out->data.n = cls.result.n;
+            } else {
+                out->err_id = act.err_id;
+                ygst_error_message(&cls, act.err_id, call.attempt, &out->message);
+                out->body = hr.body;
+                ygst_buf_init(&hr.body);
+            }
+            ygst_classification_free(&cls);
+            break;
+        }
+        ygst_classification_free(&cls);
+        sleep_ms(act.delay_ms);
+        fault = NULL; /* a header fault applies to the first attempt only */
+    }
+    ygst_buf_free(&hr.body);
+}
+
+/* "name":"text" with a leading comma */
+static void put_str_member(ygst_buf *b, const char *name, const char *text) {
+    ygst_buf_append_str(b, ",\"");
+    ygst_buf_append_str(b, name);
+    ygst_buf_append_str(b, "\":");
+    ygst_json_escape(b, text ? text : "");
+}
+
+/* "name":<raw JSON or null> with a leading comma */
+static void put_raw_member(ygst_buf *b, const char *name, ygst_span v) {
+    ygst_buf_append_str(b, ",\"");
+    ygst_buf_append_str(b, name);
+    ygst_buf_append_str(b, "\":");
+    if (v.p && v.n) {
+        ygst_buf_append(b, v.p, v.n);
+    } else {
+        ygst_buf_append_str(b, "null");
+    }
+}
+
+static void emit_api(const char *op, const api_result *r, int local_code, const char *local_message, const char *extra,
+                     const char *log_line, int64_t started) {
+    ygst_buf b;
+    ygst_buf_init(&b);
+    ygst_buf_append_str(&b, "{\"op\":\"");
+    ygst_buf_append_str(&b, op);
+    ygst_buf_append_str(&b, "\",\"outcome\":\"");
+    ygst_buf_append_str(&b, r && r->ok ? "result" : "error");
+    ygst_buf_append_str(&b, "\",\"code\":");
+    ygst_buf_append_int(&b, local_code ? local_code : (r ? r->err_id : 0));
+    put_str_member(&b, "message", local_code ? local_message : (r && r->message.data ? (const char *)r->message.data : ""));
+    ygst_buf_append_str(&b, ",\"httpStatus\":");
+    ygst_buf_append_int(&b, r ? r->http_status : 0);
+    ygst_buf_append_str(&b, ",\"attempts\":");
+    ygst_buf_append_int(&b, r ? r->attempts : 0);
+    if (extra) ygst_buf_append_str(&b, extra);
+    put_str_member(&b, "log", log_line);
+    ygst_buf_append_str(&b, ",\"elapsedMs\":");
+    ygst_buf_append_int(&b, (long long)(mono_ms() - started));
+    ygst_buf_append_str(&b, "}");
+    printf("%s\n", ygst_buf_cstr(&b));
+    fflush(stdout);
+    ygst_buf_free(&b);
+}
+
+static int tts_member(ygst_tts_request *req, const char *name, const char *value) {
+    long long *num = NULL;
+    int *has = NULL;
+    if (strcmp(name, "language") == 0) req->language = value;
+    else if (strcmp(name, "voice") == 0) req->voice = value;
+    else if (strcmp(name, "format") == 0) req->format = value;
+    else if (strcmp(name, "emotion") == 0) req->emotion = value;
+    else if (strcmp(name, "style") == 0) req->style = value;
+    else if (strcmp(name, "pinyin") == 0) req->pinyin = value;
+    else if (strcmp(name, "genre") == 0) req->genre = value;
+    else if (strcmp(name, "speed") == 0) num = &req->speed, has = &req->has_speed;
+    else if (strcmp(name, "pitch") == 0) num = &req->pitch, has = &req->has_pitch;
+    else if (strcmp(name, "volume") == 0) num = &req->volume, has = &req->has_volume;
+    else if (strcmp(name, "sampleRate") == 0) num = &req->sample_rate, has = &req->has_sample_rate;
+    else return -1;
+    if (num) {
+        *num = atoll(value);
+        *has = 1;
+    }
+    return 0;
+}
+
+/* TtsClient.tts: the body and its signature, then one call with an Idempotency-Key for all attempts. */
+static int run_tts(const options *o, const char *base, const target *tgt, int64_t started) {
+    ygst_tts_request req;
+    ygst_buf json, url, ex, line, abs;
+    ygst_fields sign;
+    char signature[45];
+    char key[256];
+    api_result res;
+    size_t i;
+    int rc;
+    ygst_tts_request_init(&req);
+    req.text = o->tts_text;
+    for (i = 0; i < o->tts_set.count; i++) {
+        if (tts_member(&req, o->tts_set.items[i].name, o->tts_set.items[i].value) != 0) {
+            fprintf(stderr, "--tts-set: unknown member %s\n", o->tts_set.items[i].name);
+            return 2;
+        }
+    }
+    ygst_buf_init(&json);
+    ygst_buf_init(&url);
+    ygst_buf_init(&ex);
+    ygst_buf_init(&line);
+    ygst_buf_init(&abs);
+    ygst_fields_init(&sign);
+    api_result_init(&res);
+    if (o->idempotency_key && o->idempotency_key[0]) { /* an empty key is no key, as in YuguClients.m */
+        snprintf(key, sizeof key, "%s", o->idempotency_key);
+    } else {
+        unsigned char rnd[16];
+        random_bytes(rnd, sizeof rnd);
+        ygst_hex_lower(rnd, sizeof rnd, key);
+    }
+    rc = ygst_tts_body(&req, &json, &sign);
+    if (rc != 0 || !ygst_idempotency_key_ok(key)) {
+        const char *why = rc != 0 ? "TtsRequest.text 为空" : "idempotencyKey 须为 1 到 200 个可见 ASCII 字符";
+        ygst_api_log_line("tts", NULL, NULL, YGST_LOCAL_INVALID_ARGUMENT, -1, 0, mono_ms() - started, &line);
+        emit_api("tts", NULL, YGST_LOCAL_INVALID_ARGUMENT, why, NULL, ygst_buf_cstr(&line), started);
+    } else {
+        ygst_sign(&sign, o->secret, signature);
+        ygst_api_url(base, YGST_TTS_PATH, &url);
+        api_call(o, tgt, "POST", ygst_buf_cstr(&url), &json, key, signature, &res);
+        put_str_member(&ex, "idempotencyKey", key);
+        put_str_member(&ex, "signature", signature);
+        ygst_buf_append_str(&ex, ",\"request\":");
+        ygst_buf_append(&ex, json.data, json.len);
+        if (res.ok) {
+            ygst_tts_answer a;
+            ygst_span raw;
+            char num[64];
+            ygst_tts_answer_init(&a);
+            ygst_tts_parse(res.data, &a);
+            ygst_tts_absolute_url(base, ygst_buf_cstr(&a.audio_url), &abs);
+            put_str_member(&ex, "audioUrl", ygst_buf_cstr(&a.audio_url));
+            put_str_member(&ex, "absoluteAudioUrl", ygst_buf_cstr(&abs));
+            snprintf(num, sizeof num, ",\"hasDuration\":%d,\"duration\":%.6g", a.has_duration, a.duration);
+            ygst_buf_append_str(&ex, num);
+            put_str_member(&ex, "format", ygst_buf_cstr(&a.format));
+            raw.p = (const char *)res.body.data;
+            raw.n = res.body.len;
+            put_raw_member(&ex, "raw", raw);
+            ygst_tts_answer_free(&a);
+        }
+        ygst_api_log_line("tts", NULL, "ok", res.ok ? 0 : res.err_id, -1, res.attempts, mono_ms() - started, &line);
+        emit_api("tts", &res, 0, NULL, ygst_buf_cstr(&ex), ygst_buf_cstr(&line), started);
+    }
+    api_result_free(&res);
+    ygst_buf_free(&json);
+    ygst_buf_free(&url);
+    ygst_buf_free(&ex);
+    ygst_buf_free(&line);
+    ygst_buf_free(&abs);
+    ygst_fields_free(&sign);
+    return 0;
+}
+
+/* ReportClient.getReport: one lookup, and with waitForFinalMs one per second while the report is
+ * pending. ygst_report_after_lookup decides, as YuguClients.m: the first lookup's error ends the call
+ * with that error, a later failed lookup ends it with the latest answer and one WARN line ("warn"). */
+static int run_report(const options *o, const char *base, const target *tgt, int64_t started) {
+    ygst_buf path, url, ex, line, id, starts, warn;
+    ygst_fields none;
+    char signature[45];
+    api_result res;  /* the last lookup */
+    api_result last; /* the latest answer */
+    ygst_report rep;
+    ygst_rp_action act;
+    int lookups = 0;
+    int attempts = 0;
+    int answered = 0;
+    int rc;
+    ygst_buf_init(&path);
+    ygst_buf_init(&url);
+    ygst_buf_init(&ex);
+    ygst_buf_init(&line);
+    ygst_buf_init(&id);
+    ygst_buf_init(&starts);
+    ygst_buf_init(&warn);
+    ygst_fields_init(&none);
+    ygst_report_init(&rep);
+    api_result_init(&res);
+    api_result_init(&last);
+    memset(&act, 0, sizeof act);
+    ygst_buf_append_trimmed(&id, o->report_id);
+    rc = ygst_report_path(o->report_id, &path);
+    if (rc != 0) {
+        ygst_api_log_line("getReport", ygst_buf_cstr(&id), NULL, YGST_LOCAL_INVALID_ARGUMENT, 0, 0, mono_ms() - started,
+                          &line);
+        emit_api("getReport", NULL, YGST_LOCAL_INVALID_ARGUMENT, "recordId 为空", NULL, ygst_buf_cstr(&line), started);
+    } else {
+        ygst_sign(&none, o->secret, signature); /* the signed set of the report, CONTRACT 2.3 */
+        ygst_api_url(base, ygst_buf_cstr(&path), &url);
+        for (;;) {
+            if (starts.len) ygst_buf_append_char(&starts, ',');
+            ygst_buf_append_int(&starts, (long long)(mono_ms() - started));
+            api_result_free(&res);
+            api_result_init(&res);
+            api_call(o, tgt, "GET", ygst_buf_cstr(&url), NULL, NULL, signature, &res);
+            lookups++;
+            attempts += res.attempts;
+            if (res.ok) {
+                api_result_free(&last);
+                last = res; /* the answer moves, rep points into it */
+                api_result_init(&res);
+                ygst_report_parse(last.data, &rep);
+                act = ygst_report_after_lookup(o->wait_for_final_ms, started, mono_ms(), 1, ygst_report_is_pending(&rep),
+                                               answered);
+                answered = 1;
+            } else {
+                act = ygst_report_after_lookup(o->wait_for_final_ms, started, mono_ms(), 0, 0, answered);
+            }
+            if (act.kind != YGST_RP_AGAIN) break;
+            fprintf(stderr, "report pending, next lookup in %ld ms\n", act.delay_ms);
+            sleep_ms(act.delay_ms);
+        }
+        if (act.degraded) {
+            ygst_report_lookup_failed_line(ygst_buf_cstr(&id), res.err_id, lookups, &warn);
+            ygst_buf_append_str(&ex, ",\"failedCode\":");
+            ygst_buf_append_int(&ex, res.err_id);
+            put_str_member(&ex, "warn", ygst_buf_cstr(&warn));
+        }
+        if (act.kind == YGST_RP_RETURN) {
+            /* the latest answer is the outcome: this one, or an earlier one after a failed lookup */
+            api_result_free(&res);
+            res = last;
+            api_result_init(&last);
+        }
+        res.attempts = attempts;
+        ygst_buf_append_str(&ex, ",\"lookups\":");
+        ygst_buf_append_int(&ex, lookups);
+        ygst_buf_append_str(&ex, ",\"lookupMs\":[");
+        ygst_buf_append(&ex, starts.data, starts.len);
+        ygst_buf_append_str(&ex, "]");
+        put_str_member(&ex, "path", ygst_buf_cstr(&url) + tgt->path_offset);
+        put_str_member(&ex, "signature", signature);
+        if (res.ok) {
+            ygst_buf s;
+            size_t pos = 0;
+            int n = 0;
+            char num[64];
+            put_str_member(&ex, "recordId", rep.record_id.len ? ygst_buf_cstr(&rep.record_id) : ygst_buf_cstr(&id));
+            put_str_member(&ex, "reportStatus", ygst_buf_cstr(&rep.report_status));
+            snprintf(num, sizeof num, ",\"isFinal\":%d,\"isPending\":%d,\"hasSummary\":%d", ygst_report_is_final(&rep),
+                     ygst_report_is_pending(&rep), rep.has_summary);
+            ygst_buf_append_str(&ex, num);
+            put_str_member(&ex, "summary", ygst_buf_cstr(&rep.summary));
+            ygst_buf_append_str(&ex, ",\"suggestions\":[");
+            ygst_buf_init(&s);
+            while (ygst_report_next_suggestion(rep.suggestions, &pos, &s) == 1) {
+                if (n++) ygst_buf_append_char(&ex, ',');
+                ygst_json_escape(&ex, ygst_buf_cstr(&s));
+            }
+            ygst_buf_free(&s);
+            ygst_buf_append_str(&ex, "]");
+            if (rep.has_overall) {
+                snprintf(num, sizeof num, ",\"overall\":%.17g", rep.overall);
+                ygst_buf_append_str(&ex, num);
+            } else {
+                ygst_buf_append_str(&ex, ",\"overall\":null");
+            }
+            put_raw_member(&ex, "report", rep.report);
+            put_raw_member(&ex, "score", rep.score);
+            put_raw_member(&ex, "timing", rep.timing);
+            put_raw_member(&ex, "data", res.data);
+        }
+        ygst_api_log_line("getReport", ygst_buf_cstr(&id), ygst_buf_cstr(&rep.report_status), res.ok ? 0 : res.err_id,
+                          lookups, attempts, mono_ms() - started, &line);
+        emit_api("getReport", &res, 0, NULL, ygst_buf_cstr(&ex), ygst_buf_cstr(&line), started);
+    }
+    api_result_free(&res);
+    api_result_free(&last);
+    ygst_report_free(&rep);
+    ygst_buf_free(&path);
+    ygst_buf_free(&url);
+    ygst_buf_free(&ex);
+    ygst_buf_free(&line);
+    ygst_buf_free(&id);
+    ygst_buf_free(&starts);
+    ygst_buf_free(&warn);
+    ygst_fields_free(&none);
+    return 0;
+}
+
 /* ------------------------------------------------------------------ main */
 
 int main(int argc, char **argv) {
@@ -1570,6 +1983,7 @@ int main(int argc, char **argv) {
     o.pong_timeout_ms = -1;
     o.attempt_timeout_ms = -1;
     ygst_fields_init(&o.custom);
+    ygst_fields_init(&o.tts_set);
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
         const char *v = i + 1 < argc ? argv[i + 1] : NULL;
@@ -1614,7 +2028,25 @@ int main(int argc, char **argv) {
                 k[kl] = 0;
                 ygst_fields_set(&o.custom, k, eq + 1);
             }
-        } else if (strcmp(a, "--auto-retry") == 0) o.auto_retry = 1;
+        } else if (OPT("--core-type-enum")) o.core_type_enum = strtoul(v, NULL, 10);
+        else if (OPT("--tts-text")) o.tts_text = v;
+        else if (OPT("--tts-set")) {
+            const char *eq = strchr(v, '=');
+            if (eq) {
+                char k[64];
+                size_t kl = (size_t)(eq - v) < sizeof k - 1 ? (size_t)(eq - v) : sizeof k - 1;
+                memcpy(k, v, kl);
+                k[kl] = 0;
+                ygst_fields_set(&o.tts_set, k, eq + 1);
+            }
+        } else if (OPT("--idempotency-key")) o.idempotency_key = v;
+        else if (OPT("--report")) {
+            o.report = 1;
+            o.report_id = v;
+        } else if (OPT("--wait-for-final-ms")) o.wait_for_final_ms = atoll(v);
+        else if (strcmp(a, "--tts") == 0) o.tts = 1;
+        else if (strcmp(a, "--skegn") == 0) o.skegn = 1;
+        else if (strcmp(a, "--auto-retry") == 0) o.auto_retry = 1;
         else if (strcmp(a, "--get-param") == 0) o.get_param = 1;
         else if (strcmp(a, "--attach-audio-url") == 0) o.attach_audio_url = 1;
         else if (strcmp(a, "--realtime") == 0) o.realtime = o.progress = 1;
@@ -1652,6 +2084,14 @@ int main(int argc, char **argv) {
     }
 #endif
 
+    /* 2.2.0: TtsClient and ReportClient, no evaluation */
+    if (o.tts || o.report) {
+        int rc = o.tts ? run_tts(&o, base, &tgt, started) : run_report(&o, base, &tgt, started);
+        ygst_fields_free(&o.custom);
+        ygst_fields_free(&o.tts_set);
+        return rc;
+    }
+
     /* tokenId, also the Idempotency-Key of every attempt */
     if (o.token) {
         snprintf(token, sizeof token, "%s", o.token);
@@ -1661,11 +2101,28 @@ int main(int argc, char **argv) {
         ygst_token_id(rnd, token);
     }
 
-    /* 1. coreType and refText: answered locally, never reach the network */
-    cts = ygst_coretype_resolve(o.core_type, 0, core_type, sizeof core_type);
+    /* 1. coreType and refText: answered locally, never reach the network. 2.2.0: the 60003 text names
+     * the coreType, as KYTestEngine (coreTypeNS, else the KYTestType) or skegn_start (the text) asked */
+    cts = o.skegn ? ygst_coretype_resolve_text(o.core_type, core_type, sizeof core_type)
+                  : ygst_coretype_resolve(o.core_type, o.core_type_enum, core_type, sizeof core_type);
     err = ygst_validate_request(cts, core_type, o.ref_text, o.ref_pinyin);
     if (err) {
-        emit_error(&o, token, err, ygst_compat_message(err), 0, started, NULL);
+        ygst_buf requested, msg;
+        ygst_buf_init(&requested);
+        ygst_buf_init(&msg);
+        if (o.skegn) {
+            ygst_buf_append_str(&requested, o.core_type);
+        } else {
+            ygst_coretype_requested(o.core_type, o.core_type_enum, &requested);
+        }
+        if (err == YGST_ERRID_CORETYPE_UNSUPPORTED) {
+            ygst_coretype_unsupported_message(ygst_buf_cstr(&requested), &msg);
+        } else {
+            ygst_buf_append_str(&msg, ygst_compat_message(err));
+        }
+        emit_error(&o, token, err, ygst_buf_cstr(&msg), 0, started, NULL);
+        ygst_buf_free(&requested);
+        ygst_buf_free(&msg);
         return 0;
     }
     /* 3. audio */
@@ -1741,6 +2198,7 @@ int main(int argc, char **argv) {
     }
     ygst_fields_free(&fields);
     ygst_fields_free(&o.custom);
+    ygst_fields_free(&o.tts_set);
     free(audio);
     return 0;
 }

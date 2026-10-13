@@ -7,7 +7,7 @@ STKouyuEngine 是优谷雅言语音评测 SDK 2.0 的 iOS 声通平替包。已�
 | 项 | 值 |
 |---|---|
 | 包地址 | `https://open.shengzhiai.com/git/stkouyu-ios-compat.git` |
-| 版本 | `2.1.2` |
+| 版本 | `2.2.0` |
 | 产品与模块 | `STKouyuEngine`，Objective-C 实现 |
 | 最低系统 | iOS 12，边录边传与朗读进度需要 iOS 13，另支持 macOS 10.15 供测试使用 |
 | 工具链 | Xcode 15 及更新版本，`swift-tools-version:5.9` |
@@ -24,13 +24,13 @@ STKouyuEngine 是优谷雅言语音评测 SDK 2.0 的 iOS 声通平替包。已�
 
 ### SwiftPM 依赖
 
-在 Xcode 菜单 `File > Add Package Dependencies` 填入包地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`，规则选 `Up to Next Major Version`，起始版本 `2.1.2`，把产品 `STKouyuEngine` 加到应用 target。
+在 Xcode 菜单 `File > Add Package Dependencies` 填入包地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`，规则选 `Up to Next Major Version`，起始版本 `2.2.0`，把产品 `STKouyuEngine` 加到应用 target。
 
 用 `Package.swift` 管理依赖的工程这样写：
 
 ```swift
 dependencies: [
-    .package(url: "https://open.shengzhiai.com/git/stkouyu-ios-compat.git", from: "2.1.2"),
+    .package(url: "https://open.shengzhiai.com/git/stkouyu-ios-compat.git", from: "2.2.0"),
 ],
 targets: [
     .target(name: "App", dependencies: [
@@ -163,7 +163,7 @@ Swift 里的方法名由编译器按头文件推导，与使用声通 framework 
 | `pinyin` | 只能用 `coreTypeNS` | 拼音题，`refPinyin` 必填 |
 | `open.eval.cn` | 只能用 `coreTypeNS` | 中文开放题，见下方中文开放题一节，`2.1.2` 起支持 |
 
-其余内核在本地回调 errId 60003，不发网络请求，包括 `open.eval`，`choice.rec`，`asr.rec`，`asr.eval`，`align.eval`，法语，日语与韩语内核，`KYTestType_Wordspell`，以及声通内核以外的名字。
+其余内核在本地回调 errId 60003，不发网络请求，不录音，包括 `open.eval`，`choice.rec`，`asr.rec`，`asr.eval`，`align.eval`，法语，日语与韩语内核，`KYTestType_Wordspell`，以及声通内核以外的名字。错误 JSON 的 `error` 写明请求的内核，例如“不支持的评测内核：open.eval”，同时打印一行 warn 日志，写明内核与 errId 60003。需要以异常处理时打开 `YuguCompat.throwOnUnsupportedCoreType`，见下方不支持的内核一节。
 
 `refText` 为空时回调 errId 60006。中文内核与 `pinyin` 设置了 `refPinyin` 时可以不设 `refText`，`open.eval.cn` 除外。
 
@@ -186,6 +186,24 @@ test.qType = KYQType_SituationalReply;
 ```
 
 结果 JSON 的 `result` 含原生开放题的全部字段：`overall` 总分，`content` 内容，`languageUse` 语言运用，`delivery` 表达，`transcript` 识别文本，`feedback` 点评，含义见仓库根目录 [RESULTS.md](../RESULTS.md) 的开放题一节。`openTaskAudit.refKind` 为 `answers` 时评分模型把 `refText` 当参考答案，为 `question` 时当题目。另有与声通相同的扁平字段 `pronunciation`，`fluency`，`integrity`，`coherence` 与 `speed`，`speed` 为每分钟字数。结果里没有逐字的 `words` 与 `sentences`。录音同样边录边传，`realtime_feedback` 为 YES 时中间结果只有已收音频的字节数 `bytes`，没有朗读进度。
+
+### 不支持的内核
+
+1. 错误 JSON 的 `error` 为“不支持的评测内核：”加上请求的内核，`2.2.0` 起提供。`coreTypeNS` 不为空时写去掉首尾空白的 `coreTypeNS`，为空时写 `coreType` 对应的声通内核名，没有内核名的写 `KYTestType 22` 这样的枚举值，`testConfig` 为 nil 时写“未指定”。C 接口写 `request.coreType`，为空或缺少时写“未指定”。错误 JSON 的其余字段不变。
+2. 每次拒绝打印一行 warn 日志，写明内核与 errId 60003，默认的 warn 级别即可看到。
+3. `YuguCompat.throwOnUnsupportedCoreType` 默认 NO。设为 YES 之后，`KYTestEngine` 的两个开始评测方法遇到不支持的内核时在调用线程同步抛出 `NSInvalidArgumentException`，`reason` 与 `error` 的文字相同，不回调，不录音，不发请求。C 接口 `skegn_start` 不能抛出异常，改为返回 -1，`skegn_get_last_error` 为 60003，打印一行 error 日志，不回调。引擎未初始化与 `refText` 为空等其余错误照常回调。
+4. Swift 不能捕获 Objective-C 异常，Swift 工程打开之前需要先确认内核受支持。
+
+```objc
+#import <STKouyuEngine/YuguCompat.h>
+
+YuguCompat.throwOnUnsupportedCoreType = YES;
+@try {
+    [[KYTestEngine sharedInstance] startEngineWithTestConfig:test result:resultBlock finishBlock:finishBlock];
+} @catch (NSException *e) {
+    NSLog(@"%@ %@", e.name, e.reason); // NSInvalidArgumentException 不支持的评测内核：open.eval
+}
+```
 
 ## 参数映射
 
@@ -280,7 +298,7 @@ test.qType = KYQType_SituationalReply;
 |---|---|---|
 | 引擎未初始化 | 60007 | 结果回调 |
 | 上一次评测还没有结果 | 60008 | `onStartFailBlock` 收到 `engine is busy`，代理不回调，正在进行的评测不受影响 |
-| coreType 不支持 | 60003 | 结果回调 |
+| 不支持的评测内核 | 60003 | 结果回调，`YuguCompat.throwOnUnsupportedCoreType` 为 YES 时改为抛出 `NSInvalidArgumentException`，不回调 |
 | refText 为空 | 60006 | 结果回调 |
 | 麦克风不可用或没有录音权限 | 60004 | `onStartFailBlock` 与 `kyTestEngineDidRecordStartFail:` |
 
@@ -451,7 +469,7 @@ static void StartReadingWithProgress(UILabel *label) {
 | 平台错误码 | 平台业务错误，例如 40001，40100，40300，2003，2010，40902 | 错误响应体的 `code` |
 | 60001 | 音频文件不存在或不可读 | `audioPath` |
 | 60002 | 音频为空 | 本机检查，不上传 |
-| 60003 | coreType 不支持 | 本机检查，不发请求 |
+| 60003 | 不支持的评测内核，`error` 写明请求的内核 | 本机检查，不发请求 |
 | 60004 | 麦克风不可用或没有录音权限 | 录音开始 |
 | 60005 | 音频短于 1 秒 | 本机检查 WAV 与 PCM 时长，不上传 |
 | 60006 | refText 为空 | 本机检查，不发请求 |
@@ -478,7 +496,7 @@ static void StartReadingWithProgress(UILabel *label) {
 | 项 | 声通 SDK | 平替包 |
 |---|---|---|
 | 引擎 | 在线，离线，双引擎 | 只有云端评测 |
-| 内核 | 多语种多题型 | 中文与英文的字词，句子，段落，字母与拼音题 |
+| 内核 | 多语种多题型 | 中文与英文的字词，句子，段落，字母与拼音题，以及中文开放题 `open.eval.cn`，其余内核回调 errId 60003 |
 | 中间结果 | `realtime_feedback` 返回中间结果 | `realtime_feedback` 为 YES 时同样以 `eof` 为 0 的 JSON 回调新读到的字或词，结构同声通，分数只表示是否读对，需要 iOS 13，见朗读进度一节 |
 | 上传音频 | 可用 Speex 压缩 | 录音与 PCM feed 默认边录边传 16 kHz 单声道 16 位 PCM，`streamUpload` 为 NO 时录音结束后整段上传 WAV，`audioPath` 整段上传 |
 | 录音文件 | WAV 或 MP3 | 一律 WAV 编码，`recordName` 写 `.mp3` 时保留原文件名 |
@@ -508,6 +526,8 @@ static void StartReadingWithProgress(UILabel *label) {
 
 `request` 成员转成文本的规则：字符串原样，JSON 布尔值为 1 或 0，数字取最短形式，数组与对象为 JSON 文本。`request.getParam` 为真时结果带上 `params`，`request.autoRetry` 为真时按 errId 20009 自动重评。回调里可以调用 `skegn_cancel` 与 `skegn_start`。
 
+`request.coreType` 不受支持，为空或缺少时，`skegn_start` 返回 0，随即在内部队列回调 errId 60003 的错误 JSON，`error` 写明请求的内核，同时打印一行 warn 日志，之后的 `skegn_feed` 与 `skegn_stop` 返回 -1，最近错误码分别为 21 与 24。`YuguCompat.throwOnUnsupportedCoreType` 为 YES 时 `skegn_start` 返回 -1，最近错误码为 60003，打印一行 error 日志，不回调。
+
 朗读进度与边录边传只在 `KYTestEngine` 上提供。C 接口照旧在 `skegn_stop` 之后整段评测，`request` 里的 `realtime_feedback` 与其他成员一样作为表单字段发送，不回调进度。日志级别为 info 时同样每次评测打印一行分段耗时。
 
 ## 扩展配置
@@ -523,10 +543,98 @@ YuguCompat.baseURL = @"https://sandbox.example.com";   // 优先于 KYStartEngin
 YuguCompat.maxRetries = 2;      // 一次提交内的重试次数，0 到 5
 YuguCompat.totalTimeout = 300;  // 一次评测的总时限，单位秒
 YuguCompat.streamUpload = YES;  // 录音与 feed 边录边传，默认 YES，见边录边传一节
+YuguCompat.throwOnUnsupportedCoreType = NO; // 不支持的内核改为抛出异常，默认 NO，见不支持的内核一节
 NSLog(@"%@ %@", YuguCompat.sdkVersion, YuguCompat.effectiveBaseURL);
 ```
 
-Swift 用 `import STKouyuEngine.YuguCompat`。
+Swift 用 `import STKouyuEngine.YuguCompat`。`YuguCompat.h` 里的语音合成与报告查询类在 Swift 中去掉 `Yugu` 前缀，例如 `YuguTtsClient` 为 `TtsClient`。
+
+### 语音合成 TtsClient
+
+`YuguTtsClient` 调用优谷雅言语音合成接口 `POST /api/v1/tts/generate`，`2.2.0` 起提供。
+
+1. `clientFromEngine` 使用已初始化引擎的 appKey，secretKey 与平台地址，引擎由 `initEngine` 或 `skegn_new` 初始化，每次调用时读取。没有初始化或已经 `deleteEngine` 时以错误 60007 结束，`localizedDescription` 为“引擎未初始化”。`initWithAppKey:secretKey:` 与 `initWithAppKey:secretKey:baseURL:` 直接指定密钥，`baseURL` 为 nil 时用 `YuguCompat.baseURL`，未设置时用 `https://open.shengzhiai.com`。
+2. `YuguTtsRequest` 的字段与接口相同：`text` 必填，`language`，`voice`，`format`，`speed`，`pitch`，`volume`，`sampleRate`，`emotion`，`style`，`pinyin` 与 `genre` 可选，只发送设置过的字段，取值见优谷雅言接口文档。
+3. 结果的 `audioUrl` 为平台返回的地址，`absoluteAudioUrl` 为按平台地址补全的完整地址，`/audio/` 开头的地址补为 `https://open.shengzhiai.com/tts/audio/...`。另有时长 `duration`，单位秒，音频格式 `format` 与平台响应的完整 JSON `rawJSON`。
+4. 每次调用带一个幂等键 `Idempotency-Key`，重试沿用同一个键，同一个键重复提交时平台返回第一次的结果，不重复计费。`YuguTtsOptions.idempotencyKey` 可以指定业务单号作为键，`timeout` 为单次请求的超时，默认 60 秒。
+5. 回调在主线程，`result` 与 `error` 恰有一个不为 nil。错误与日志见语音合成与报告查询的错误一节。
+
+```objc
+#import <STKouyuEngine/YuguCompat.h>
+
+YuguTtsRequest *request = [[YuguTtsRequest alloc] initWithText:@"床前明月光"];
+request.language = @"zh-CN";
+request.voice = @"xiaoyan";
+[[YuguTtsClient clientFromEngine] tts:request options:nil completion:^(YuguTtsResult *result, NSError *error) {
+    if (result) {
+        NSLog(@"%@ %.2f", result.absoluteAudioUrl, result.duration);
+    } else {
+        NSLog(@"%ld %@", (long)error.code, error.localizedDescription);
+    }
+}];
+```
+
+```swift
+import STKouyuEngine.YuguCompat
+
+let request = TtsRequest(text: "床前明月光")
+request.language = "zh-CN"
+request.voice = "xiaoyan"
+TtsClient.fromEngine().tts(request, options: nil) { result, error in
+    if let r = result {
+        print(r.absoluteAudioUrl ?? "", r.duration)
+    } else if let e = error as NSError? {
+        print(e.code, e.localizedDescription)
+    }
+}
+```
+
+### 报告查询 ReportClient
+
+`YuguReportClient` 按评测结果 JSON 的 `recordId` 查询网站上展示的 AI 报告，调用 `GET /api/v1/report/{recordId}`，`2.2.0` 起提供。平替包评测的记录属于 appKey 所在的账号，用评测时的同一个 appKey 查询。构造方式与 `YuguTtsClient` 相同。
+
+| reportStatus | 含义 |
+|---|---|
+| `final` | AI 终稿 |
+| `pending` | 即时稿，AI 终稿正在生成，稍后再查 |
+| `instant` | 即时稿，AI 终稿不会再来，内容不再变化 |
+| `none` | 这次评测没有报告 |
+
+1. 中文的 AI 终稿一般在评测返回后约 6 秒就绪，英文约 16 秒。`YuguReportOptions.waitForFinalMs` 默认 0，只查一次。设为大于 0 的毫秒数时，结果为 `pending` 就每 1000 毫秒再查一次，直到不再是 `pending` 或时间用完，返回最后一次的结果，仍为 `pending` 也是正常结果，不是错误。第一次查询失败时以该错误结束。之后的某次查询失败时返回最近一次查到的结果，`error` 为 nil，同时打印一行 warn 日志，写明 recordId，错误码与已查询的次数，与安卓平替相同。
+2. 结果含 `recordId`，`reportStatus`，`isFinal`，整体点评 `summary`，改进建议 `suggestions`，取自 `score.overall` 的总分 `overall`，报告对象 `report`，评分对象 `score`，声通兼容评测的分段耗时 `timing` 与平台响应 `data` 的完整 JSON `dataJSON`。`report` 另含各维度点评 `dimensions`，维度建议 `dimensionSuggestions` 与朗读技巧观察 `skillInsights` 等，`timing` 保留 7 天。
+3. 开放题 `open.eval.cn` 的点评在 `score.feedback`，`reportStatus` 总为 `final`。
+4. 查询不带幂等键，按评测相同的规则重试。`timeout` 为单次请求的超时，默认 30 秒。
+
+```objc
+YuguReportOptions *options = [[YuguReportOptions alloc] init];
+options.waitForFinalMs = 15000;
+[[YuguReportClient clientFromEngine] getReport:recordId options:options completion:^(YuguReportResult *result, NSError *error) {
+    if (!result) {
+        NSLog(@"%ld %@", (long)error.code, error.localizedDescription);
+        return;
+    }
+    NSLog(@"%@ %d %@ %@", result.reportStatus, result.isFinal, result.summary, result.suggestions);
+}];
+```
+
+```swift
+let options = ReportOptions()
+options.waitForFinalMs = 15000
+ReportClient.fromEngine().getReport("eval_3fb45f4c8e71", options: options) { result, error in
+    guard let r = result else { print(error?.localizedDescription ?? ""); return }
+    print(r.reportStatus ?? "-", r.isFinal, r.summary ?? "", r.suggestions)
+}
+```
+
+不支持的内核，语音合成与报告查询的示例与测试一起编译，副本在 `Tests` 目录里。
+
+### 语音合成与报告查询的错误
+
+1. 失败时回调 `NSError`，`domain` 为 `YuguCompatErrorDomain`，`code` 为平台错误码，例如 40001 为评测记录不存在或参数不合法，2001 到 2011 为鉴权错误。网络错误，超时与可重试的服务端错误按评测相同的规则重试，一次调用最多 3 次请求，重试用尽后 `code` 为 20009。
+2. 本机检查的错误不发请求：60007 为引擎未初始化，90010 为 `text` 或 `recordId` 为空，密钥为空，幂等键或平台地址不合法。平台响应无法解析时为 90005。
+3. `localizedDescription` 为平台消息或本机说明。收到 HTTP 响应时 `userInfo[YuguCompatHTTPStatusKey]` 为 HTTP 状态码。
+4. 重试次数与总时限沿用 `YuguCompat.maxRetries` 与 `YuguCompat.totalTimeout`。
+5. 每次调用打印一行日志，成功为 info 级别，失败为 warn 级别，含操作，报告查询的 recordId，状态，查询次数，请求次数与毫秒数，例如 `getReport recordId=eval_3fb4 status=final lookups=3 attempts=3 ms=2150`。日志不含 secretKey，签名，音频与报告内容。
 
 ## 日志
 
@@ -556,12 +664,13 @@ config.sdkLogPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"sdk
 日志级别为 info 或 debug 时，每次到达平台的评测在结果回调开始之后打印一行 `timing`，字段与安卓平替层相同。此时请求另带 `timing=1`，实时评测的参数帧另带 `"timing":1`，平台在结果里附上平台侧耗时，平替包读取之后从结果中去掉，应用收到的结果 JSON 与 warn 级别时相同。warn，error 与关闭日志时不请求，不打印。
 
 ```text
-timing tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c mode=ws audio=31.20s afterStop=1830ms upload=120ms wait=1610ms download=- parse=40ms deliver=3ms handshake=85ms queued=6400B final=1532118B wire=- deflate server.total=1321ms server.engine=1100ms server.platform=221ms
-timing tokenId=9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d mode=rest audio=12.30s afterStop=6150ms upload=1884ms wait=4120ms download=85ms parse=40ms deliver=10ms attempts=1 sent=394012B body=1532118B wire=122880B gzip server.total=3910ms server.engine=3700ms server.platform=210ms
+timing tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c recordId=eval_77c081e19541 mode=ws audio=31.20s afterStop=1830ms upload=120ms wait=1610ms download=- parse=40ms deliver=3ms handshake=85ms queued=6400B final=1532118B wire=- deflate server.total=1321ms server.engine=1100ms server.platform=221ms
+timing tokenId=9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d recordId=eval_3fb45f4c8e71 mode=rest audio=12.30s afterStop=6150ms upload=1884ms wait=4120ms download=85ms parse=40ms deliver=10ms attempts=1 sent=394012B body=1532118B wire=122880B gzip server.total=3910ms server.engine=3700ms server.platform=210ms
 ```
 
 | 字段 | 含义 |
 |---|---|
+| `recordId` | 结果的评测记录号，与平台按记录保存的分段耗时对应，错误时为 `-`，`2.2.0` 起提供 |
 | `mode` | `ws` 为边录边传，`rest` 为录音结束后整段上传或 `audioPath` 模式，`ws>rest` 为边录边传在结束帧之前失败后整段上传，行末 `fallback` 为失败原因 |
 | `audio` | 音频时长，单位秒，压缩格式的音频为 `-` |
 | `afterStop` | 从 `stopEngine` 或 VAD，`duration`，300 秒上限结束录音到结果回调开始，`audioPath` 模式从开始评测算起 |
@@ -602,18 +711,18 @@ python3 tools/headers-diff.py --original /path/to/STKouyuEngine.framework/Header
 
 ## 验证状态
 
-Linux 上的结果与沙箱用例截至 2026-10-13，对应 `2.1.2`。macOS 构建机上的结果截至 2026-10-13，对应 `2.1.1`，GitHub Actions 运行 38347556835 的 11 个作业全部通过。`2.1.2` 的 Objective-C 层只改了版本号与头文件注释：
+Linux 上的结果截至 2026-10-13，对应 `2.2.0`，沙箱用例截至同日，对应 `2.1.2`。macOS 构建机上的结果截至 2026-10-13，对应 `2.1.1`，GitHub Actions 运行 38347556835 的 11 个作业全部通过。`2.1.2` 的 Objective-C 层只改了版本号与头文件注释。`2.2.0` 的 Objective-C 层新增语音合成与报告查询，改了不支持内核的回调与分段耗时一行，在 Linux 上只做了语法与类型检查，尚未在 macOS 上编译与运行：
 
 | 部分 | 状态 |
 |---|---|
-| C 核心 | 签名，参数映射，multipart，WAV，VAD，重试判断，错误映射与结果 JSON 组装都在 `Sources/STKouyuEngine/core`。`2.1.0` 的握手地址与签名，参数帧，进度帧解析，`eof` 为 0 的 JSON 组装，按位置去重，以及实时评测的连接，心跳，回退整段评测与结束后重连的判断也在这里。`2.1.1` 的参数帧选项，`Server-Timing` 与平台耗时字段的解析，分段耗时日志的格式化也在这里，平台耗时字段不进结果 JSON 有专门的用例。`2.1.2` 的内核表放开 `open.eval.cn`，开放题的 `refText` 不能由 `refPinyin` 代替，也有专门的用例。Linux 上用 gcc 13 按 C99 编译零警告，92 组单元测试 13634 项检查全部通过，AddressSanitizer 与 UndefinedBehaviorSanitizer 下同样通过，行覆盖率 98.91%，实时评测与分段耗时部分 100%。2026-10-08 在 macOS 上用 Xcode 15.4 的 clang 跑过 `2.0.0` 的同样步骤，结果一致。按 2026-10-08 录下的平台返回核对，平台返回的 `audioUrl` 原样进入结果 JSON 末尾，单句段落与多句段落的 `details` 补充方式相同。按 2026-10-12 录下的四份进度帧与共享签名向量核对朗读进度 |
-| 集成测试 | C 核心按 KYTestEngine 的请求方式连接平台模拟服务 `tools/mock-server/server.mjs`，39 个场景 798 项检查在 Linux 上通过，其中 `2.0.0` 的 21 个场景 2026-10-08 在 macOS 上也通过。`2.1.0` 的 12 个场景经测试用的 WebSocket 客户端跑实时评测：模拟服务按同一算法校验握手签名，进度回调的 `words` 依次拼起来不重不漏，握手被拒，结束前断线与心跳超时时用同一个 tokenId 整段评测，结束时断线，结束后出错与终评超时时重连重放，只计费一次，重试用尽得到 20009，进度不一致与没有进度两种故障，以及短于 1 秒的录音不发结束帧。`2.0.0` 的场景覆盖 500 与 429 重试，读超时与平台处理中两种情形下同一 tokenId 的多次提交只计费一次，409 40901 等待后重试，每次请求换新的 nonce，段落内核的逐字得分与 details 补充，`attachAudioUrl` 作为表单字段发送，400 不重试，autoRetry，签名错误，以及本机错误不发请求。`2.1.1` 的 5 个场景：不带 `realtime_feedback` 的默认边录边传，参数帧不带 `realtime_feedback`，握手被拒时用同一个 tokenId 整段评测，info 级别时请求带 `timing=1` 与 `"timing":1`，模拟服务照常验签，以及连接测试用服务 `core-tests/integration/timing_server.py` 的整段评测与实时评测，核对 `Server-Timing`，平台耗时字段不进结果 JSON 与分段耗时日志的各字段。`2.1.2` 的 1 个场景：`open.eval.cn` 走自己的路径，`refText` 与 `qType` 照原样发送，`refPinyin` 不能代替开放题的 `refText`，结果原样进入结果 JSON，实时评测不回调朗读进度 |
-| 沙箱测试 | 设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`ci/ios-stcompat.sh` 的 sandbox 步骤让同一套 C 核心经 HTTPS 连接真实平台，校验证书与主机名，依次跑八个用例。`sent.eval.cn` 句子评测得到数值型 `result.overall`，结果 JSON 不带 `audioUrl`，`para.eval.cn` 段落评测的 `details` 每项带 `overall` 与 `pronunciation`，带 `attachAudioUrl` 的句子评测在结果 JSON 末尾得到平台返回的 https 下载地址 `audioUrl`，平台不认识的 appKey 得到鉴权类 errId，`pinyin` 题缺 `refPinyin` 得到 40001，两个错误用例都只发一次请求，不触发评测。实时评测用例按实时速度经 wss 上传客户例句，核对进度回调与终评。每次运行最多 8 次平台调用，密钥只经环境变量传给测试程序，不出现在命令行与日志里。没有密钥时这一步记为跳过。2026-10-08 平台更新后实测五个用例 59 项检查全部通过，共 5 次平台调用。2026-10-12 实测实时评测用例 77 项检查通过，平台接受握手签名与参数帧，7 次进度回调依次覆盖 25 个字，每个字一次，终评 78 分，1 次平台调用。`2.1.1` 起评测用例按 info 级别请求平台耗时，另有一个段落按实时速度边录边传的用例。2026-10-13 实测七个用例 165 项检查全部通过，共 7 次平台调用：整段评测的分段耗时一行带 `Server-Timing` 给出的平台耗时，边录边传的段落参数帧不带 `realtime_feedback`，终评带平台耗时字段与 `wsFirstAudioAt`，交给应用的结果 JSON 不带平台耗时字段。`Tests/STKouyuEngineTests/SandboxTests.swift` 经 Objective-C 接口跑其中四个用例与 `2.1.1` 的边录边传段落用例，不含 `attachAudioUrl` 用例，`2.1.0` 的四个用例已在 macOS 与 iOS 模拟器上编译，GitHub 的推送构建不注入沙箱密钥，这些用例在 macOS 上尚未运行。`2.1.2` 新增中文开放题用例，两条参考答案“我是学生”与“我不是学生”用竖线隔开，作答音频为 `zh_open_answer.wav`，核对 `openTaskAudit.refKind` 为 `answers`，总分高于原先的短答封顶，带声通的扁平字段，不带 `words`。2026-10-13 单独实测这个用例 15 项检查通过，1 次平台调用，总分 96 |
-| 头文件 | 与声通公开头文件比对 5 个文件 227 项声明，差异为 0，参数名也一致 |
+| C 核心 | 签名，参数映射，multipart，WAV，VAD，重试判断，错误映射与结果 JSON 组装都在 `Sources/STKouyuEngine/core`。`2.1.0` 的握手地址与签名，参数帧，进度帧解析，`eof` 为 0 的 JSON 组装，按位置去重，以及实时评测的连接，心跳，回退整段评测与结束后重连的判断也在这里。`2.1.1` 的参数帧选项，`Server-Timing` 与平台耗时字段的解析，分段耗时日志的格式化也在这里，平台耗时字段不进结果 JSON 有专门的用例。`2.1.2` 的内核表放开 `open.eval.cn`，开放题的 `refText` 不能由 `refPinyin` 代替，也有专门的用例。`2.2.0` 的语音合成请求体与签名参数，报告路径，补全音频地址，`{code, message, data}` 响应的分类，报告字段，等待终稿的判断，调用日志一行与不支持内核的错误文字也在这里，签名与另行计算的 HMAC 值核对。Linux 上用 gcc 13 按 C99 编译零警告，108 组单元测试 13939 项检查全部通过，AddressSanitizer 与 UndefinedBehaviorSanitizer 下同样通过，行覆盖率 99.03%，实时评测，分段耗时与 `2.2.0` 新增部分 100%。2026-10-08 在 macOS 上用 Xcode 15.4 的 clang 跑过 `2.0.0` 的同样步骤，结果一致。按 2026-10-08 录下的平台返回核对，平台返回的 `audioUrl` 原样进入结果 JSON 末尾，单句段落与多句段落的 `details` 补充方式相同。按 2026-10-12 录下的四份进度帧与共享签名向量核对朗读进度 |
+| 集成测试 | C 核心按 KYTestEngine 的请求方式连接平台模拟服务 `tools/mock-server/server.mjs`，46 个场景 916 项检查在 Linux 上通过，其中 `2.0.0` 的 21 个场景 2026-10-08 在 macOS 上也通过。`2.1.0` 的 12 个场景经测试用的 WebSocket 客户端跑实时评测：模拟服务按同一算法校验握手签名，进度回调的 `words` 依次拼起来不重不漏，握手被拒，结束前断线与心跳超时时用同一个 tokenId 整段评测，结束时断线，结束后出错与终评超时时重连重放，只计费一次，重试用尽得到 20009，进度不一致与没有进度两种故障，以及短于 1 秒的录音不发结束帧。`2.0.0` 的场景覆盖 500 与 429 重试，读超时与平台处理中两种情形下同一 tokenId 的多次提交只计费一次，409 40901 等待后重试，每次请求换新的 nonce，段落内核的逐字得分与 details 补充，`attachAudioUrl` 作为表单字段发送，400 不重试，autoRetry，签名错误，以及本机错误不发请求。`2.1.1` 的 5 个场景：不带 `realtime_feedback` 的默认边录边传，参数帧不带 `realtime_feedback`，握手被拒时用同一个 tokenId 整段评测，info 级别时请求带 `timing=1` 与 `"timing":1`，模拟服务照常验签，以及连接测试用服务 `core-tests/integration/timing_server.py` 的整段评测与实时评测，核对 `Server-Timing`，平台耗时字段不进结果 JSON 与分段耗时日志的各字段。`2.1.2` 的 1 个场景：`open.eval.cn` 走自己的路径，`refText` 与 `qType` 照原样发送，`refPinyin` 不能代替开放题的 `refText`，结果原样进入结果 JSON，实时评测不回调朗读进度。`2.2.0` 的 7 个场景经 C 核心连接平台模拟服务的语音合成与报告查询接口：请求体只含设置过的字段，签名与另行计算的 HMAC 值一致，模拟服务照常验签，重试沿用同一个幂等键，业务单号作为幂等键时重复提交只计费一次，查询不带幂等键，路径中的 recordId 经过编码，503 与断网后重试，400，401 与不存在的记录不重试，本机检查不发请求，即时稿每隔约 1000 毫秒再查一次，直到终稿或时间用完，第一次查询失败时以该错误结束，之后的查询失败时返回最近一次查到的结果，打印一行 warn 日志。另有用例核对不支持内核的错误文字，C 接口的空内核按未指定处理，以及分段耗时一行的 recordId |
+| 沙箱测试 | 设置 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后，`ci/ios-stcompat.sh` 的 sandbox 步骤让同一套 C 核心经 HTTPS 连接真实平台，校验证书与主机名，依次跑八个用例。`sent.eval.cn` 句子评测得到数值型 `result.overall`，结果 JSON 不带 `audioUrl`，`para.eval.cn` 段落评测的 `details` 每项带 `overall` 与 `pronunciation`，带 `attachAudioUrl` 的句子评测在结果 JSON 末尾得到平台返回的 https 下载地址 `audioUrl`，平台不认识的 appKey 得到鉴权类 errId，`pinyin` 题缺 `refPinyin` 得到 40001，两个错误用例都只发一次请求，不触发评测。实时评测用例按实时速度经 wss 上传客户例句，核对进度回调与终评。每次运行最多 8 次平台调用，密钥只经环境变量传给测试程序，不出现在命令行与日志里。没有密钥时这一步记为跳过。2026-10-08 平台更新后实测五个用例 59 项检查全部通过，共 5 次平台调用。2026-10-12 实测实时评测用例 77 项检查通过，平台接受握手签名与参数帧，7 次进度回调依次覆盖 25 个字，每个字一次，终评 78 分，1 次平台调用。`2.1.1` 起评测用例按 info 级别请求平台耗时，另有一个段落按实时速度边录边传的用例。2026-10-13 实测七个用例 165 项检查全部通过，共 7 次平台调用：整段评测的分段耗时一行带 `Server-Timing` 给出的平台耗时，边录边传的段落参数帧不带 `realtime_feedback`，终评带平台耗时字段与 `wsFirstAudioAt`，交给应用的结果 JSON 不带平台耗时字段。`Tests/STKouyuEngineTests/SandboxTests.swift` 经 Objective-C 接口跑其中四个用例与 `2.1.1` 的边录边传段落用例，不含 `attachAudioUrl` 用例，`2.1.0` 的四个用例已在 macOS 与 iOS 模拟器上编译，GitHub 的推送构建不注入沙箱密钥，这些用例在 macOS 上尚未运行。`2.1.2` 新增中文开放题用例，两条参考答案“我是学生”与“我不是学生”用竖线隔开，作答音频为 `zh_open_answer.wav`，核对 `openTaskAudit.refKind` 为 `answers`，总分高于原先的短答封顶，带声通的扁平字段，不带 `words`。2026-10-13 单独实测这个用例 15 项检查通过，1 次平台调用，总分 96。`2.2.0` 没有新增沙箱用例，语音合成与报告查询尚未连接真实平台验证 |
+| 头文件 | 与声通公开头文件比对 5 个文件 227 项声明，差异为 0，参数名也一致。`2.2.0` 的新接口都在本包独有的 `YuguCompat.h` 里 |
 | 包清单 | Linux 上用 Swift `6.0.3` 加载 `Package.swift`，`swift package describe` 识别出全部目标与源文件，没有警告。macOS 上 Swift `5.10` 按同一份清单构建全部目标 |
-| Objective-C 层 | 2026-10-12 在 GitHub Actions 的 macos-14 构建机上用 Xcode 15.4 编译，链接，运行 `2.1.0`。swift build 构建 macOS 版，xcodebuild 构建 iOS 真机版与模拟器版，真机版部署目标为 iOS 12，构建日志零警告。Linux 上另用 libclang 18 按 Objective-C ARC 解析全部 `.m` 文件，对照手写的 Apple 接口桩声明做类型检查，22 个编译单元零错误零警告。接口桩为 WebSocket 接口带上 iOS 13 的可用性标注，iOS 12 目标下可用性判断之外的调用会报警告，现为零警告。`2.1.1` 的改动经同样的检查，22 个编译单元零错误零警告，接口桩新增 NSURLSessionTaskMetrics 与会话代理的声明，2026-10-13 在 GitHub Actions 运行 38347556835 中于 macOS 上编译通过。`2.1.2` 同样 22 个编译单元零错误零警告 |
-| XCTest | `Tests/STKouyuEngineTests` 的 Swift 测试与其调用的 Objective-C 检查 `Tests/STKouyuEngineObjCSupport`。macOS 上 swift test 执行 21 项，20 项通过，沙箱用例 1 项跳过，iOS 模拟器上 xcodebuild test 结果相同，连接平台模拟服务的文件评测，流式评测，取消，skegn 接口与七个实时评测用例在两处都通过。七个实时评测用例 `RealtimeFeedbackTests` 经 Objective-C 接口与 NSURLSessionWebSocketTask 连接平台模拟服务，覆盖进度回调，握手被拒与结束前断线时整段评测，结束后出错时重连重放，进度不一致，没有进度与取消。2026-10-08 测得 `Sources/STKouyuEngine` 的行覆盖率在 macOS 上为 58.50%，在模拟器上为 57.76%，录音器 `YGSTRecorder.m` 需要麦克风，测试没有覆盖。`2.1.1` 新增 `StreamUploadTests` 五项，连接平台模拟服务核对默认边录边传，`streamUpload` 关闭，握手被拒时整段评测，关闭时 `realtime_feedback` 照常边录边传，以及 `sdkLogEnable` 与 `logLevel` 为 2 时日志文件里的分段耗时。另新增 `TimingAndCompressionTests` 三项，只在 macOS 上运行，由测试启动 `timing_server.py`，核对 NSURLSessionWebSocketTask 的压缩协商与解压，NSURLSession 的 gzip 与 NSURLSessionTaskMetrics 分段。2026-10-13 在 GitHub Actions 运行 38347556835 中，swift test 29 项与 iOS 模拟器 26 项全部通过 |
-| macOS 构建 | `ci/ios-stcompat-macos.sh` 2026-10-12 在 GitHub Actions 的 macos-14 构建机上全部步骤通过：在 macOS 上重跑 C 核心的各步骤，swift build，iOS 真机与模拟器的 xcodebuild，连接平台模拟服务的 swift test，以及 iOS 模拟器上的 xcodebuild test。设置沙箱密钥时 swift test 另跑沙箱用例。`2.1.1` 于 2026-10-13 在运行 38347556835 中全部通过 |
+| Objective-C 层 | 2026-10-12 在 GitHub Actions 的 macos-14 构建机上用 Xcode 15.4 编译，链接，运行 `2.1.0`。swift build 构建 macOS 版，xcodebuild 构建 iOS 真机版与模拟器版，真机版部署目标为 iOS 12，构建日志零警告。Linux 上另用 libclang 18 按 Objective-C ARC 解析全部 `.m` 文件，对照手写的 Apple 接口桩声明做类型检查，22 个编译单元零错误零警告。接口桩为 WebSocket 接口带上 iOS 13 的可用性标注，iOS 12 目标下可用性判断之外的调用会报警告，现为零警告。`2.1.1` 的改动经同样的检查，22 个编译单元零错误零警告，接口桩新增 NSURLSessionTaskMetrics 与会话代理的声明，2026-10-13 在 GitHub Actions 运行 38347556835 中于 macOS 上编译通过。`2.1.2` 同样 22 个编译单元零错误零警告。`2.2.0` 新增 `YuguClients.m`，经同样的检查，24 个编译单元零错误零警告，接口桩新增 NSError 与 NSException 的构造方法与 `NS_SWIFT_NAME`，libclang 按头文件核对 Swift 名的参数个数，尚未在 macOS 上编译 |
+| XCTest | `Tests/STKouyuEngineTests` 的 Swift 测试与其调用的 Objective-C 检查 `Tests/STKouyuEngineObjCSupport`。macOS 上 swift test 执行 21 项，20 项通过，沙箱用例 1 项跳过，iOS 模拟器上 xcodebuild test 结果相同，连接平台模拟服务的文件评测，流式评测，取消，skegn 接口与七个实时评测用例在两处都通过。七个实时评测用例 `RealtimeFeedbackTests` 经 Objective-C 接口与 NSURLSessionWebSocketTask 连接平台模拟服务，覆盖进度回调，握手被拒与结束前断线时整段评测，结束后出错时重连重放，进度不一致，没有进度与取消。2026-10-08 测得 `Sources/STKouyuEngine` 的行覆盖率在 macOS 上为 58.50%，在模拟器上为 57.76%，录音器 `YGSTRecorder.m` 需要麦克风，测试没有覆盖。`2.1.1` 新增 `StreamUploadTests` 五项，连接平台模拟服务核对默认边录边传，`streamUpload` 关闭，握手被拒时整段评测，关闭时 `realtime_feedback` 照常边录边传，以及 `sdkLogEnable` 与 `logLevel` 为 2 时日志文件里的分段耗时。另新增 `TimingAndCompressionTests` 三项，只在 macOS 上运行，由测试启动 `timing_server.py`，核对 NSURLSessionWebSocketTask 的压缩协商与解压，NSURLSession 的 gzip 与 NSURLSessionTaskMetrics 分段。2026-10-13 在 GitHub Actions 运行 38347556835 中，swift test 29 项与 iOS 模拟器 26 项全部通过。`2.2.0` 新增 `UnsupportedCoreTypeTests` 四项与 `YuguClientsTests` 五项，核对不支持内核的错误文字，warn 日志与抛出异常，两个客户端连接平台模拟服务的结果与错误，以及 Swift 名，尚未运行 |
+| macOS 构建 | `ci/ios-stcompat-macos.sh` 2026-10-12 在 GitHub Actions 的 macos-14 构建机上全部步骤通过：在 macOS 上重跑 C 核心的各步骤，swift build，iOS 真机与模拟器的 xcodebuild，连接平台模拟服务的 swift test，以及 iOS 模拟器上的 xcodebuild test。设置沙箱密钥时 swift test 另跑沙箱用例。`2.1.1` 于 2026-10-13 在运行 38347556835 中全部通过，`2.2.0` 尚未运行 |
 | 压缩 | 整段评测的 gzip 由 NSURLSession 自动协商与解压。边录边传的 permessage-deflate 由 NSURLSessionWebSocketTask 自行提出，出处为 Apple 开发者论坛 https://developer.apple.com/forums/thread/775190 里 Apple 技术支持工程师 2025 年 2 月的答复与抓包，URLSession 的握手带 `Sec-WebSocket-Extensions: permessage-deflate`，系统按压缩上下文解压，应用另设这个请求头时系统不再改写，另见 https://developer.apple.com/forums/thread/654362 。2026-10-13 用同样的握手请求实测平台，1 次平台调用：平台回 `Sec-WebSocket-Extensions: permessage-deflate`，接受压缩的参数帧，音频帧与结束帧，289756 字节的终评帧压缩为 14586 字节，分两帧发送，首帧 8192 字节带 RSV1，续帧不带，沿用压缩上下文。`timing_server.py` 按同样的方式发送终评帧，Linux 上用 Node.js 的 ws 客户端核对过。系统自身的协商与解压由 macOS 上的 `TimingAndCompressionTests` 核对，2026-10-13 在运行 38347556835 中通过，URLSessionWebSocketTask 自行协商 permessage-deflate。沙箱段落用例在 macOS 上尚未运行 |
 | 真机 | 录音，回放，系统打断与音频路由切换尚未在真机验证，构建机上的测试不录音，`2.1.1` 的边录边传同样尚未在真机验证 |
 

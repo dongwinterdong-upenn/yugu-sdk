@@ -43,7 +43,7 @@ path: /{coreType}
 | `attachAudioUrl` | string | 否 | `1` 时返回体顶层带录音下载地址 `audioUrl`，保留 7 天 |
 | `dict_type`，`dict_dialect`，`customized_lexicon`，`customized_pron` | string | 否 | 词典与自定义发音，原样传给评测引擎，`dict_dialect` 取 `en_br` 或 `en_us` |
 | `output_rawtext` | string | 否 | 原文输出，`1` 或 `0` |
-| `readtype_diagnosis` | string | 否 | `1` 时 `words` 另含增读与重复读，默认只含参考文本里的字词 |
+| `readtype_diagnosis` | string | 否 | `1` 时 `words` 另含增读与重复读，默认只含参考文本里的字词，标识，排序与时间区间见[增读与重复读](page:api-results#增读与重复读) |
 | `qType` | string | 否 | 只用于 `open.eval.cn`，`5` 看图说话，`6` 情景问答，其他取值或不带时为自由表达 |
 | `taskType` | string | 否 | 只用于 `open.eval.cn`，`picture`，`situational` 或 `free`，带了就不看 `qType` |
 | `keypoints`，`keywords` | string | 否 | 只用于 `open.eval.cn`，采分点，JSON 数组或用竖线隔开，两项合计最多 20 个 |

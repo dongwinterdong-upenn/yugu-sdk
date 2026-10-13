@@ -76,7 +76,8 @@ public final class FakeTransport implements HttpTransport {
 
     @Override
     public Response execute(Request request, CancelToken token) throws IOException {
-        byte[] body = request.body == null ? new byte[0] : request.body.toByteArray();
+        byte[] body = request.body != null ? request.body.toByteArray()
+                : request.bytes != null ? request.bytes.clone() : new byte[0];
         calls.add(new Call(request, body));
         if (delayMs > 0) {
             if (token != null && !token.sleep(delayMs)) {

@@ -243,7 +243,7 @@ static void put_token(ygst_buf *b, const char *token_id) {
     ygst_buf_append_str(b, token_id ? token_id : "");
 }
 
-int ygst_timing_summary(const ygst_timing *t, const char *token_id, ygst_buf *out) {
+int ygst_timing_summary(const ygst_timing *t, const char *token_id, const char *record_id, ygst_buf *out) {
     int ws;
     int64_t done;
     long long upload, wait, download;
@@ -264,6 +264,9 @@ int ygst_timing_summary(const ygst_timing *t, const char *token_id, ygst_buf *ou
         download = t->download_ms;
     }
     put_token(out, token_id);
+    /* 2.2.0: the record of the result, to match the platform's per-record timing */
+    ygst_buf_append_str(out, " recordId=");
+    ygst_buf_append_str(out, record_id && record_id[0] ? record_id : "-");
     ygst_buf_append_str(out, " mode=");
     ygst_buf_append_str(out, mode_name(t->mode));
     put_audio(out, t);

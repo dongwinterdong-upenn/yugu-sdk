@@ -264,8 +264,8 @@ class LifecycleTest {
 
     @Test
     fun defaultsAndVersion() {
-        assertEquals("2.1.0", YuguVersion.VERSION)
-        assertEquals("yugu-android-sdk/2.1.0", YuguVersion.USER_AGENT)
+        assertEquals("2.1.1", YuguVersion.VERSION)
+        assertEquals("yugu-android-sdk/2.1.1", YuguVersion.USER_AGENT)
         assertEquals("https://open.shengzhiai.com", YuguClient.DEFAULT_BASE_URL)
         assertEquals("wss://open.shengzhiai.com", YuguClient.DEFAULT_WS_BASE_URL)
         val p = RetryPolicy.DEFAULT

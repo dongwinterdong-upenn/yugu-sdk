@@ -2,6 +2,26 @@
 
 STKouyuEngine 声通 iOS 平替包的版本记录。版本号遵循语义化版本，包地址 `https://open.shengzhiai.com/git/stkouyu-ios-compat.git`。
 
+## `2.2.0` 2026-10-13
+
+### 新增
+
+1. 语音合成 `YuguTtsClient`，Swift 名为 `TtsClient`，调用 `POST /api/v1/tts/generate`，回调在主线程。请求只发送设置过的字段，结果含平台返回的 `audioUrl`，按平台地址补全的 `absoluteAudioUrl`，`duration`，`format` 与完整 JSON。每次调用一个幂等键，重试沿用同一个键。说明见 README 的语音合成 TtsClient 一节。
+2. 报告查询 `YuguReportClient`，Swift 名为 `ReportClient`，按评测结果的 `recordId` 查询网站上展示的 AI 报告。结果含 `reportStatus`，`isFinal`，`summary`，`suggestions`，`overall`，`report`，`score`，`timing` 与 `data` 的完整 JSON。`waitForFinalMs` 大于 0 时，即时稿每 1000 毫秒再查一次，直到不再是即时稿或时间用完。之后的某次查询失败时返回最近一次查到的结果，打印一行 warn 日志，与安卓平替相同。说明见 README 的报告查询 ReportClient 一节。
+3. 两个客户端默认使用已初始化引擎的 appKey，secretKey 与平台地址，也可以直接指定。失败时回调 `NSError`，`domain` 为 `YuguCompatErrorDomain`，`code` 为平台错误码，网络或服务端临时故障重试用尽后为 20009。
+4. `YuguCompat.throwOnUnsupportedCoreType`，默认 NO。设为 YES 时不支持的评测内核在 `KYTestEngine` 的两个开始评测方法里抛出 `NSInvalidArgumentException`，不回调，C 接口 `skegn_start` 返回 -1，最近错误码为 60003。
+
+### 变更
+
+1. 不支持的评测内核的错误 JSON，`error` 由“coreType 不支持”改为“不支持的评测内核：”加上请求的内核，例如“不支持的评测内核：open.eval”，没有指定内核时为“不支持的评测内核：未指定”。错误 JSON 的其余字段不变。
+2. 不支持的评测内核每次打印一行 warn 日志，写明内核与 errId 60003，C 接口此前不打印。C 接口的 `request.coreType` 只含空白时同样按未指定处理，此前按 `word.eval` 评测。
+3. 分段耗时一行在 `tokenId` 之后增加 `recordId`，错误时为 `-`，用来与平台按记录保存的分段耗时对应。
+4. 版本号 `2.2.0`。`YuguCompat.sdkVersion` 为 `2.2.0`，User-Agent 为 `yugu-ios-stcompat-sdk/2.2.0`，`STKouyuEngineVersionNumber` 为 2.2。
+
+### 已知限制
+
+1. 语音合成与报告查询的请求体，签名，重试判断，报告字段与等待终稿的判断在 C 核心，Linux 上经单元测试与平台模拟服务验证。Objective-C 层与 Swift 名在 Linux 上通过了语法与类型检查，macOS 与 iOS 模拟器上的构建与测试，以及连接真实平台的验证情况见 README 的验证状态一节。
+
 ## `2.1.2` 2026-10-13
 
 ### 新增

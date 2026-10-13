@@ -73,10 +73,11 @@ NSString *YGSTCheckConstantsAndLog(void) {
     EXPECT([KY_CloudServer_Gray isEqualToString:@"ws://gray.stkouyu.com:8090"], @"KY_CloudServer_Gray");
     EXPECT(KYLOG_ERROR == 0 && KYLOG_WARN == 1 && KYLOG_INFO == 2 && KYLOG_DEBUG == 3, @"KYLOG values");
     EXPECT([KYEngineCloud isEqualToString:@"cloud"] && [KYEngineNative isEqualToString:@"native"], @"engine names");
-    EXPECT(STKouyuEngineVersionNumber == 2.1, @"version number");
+    EXPECT(STKouyuEngineVersionNumber == 2.2, @"version number");
     EXPECT(strstr((const char *)STKouyuEngineVersionString, "STKouyuEngine") != NULL, @"version string");
-    EXPECT([YuguCompat.sdkVersion isEqualToString:@"2.1.2"], @"YuguCompat.sdkVersion");
-    EXPECT([YuguCompat.userAgent isEqualToString:@"yugu-ios-stcompat-sdk/2.1.2"], @"YuguCompat.userAgent");
+    EXPECT(strstr((const char *)STKouyuEngineVersionString, "yugu-ios-stcompat-2.2.0") != NULL, @"version string 2.2.0");
+    EXPECT([YuguCompat.sdkVersion isEqualToString:@"2.2.0"], @"YuguCompat.sdkVersion");
+    EXPECT([YuguCompat.userAgent isEqualToString:@"yugu-ios-stcompat-sdk/2.2.0"], @"YuguCompat.userAgent");
     EXPECT(KY_CloudEngine == 0 && KY_MultiEngine == 2 && KYTestType_Wordspell == 22, @"enum values");
     KYLog(KYLOG_INFO, @"KYLog from the Objective-C checks %d", 1);
     return nil;
@@ -685,6 +686,7 @@ NSString *YGSTCheckLogLevelInfoTiming(NSString *baseURL, NSString *specDir, NSTi
     KYTestConfig *file = [[KYTestConfig alloc] init];
     KYTestConfig *stream = [[KYTestConfig alloc] init];
     NSString *restToken = nil, *wsToken = nil, *quietToken = nil;
+    NSString *restRecord = @"-", *wsRecord = @"-";
     NSDictionary *final;
     NSString *text;
     NSArray *log;
@@ -700,8 +702,10 @@ NSString *YGSTCheckLogLevelInfoTiming(NSString *baseURL, NSString *specDir, NSTi
     EXPECT(engine != nil, @"initEngine with sdkLogEnable");
     final = YGSTEvaluateOnce(engine, file, nil, timeout, &restToken);
     EXPECT(final[@"result"] != nil, @"file evaluation at INFO");
+    restRecord = final[@"recordId"] ?: @"-";
     final = YGSTEvaluateOnce(engine, stream, pcm, timeout, &wsToken);
     EXPECT(final[@"result"] != nil, @"streamed evaluation at INFO");
+    wsRecord = final[@"recordId"] ?: @"-";
     [engine deleteEngine];
     // the default level: no timing line, no timing field
     engine = YGSTEngineWithLog(baseURL, YES, 1, path, timeout);
@@ -714,8 +718,13 @@ NSString *YGSTCheckLogLevelInfoTiming(NSString *baseURL, NSString *specDir, NSTi
     [engine deleteEngine];
     text = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL] ?: @"";
     [[NSFileManager defaultManager] removeItemAtPath:path error:NULL];
-    EXPECT(([text containsString:[NSString stringWithFormat:@"timing tokenId=%@ mode=rest audio=", restToken]]), text);
-    EXPECT(([text containsString:[NSString stringWithFormat:@"timing tokenId=%@ mode=ws audio=", wsToken]]), text);
+    // 2.2.0: recordId of the result right after tokenId
+    EXPECT(([text containsString:[NSString stringWithFormat:@"timing tokenId=%@ recordId=%@ mode=rest audio=", restToken,
+                                                            restRecord]]),
+           text);
+    EXPECT(([text containsString:[NSString stringWithFormat:@"timing tokenId=%@ recordId=%@ mode=ws audio=", wsToken,
+                                                            wsRecord]]),
+           text);
     EXPECT((![text containsString:[NSString stringWithFormat:@"timing tokenId=%@ ", quietToken]]), @"no timing line at WARN");
     EXPECT(![text containsString:@"mock-secret-key"], @"the secret never reaches the log");
     EXPECT([text containsString:@" [I] "], @"INFO lines in sdkLogPath");
@@ -738,7 +747,7 @@ NSString *YGSTCheckLogLevelInfoTiming(NSString *baseURL, NSString *specDir, NSTi
     return self;
 }
 - (NSString *)timingLineOf:(NSString *)tokenId {
-    NSString *prefix = [NSString stringWithFormat:@"timing tokenId=%@ mode=", tokenId];
+    NSString *prefix = [NSString stringWithFormat:@"timing tokenId=%@ recordId=", tokenId]; // 2.2.0
     @synchronized(self) {
         for (NSString *line in self.lines) {
             if ([line hasPrefix:prefix]) return line;
@@ -835,6 +844,7 @@ NSString *YGSTCheckTimingServerWebSocket(NSString *baseURL, NSString *specDir, B
     if (!deflate) EXPECT(!compressed, @"declined: uncompressed");
     EXPECT(line != nil, @"timing line at INFO");
     EXPECT([line containsString:@" mode=ws audio="], line);
+    EXPECT(([line containsString:[NSString stringWithFormat:@" recordId=%@ mode=", final[@"recordId"]]]), line);
     EXPECT(([line containsString:[NSString stringWithFormat:@" final=%@B wire=- ", entry[@"finalBytes"]]]), line);
     EXPECT([line hasSuffix:@" server.total=321ms server.engine=300ms server.platform=21ms"], line);
     EXPECT(![line containsString:@" upload=- "] && ![line containsString:@" wait=- "] &&
@@ -877,6 +887,7 @@ NSString *YGSTCheckTimingServerRest(NSString *baseURL, NSString *specDir, NSTime
     EXPECT([entry[@"gzip"] boolValue], @"NSURLSession asks for gzip by itself");
     EXPECT(line != nil, @"timing line at INFO");
     EXPECT([line containsString:@" mode=rest audio="], line);
+    EXPECT(([line containsString:[NSString stringWithFormat:@" recordId=%@ mode=", final[@"recordId"]]]), line);
     // NSURLSessionTaskMetrics: the split of the attempt, the decoded and the compressed size
     EXPECT(([line containsString:[NSString stringWithFormat:@" body=%@B wire=%@B gzip ", entry[@"bodyBytes"],
                                                             entry[@"wireBytes"]]]),
@@ -887,3 +898,691 @@ NSString *YGSTCheckTimingServerRest(NSString *baseURL, NSString *specDir, NSTime
     EXPECT([line hasSuffix:@" server.total=321ms server.engine=300ms server.platform=21ms"], line);
     return nil;
 }
+
+// ------------------------------------------------------------------ unsupported coreType (2.2.0)
+
+/// Every log line through YuguCompat's handler at DEBUG, as "<level> <message>".
+@interface YGSTLineCapture : NSObject
+@property (nonatomic, strong) NSMutableArray<NSString *> *lines;
+/// How many lines contain every one of the texts.
+- (NSUInteger)countWith:(NSArray<NSString *> *)texts;
+@end
+
+@implementation YGSTLineCapture
+- (instancetype)init {
+    if ((self = [super init])) _lines = [NSMutableArray array];
+    return self;
+}
+- (NSUInteger)countWith:(NSArray<NSString *> *)texts {
+    NSUInteger n = 0;
+    @synchronized(self) {
+        for (NSString *line in self.lines) {
+            BOOL all = YES;
+            for (NSString *t in texts) {
+                if (![line containsString:t]) all = NO;
+            }
+            if (all) n++;
+        }
+    }
+    return n;
+}
+@end
+
+/// Captures until YGSTCaptureEnd.
+static YGSTLineCapture *YGSTCaptureLines(void) {
+    YGSTLineCapture *capture = [[YGSTLineCapture alloc] init];
+    __weak YGSTLineCapture *weakCapture = capture;
+    [YuguCompat setLogLevel:YuguCompatLogLevelDebug];
+    [YuguCompat setLogHandler:^(NSInteger level, NSString *message) {
+        YGSTLineCapture *c = weakCapture;
+        if (!c) return;
+        @synchronized(c) {
+            [c.lines addObject:[NSString stringWithFormat:@"%ld %@", (long)level, message]];
+        }
+    }];
+    return capture;
+}
+
+static NSString *const kYGSTUnsupported = @"不支持的评测内核：";
+static const char *const kYGSTPort9 = "{\"appKey\":\"mock-app-key\",\"secretKey\":\"mock-secret-key\","
+                                      "\"cloud\":{\"server\":\"http://127.0.0.1:9\"}}";
+
+/// One start of KYTestEngine; the parsed result JSON, and the finishBlock JSON ({} for YES).
+static NSDictionary *YGSTStartOnce(KYTestEngine *engine, KYTestConfig *test, BOOL withSteps, NSTimeInterval timeout,
+                                   NSString **tokenId, NSDictionary **finishJSON) {
+    __block NSDictionary *got = nil;
+    __block NSDictionary *finished = nil;
+    void (^result)(NSString *) = ^(NSString *r) {
+        got = YGSTParse(r.UTF8String);
+    };
+    void (^finish)(BOOL, NSString *) = ^(BOOL ok, NSString *str) {
+        finished = ok ? @{} : YGSTParse(str.UTF8String);
+    };
+    if (withSteps) {
+        *tokenId = [engine startEngineWithTestConfig:test
+                                        onStartBlock:nil
+                                    onStartFailBlock:nil
+                                        onPauseBlock:nil
+                                         onTickBlock:nil
+                                    onRecordingBlock:nil
+                                    onRecordEndBlock:nil
+                                        onScoreBlock:result
+                                         finishBlock:finish];
+    } else {
+        *tokenId = [engine startEngineWithTestConfig:test result:result finishBlock:finish];
+    }
+    YGSTSpin(^BOOL {
+        return got != nil && finished != nil;
+    },
+             timeout);
+    *finishJSON = finished;
+    return got;
+}
+
+static NSString *YGSTUnsupportedChecks(KYTestEngine *engine, YGSTLineCapture *capture, NSTimeInterval timeout) {
+    NSArray<NSArray *> *cases = @[
+        @[ @"open.eval", @(KYTestType_Sentence), @"open.eval" ],
+        @[ @"  sent.eval.fr \n", @(KYTestType_Sentence), @"sent.eval.fr" ],
+        @[ @"my.core", @(KYTestType_Word), @"my.core" ],
+        @[ @"", @(KYTestType_Open), @"open.eval" ],
+        @[ @" ", @(KYTestType_Paragraph_jp), @"para.eval.jp" ],
+        @[ @"", @(KYTestType_Wordspell), @"KYTestType 22" ],
+    ];
+    NSUInteger i;
+    EXPECT(engine != nil, @"initEngine");
+    EXPECT(!YuguCompat.throwOnUnsupportedCoreType, @"throwOnUnsupportedCoreType is NO by default");
+    for (i = 0; i < cases.count * 2; i++) {
+        NSArray *c = cases[i % cases.count];
+        KYTestConfig *test = [[KYTestConfig alloc] init];
+        NSString *token = nil;
+        NSDictionary *finish = nil;
+        NSDictionary *got;
+        NSString *want = [kYGSTUnsupported stringByAppendingString:c[2]];
+        test.coreTypeNS = c[0];
+        test.coreType = (KYTestType)[c[1] unsignedIntegerValue];
+        test.refText = @"x";
+        got = YGSTStartOnce(engine, test, i >= cases.count, timeout, &token, &finish);
+        EXPECT([got[@"errId"] isEqual:@60003] && [got[@"error"] isEqualToString:want], got ? [got description] : want);
+        EXPECT(got.count == 5 && [got[@"tokenId"] isEqualToString:token] && [got[@"eof"] isEqual:@1] &&
+                   [got[@"applicationId"] isEqualToString:@"mock-app-key"],
+               [got description]);
+        EXPECT([finish[@"error"] isEqualToString:want], @"finishBlock NO with the same error JSON");
+        // never silent: one WARN line naming the coreType and errId 60003
+        EXPECT(([capture countWith:@[ @"1 ", token, @"errId 60003", want ]] == 1),
+               ([NSString stringWithFormat:@"WARN line of %@: %@", want, capture.lines]));
+    }
+    {
+        NSString *token = nil;
+        NSDictionary *finish = nil;
+        NSDictionary *got = YGSTStartOnce(engine, nil, NO, timeout, &token, &finish);
+        NSString *want = [kYGSTUnsupported stringByAppendingString:@"未指定"];
+        EXPECT([got[@"errId"] isEqual:@60003] && [got[@"error"] isEqualToString:want], [got description]);
+        EXPECT(([capture countWith:@[ @"1 ", token, want ]] == 1), @"WARN line of a nil testConfig");
+    }
+    return nil;
+}
+
+NSString *YGSTCheckUnsupportedCoreType(NSTimeInterval timeout) {
+    // nothing listens on port 9: a request would end in errId 20009, not 60003
+    KYTestEngine *engine = YGSTMockEngine(@"http://127.0.0.1:9", timeout);
+    YGSTLineCapture *capture = YGSTCaptureLines();
+    NSString *failure = YGSTUnsupportedChecks(engine, capture, timeout);
+    YGSTCaptureEnd();
+    [engine deleteEngine];
+    return failure;
+}
+
+static NSString *YGSTSkegnUnsupportedChecks(struct skegn *engine, YGSTCallbackBox *box, dispatch_semaphore_t sem,
+                                            YGSTLineCapture *capture, NSTimeInterval timeout) {
+    NSArray<NSArray<NSString *> *> *cases = @[
+        @[ @"{\"request\":{\"coreType\":\" open.eval \",\"refText\":\"x\"}}", @"open.eval" ],
+        @[ @"{\"request\":{\"coreType\":\"asr.rec\",\"refText\":\"x\"}}", @"asr.rec" ],
+        @[ @"{\"request\":{\"coreType\":\"   \",\"refText\":\"x\"}}", @"未指定" ],
+        @[ @"{\"request\":{\"refText\":\"x\"}}", @"未指定" ],
+    ];
+    EXPECT(engine != NULL, @"skegn_new");
+    for (NSArray<NSString *> *c in cases) {
+        char token[64] = {0};
+        NSDictionary *j;
+        NSString *want = [kYGSTUnsupported stringByAppendingString:c[1]];
+        int feed, stop, feedError, stopError;
+        EXPECT(skegn_start(engine, c[0].UTF8String, token, YGSTSupportCallback, box) == 0 && strlen(token) == 32,
+               @"skegn_start returns 0 with the switch off");
+        EXPECT(dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC))) == 0,
+               @"the 60003 callback comes at once, before skegn_stop");
+        j = YGSTParse(box->json);
+        EXPECT([j[@"errId"] isEqual:@60003] && [j[@"error"] isEqualToString:want], [NSString stringWithUTF8String:box->json]);
+        feed = skegn_feed(engine, "ab", 2);
+        feedError = skegn_get_last_error();
+        stop = skegn_stop(engine);
+        stopError = skegn_get_last_error();
+        EXPECT(feed == -1 && feedError == 21, @"feed after the answer: -1, SGN_FUNCTION_FEED_BEFORE_START");
+        EXPECT(stop == -1 && stopError == 24, @"stop after the answer: -1, SGN_FUNCTION_STOP_AND_STOP");
+        EXPECT(([capture countWith:@[ @"1 ", [NSString stringWithUTF8String:token], @"errId 60003", want ]] == 1),
+               ([NSString stringWithFormat:@"WARN line of skegn_start: %@", capture.lines]));
+    }
+    return nil;
+}
+
+NSString *YGSTCheckSkegnUnsupportedCoreType(NSTimeInterval timeout) {
+    // heap allocated and freed only when no callback can come any more
+    YGSTCallbackBox *box = calloc(1, sizeof(YGSTCallbackBox));
+    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+    struct skegn *engine = skegn_new(kYGSTPort9);
+    YGSTLineCapture *capture = YGSTCaptureLines();
+    NSString *failure;
+    if (!box) return @"calloc";
+    box->done = sem;
+    failure = YGSTSkegnUnsupportedChecks(engine, box, sem, capture, timeout);
+    YGSTCaptureEnd();
+    if (engine) skegn_delete(engine);
+    if (!failure) free(box);
+    return failure;
+}
+
+/// The checks of YuguCompat.throwOnUnsupportedCoreType YES; the caller switches it on and off.
+static NSString *YGSTThrowChecks(KYTestEngine *engine, struct skegn *skegnEngine, YGSTCallbackBox *box,
+                                 dispatch_semaphore_t sem, NSTimeInterval timeout) {
+    KYTestEngine *idle = [[KYTestEngine alloc] init]; // never initialized
+    __block NSUInteger callbacks = 0;
+    void (^result)(NSString *) = ^(NSString *r) {
+        (void)r;
+        callbacks++;
+    };
+    void (^finish)(BOOL, NSString *) = ^(BOOL ok, NSString *str) {
+        (void)ok;
+        (void)str;
+        callbacks++;
+    };
+    NSArray<NSArray *> *cases = @[
+        @[ @"open.eval", @(KYTestType_Sentence), @"open.eval" ],
+        @[ @"", @(KYTestType_Choice), @"choice.rec" ],
+        @[ @"", @(KYTestType_Wordspell), @"KYTestType 22" ],
+    ];
+    NSUInteger i;
+    EXPECT(engine != nil && skegnEngine != NULL, @"initEngine and skegn_new");
+    for (i = 0; i < cases.count * 2; i++) {
+        NSArray *c = cases[i % cases.count];
+        KYTestConfig *test = [[KYTestConfig alloc] init];
+        NSString *name = nil;
+        NSString *reason = nil;
+        test.coreTypeNS = c[0];
+        test.coreType = (KYTestType)[c[1] unsignedIntegerValue];
+        test.refText = @"x";
+        @try {
+            if (i < cases.count) {
+                [engine startEngineWithTestConfig:test result:result finishBlock:finish];
+            } else {
+                [engine startEngineWithTestConfig:test
+                                     onStartBlock:nil
+                                 onStartFailBlock:nil
+                                     onPauseBlock:nil
+                                      onTickBlock:nil
+                                 onRecordingBlock:nil
+                                 onRecordEndBlock:nil
+                                     onScoreBlock:result
+                                      finishBlock:finish];
+            }
+        } @catch (NSException *e) {
+            name = e.name;
+            reason = e.reason;
+        }
+        EXPECT([name isEqualToString:NSInvalidArgumentException], ([NSString stringWithFormat:@"%@ thrown: %@", c[2], name]));
+        EXPECT([reason isEqualToString:[kYGSTUnsupported stringByAppendingString:c[2]]], reason ?: @"no reason");
+    }
+    {
+        NSString *reason = nil;
+        @try {
+            [engine startEngineWithTestConfig:nil result:result finishBlock:finish];
+        } @catch (NSException *e) {
+            reason = e.reason;
+        }
+        EXPECT([reason isEqualToString:[kYGSTUnsupported stringByAppendingString:@"未指定"]], reason ?: @"nil config not thrown");
+    }
+    {
+        // checked before anything else: an engine that was never initialized throws as well
+        KYTestConfig *test = [[KYTestConfig alloc] init];
+        BOOL thrown = NO;
+        test.coreTypeNS = @"align.eval";
+        test.refText = @"x";
+        @try {
+            [idle startEngineWithTestConfig:test result:result finishBlock:finish];
+        } @catch (NSException *e) {
+            thrown = [e.name isEqualToString:NSInvalidArgumentException];
+        }
+        EXPECT(thrown, @"thrown before the initialized check");
+    }
+    YGSTSpin(^BOOL {
+        return NO;
+    },
+             0.5);
+    EXPECT(callbacks == 0, @"a thrown start calls nothing back");
+    {
+        // every other error keeps its callback
+        KYTestConfig *test = [[KYTestConfig alloc] init];
+        NSString *token = nil;
+        NSDictionary *finished = nil;
+        NSDictionary *got;
+        test.coreTypeNS = @"sent.eval";
+        test.refText = @"";
+        got = YGSTStartOnce(engine, test, NO, timeout, &token, &finished);
+        EXPECT([got[@"errId"] isEqual:@60006], @"refText empty: 60006 through the callback");
+        test.refText = @"x";
+        got = YGSTStartOnce(idle, test, NO, timeout, &token, &finished);
+        EXPECT([got[@"errId"] isEqual:@60007], @"not initialized: 60007 through the callback");
+    }
+    {
+        // skegn_start cannot throw: -1, last error 60003, no callback, nothing started
+        char token[64] = "untouched";
+        int rc = skegn_start(skegnEngine, "{\"request\":{\"coreType\":\"open.eval\",\"refText\":\"x\"}}", token,
+                             YGSTSupportCallback, box);
+        int lastError = skegn_get_last_error();
+        EXPECT(rc == -1 && lastError == 60003, @"skegn_start -1 with last error 60003");
+        EXPECT(token[0] == 0, @"no tokenId for a start that failed");
+        rc = skegn_start(skegnEngine, "{\"request\":{\"refText\":\"x\"}}", token, YGSTSupportCallback, box);
+        lastError = skegn_get_last_error();
+        EXPECT(rc == -1 && lastError == 60003, @"a missing coreType as well");
+        EXPECT(dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC))) != 0,
+               @"no callback");
+        // a supported coreType starts as usual
+        rc = skegn_start(skegnEngine, "{\"request\":{\"coreType\":\"sent.eval.cn\",\"refText\":\"x\"}}", token,
+                         YGSTSupportCallback, box);
+        EXPECT(rc == 0 && strlen(token) == 32, @"a supported coreType starts");
+        EXPECT(skegn_cancel(skegnEngine) == 0, @"skegn_cancel");
+    }
+    return nil;
+}
+
+NSString *YGSTCheckThrowOnUnsupportedCoreType(NSTimeInterval timeout) {
+    KYTestEngine *engine = YGSTMockEngine(@"http://127.0.0.1:9", timeout);
+    YGSTCallbackBox *box = calloc(1, sizeof(YGSTCallbackBox));
+    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+    struct skegn *skegnEngine = skegn_new(kYGSTPort9);
+    YGSTLineCapture *capture = YGSTCaptureLines();
+    NSString *failure;
+    if (!box) return @"calloc";
+    box->done = sem;
+    YuguCompat.throwOnUnsupportedCoreType = YES;
+    failure = YGSTThrowChecks(engine, skegnEngine, box, sem, timeout);
+    YuguCompat.throwOnUnsupportedCoreType = NO;
+    YGSTCaptureEnd();
+    [engine deleteEngine];
+    if (skegnEngine) skegn_delete(skegnEngine);
+    if (!failure) free(box);
+    if (failure) return failure;
+    EXPECT(([capture countWith:@[ @"1 ", @"errId 60003", @"不支持的评测内核：open.eval", @"NSInvalidArgumentException" ]] == 2),
+           ([NSString stringWithFormat:@"one WARN line per thrown start: %@", capture.lines]));
+    EXPECT(([capture countWith:@[ @"0 ", @"skegn_start", @"errId 60003", @"不支持的评测内核：open.eval" ]] == 1),
+           ([NSString stringWithFormat:@"one ERROR line of skegn_start: %@", capture.lines]));
+    return nil;
+}
+
+// ------------------------------------------------------------------ TtsClient and ReportClient (2.2.0)
+
+/// The completion of one client call, waited for on the main run loop.
+@interface YGSTClientCall : NSObject
+@property (nonatomic, strong) id result;
+@property (nonatomic, strong) NSError *error;
+@property (nonatomic) BOOL done;
+@property (nonatomic) BOOL onMain;
+@property (nonatomic) NSTimeInterval seconds;
+@end
+
+@implementation YGSTClientCall
+@end
+
+static YGSTClientCall *YGSTTts(YuguTtsClient *client, YuguTtsRequest *request, YuguTtsOptions *options,
+                               NSTimeInterval timeout) {
+    YGSTClientCall *call = [[YGSTClientCall alloc] init];
+    NSDate *start = [NSDate date];
+    [client tts:request
+           options:options
+        completion:^(YuguTtsResult *result, NSError *error) {
+            call.result = result;
+            call.error = error;
+            call.onMain = [NSThread isMainThread];
+            call.done = YES;
+        }];
+    YGSTSpin(^BOOL {
+        return call.done;
+    },
+             timeout);
+    call.seconds = [[NSDate date] timeIntervalSinceDate:start];
+    return call;
+}
+
+static YGSTClientCall *YGSTReport(YuguReportClient *client, NSString *recordId, NSInteger waitForFinalMs,
+                                  NSTimeInterval timeout) {
+    YGSTClientCall *call = [[YGSTClientCall alloc] init];
+    YuguReportOptions *options = nil;
+    NSDate *start = [NSDate date];
+    if (waitForFinalMs > 0) {
+        options = [[YuguReportOptions alloc] init];
+        options.waitForFinalMs = waitForFinalMs;
+    }
+    [client getReport:recordId
+              options:options
+           completion:^(YuguReportResult *result, NSError *error) {
+               call.result = result;
+               call.error = error;
+               call.onMain = [NSThread isMainThread];
+               call.done = YES;
+           }];
+    YGSTSpin(^BOOL {
+        return call.done;
+    },
+             timeout);
+    call.seconds = [[NSDate date] timeIntervalSinceDate:start];
+    return call;
+}
+
+/// Exactly one of result and error, on the main queue.
+static NSString *YGSTCheckCall(YGSTClientCall *call, BOOL wantResult) {
+    EXPECT(call.done, @"no completion");
+    EXPECT(call.onMain, @"completion not on the main queue");
+    EXPECT((call.result != nil) != (call.error != nil), @"exactly one of result and error");
+    EXPECT(wantResult ? call.result != nil : call.error != nil,
+           wantResult ? (call.error.localizedDescription ?: @"no result") : @"no error");
+    if (call.error) EXPECT([call.error.domain isEqualToString:YuguCompatErrorDomain], call.error.domain);
+    return nil;
+}
+
+/// The mock log entries of this method and path.
+static NSArray<NSDictionary *> *YGSTMockEntries(NSString *base, NSString *method, NSString *path, NSTimeInterval timeout) {
+    NSMutableArray<NSDictionary *> *out = [NSMutableArray array];
+    for (NSDictionary *e in YGSTMockCall(base, @"GET", @"/__mock/log", nil, timeout)) {
+        if ([e[@"method"] isEqualToString:method] && [e[@"path"] isEqualToString:path]) [out addObject:e];
+    }
+    return out;
+}
+
+static BOOL YGSTIsHex32(NSString *s) {
+    NSUInteger i;
+    if (s.length != 32) return NO;
+    for (i = 0; i < 32; i++) {
+        char c = s.UTF8String[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return NO;
+    }
+    return YES;
+}
+
+static NSString *YGSTTtsChecks(KYTestEngine *engine, NSString *baseURL, NSTimeInterval timeout) {
+    YuguTtsClient *client = [YuguTtsClient clientFromEngine];
+    YuguTtsRequest *request = [[YuguTtsRequest alloc] initWithText:@"你好，世界"];
+    YuguTtsOptions *options = [[YuguTtsOptions alloc] init];
+    YGSTClientCall *call;
+    YuguTtsResult *r;
+    NSArray<NSDictionary *> *posts;
+    NSString *why;
+    EXPECT(engine != nil, @"initEngine");
+    request.language = @"zh-CN";
+    request.voice = @"xiaoyan";
+    request.format = @"wav";
+    request.speed = @50;
+    request.pitch = @0;
+    request.sampleRate = @16000;
+    request.emotion = @"warm";
+    request.genre = @"prose";
+    YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
+    call = YGSTTts(client, request, nil, timeout);
+    if ((why = YGSTCheckCall(call, YES))) return why;
+    r = call.result;
+    EXPECT([r.audioUrl hasPrefix:@"/audio/mock-"], r.audioUrl ?: @"no audioUrl");
+    EXPECT(([r.absoluteAudioUrl isEqualToString:[NSString stringWithFormat:@"%@/tts%@", baseURL, r.audioUrl]]),
+           r.absoluteAudioUrl ?: @"no absoluteAudioUrl");
+    EXPECT(r.duration > 1.3479 && r.duration < 1.3481, @"duration 1.348");
+    EXPECT([r.format isEqualToString:@"wav"], r.format ?: @"no format");
+    EXPECT([YGSTParse(r.rawJSON.UTF8String)[@"data"][@"audioUrl"] isEqualToString:r.audioUrl], r.rawJSON);
+    posts = YGSTMockEntries(baseURL, @"POST", @"/api/v1/tts/generate", timeout);
+    EXPECT(posts.count == 1, @"one request (the mock checked its signature)");
+    EXPECT(YGSTIsHex32(posts[0][@"idempotencyKey"]), @"a fresh 32 hex Idempotency-Key");
+    EXPECT([posts[0][@"contentType"] isEqualToString:@"application/json; charset=utf-8"], posts[0][@"contentType"]);
+    EXPECT([posts[0][@"userAgent"] isEqualToString:@"yugu-ios-stcompat-sdk/2.2.0"], posts[0][@"userAgent"]);
+    // a retry keeps the key, the caller's key is sent as given
+    YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
+    YGSTMockCall(baseURL, @"POST", @"/__mock/faults", @{@"faults" : @[ @{@"match" : @"/api/v1/tts", @"fault" : @"status:503"} ]},
+                 timeout);
+    options.idempotencyKey = @"order-42";
+    call = YGSTTts(client, request, options, timeout);
+    if ((why = YGSTCheckCall(call, YES))) return why;
+    posts = YGSTMockEntries(baseURL, @"POST", @"/api/v1/tts/generate", timeout);
+    EXPECT(posts.count == 2 && [posts[0][@"idempotencyKey"] isEqualToString:@"order-42"] &&
+               [posts[1][@"idempotencyKey"] isEqualToString:@"order-42"],
+           @"503 then success with the same key");
+    // platform errors as NSError: code and HTTP status
+    YGSTMockCall(baseURL, @"POST", @"/__mock/faults", @{@"faults" : @[ @{@"match" : @"/api/v1/tts", @"fault" : @"status:400:code=40001"} ]},
+                 timeout);
+    call = YGSTTts(client, request, nil, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 40001 && [call.error.userInfo[YuguCompatHTTPStatusKey] isEqual:@400],
+           [call.error description]);
+    call = YGSTTts([[YuguTtsClient alloc] initWithAppKey:@"mock-app-key" secretKey:@"wrong" baseURL:baseURL], request, nil,
+                   timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 2003 && [call.error.localizedDescription isEqualToString:@"签名验证失败"], [call.error description]);
+    // explicit credentials
+    call = YGSTTts([[YuguTtsClient alloc] initWithAppKey:@"mock-app-key" secretKey:@"mock-secret-key" baseURL:baseURL],
+                   [[YuguTtsRequest alloc] initWithText:@"早上好"], nil, timeout);
+    if ((why = YGSTCheckCall(call, YES))) return why;
+    // local checks: no request
+    YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
+    call = YGSTTts(client, [[YuguTtsRequest alloc] initWithText:@"  "], nil, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 90010, [call.error description]);
+    options.idempotencyKey = @"has space";
+    call = YGSTTts(client, request, options, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 90010, [call.error description]);
+    EXPECT(YGSTMockEntries(baseURL, @"POST", @"/api/v1/tts/generate", timeout).count == 0, @"no request for local errors");
+    return nil;
+}
+
+NSString *YGSTCheckTtsClient(NSString *baseURL, NSTimeInterval timeout) {
+    KYTestEngine *engine = YGSTMockEngine(baseURL, timeout);
+    NSString *failure = YGSTTtsChecks(engine, baseURL, timeout);
+    [engine deleteEngine];
+    return failure;
+}
+
+/// waitForFinalMs as the Android shim decides it: after a pending answer the mock fails every lookup
+/// (three 503), so the call ends with that pending answer, error nil, and one WARN line naming the
+/// recordId, errId 20009 and the lookups so far.
+static NSString *YGSTCheckLaterLookupFails(YuguReportClient *client, NSString *baseURL, NSString *run,
+                                           NSTimeInterval timeout) {
+    NSString *recordId = [@"eval_pending_later_" stringByAppendingString:run];
+    NSString *path = [@"/api/v1/report/" stringByAppendingString:recordId];
+    NSDictionary *fault = @{@"match" : path, @"fault" : @"status:503"};
+    YuguReportOptions *options = [[YuguReportOptions alloc] init];
+    YGSTClientCall *call = [[YGSTClientCall alloc] init];
+    YGSTLineCapture *capture = YGSTCaptureLines();
+    YuguReportResult *r;
+    NSString *why;
+    NSString *warn = [NSString stringWithFormat:@"getReport recordId=%@ lookup failed while waiting: code=20009 lookups=2, "
+                                                @"returning the latest answer",
+                                                recordId];
+    options.waitForFinalMs = 6000;
+    [client getReport:recordId
+              options:options
+           completion:^(YuguReportResult *result, NSError *error) {
+               call.result = result;
+               call.error = error;
+               call.onMain = [NSThread isMainThread];
+               call.done = YES;
+           }];
+    // the first lookup answers (pending); the faults then hit the second one and its retries
+    YGSTSpin(^BOOL {
+        return YGSTMockEntries(baseURL, @"GET", path, timeout).count > 0;
+    },
+             timeout);
+    YGSTMockCall(baseURL, @"POST", @"/__mock/faults", @{@"faults" : @[ fault, fault, fault ]}, timeout);
+    YGSTSpin(^BOOL {
+        return call.done;
+    },
+             timeout);
+    YGSTSpin(^BOOL {
+        return NO;
+    },
+             0.2); // the log lines come before the completion is posted, the capture ends here
+    YGSTCaptureEnd();
+    if ((why = YGSTCheckCall(call, YES))) return why;
+    r = call.result;
+    EXPECT([r.reportStatus isEqualToString:@"pending"] && !r.isFinal && [r.recordId isEqualToString:recordId],
+           r.reportStatus ?: @"no reportStatus");
+    EXPECT([r.summary isEqualToString:@"即时稿：整体读得流畅。"], r.summary ?: @"no summary");
+    EXPECT(([capture countWith:@[ @"1 ", warn ]] == 1), ([NSString stringWithFormat:@"one WARN line: %@", capture.lines]));
+    EXPECT(([capture countWith:@[ @"2 ", [NSString stringWithFormat:@"getReport recordId=%@ status=pending lookups=2 attempts=4 ",
+                                                                   recordId] ]] == 1),
+           ([NSString stringWithFormat:@"the INFO line of the call: %@", capture.lines]));
+    EXPECT(YGSTMockEntries(baseURL, @"GET", path, timeout).count == 4, @"one answer and three failed attempts");
+    return nil;
+}
+
+static NSString *YGSTReportChecks(KYTestEngine *engine, NSString *baseURL, NSTimeInterval timeout) {
+    YuguReportClient *client = [YuguReportClient clientFromEngine];
+    // the mock counts the lookups of a recordId for its whole life: one fresh id per run
+    NSString *run = [[NSUUID UUID].UUIDString substringToIndex:8];
+    NSString *finalId = [@"eval_objc_" stringByAppendingString:run];
+    NSString *pendingId = [@"eval_pending_objc_" stringByAppendingString:run];
+    NSString *waitId = [@"eval_pending_wait_" stringByAppendingString:run];
+    YGSTClientCall *call;
+    YuguReportResult *r;
+    NSArray<NSDictionary *> *gets;
+    NSString *why;
+    EXPECT(engine != nil, @"initEngine");
+    YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
+    call = YGSTReport(client, finalId, 0, timeout);
+    if ((why = YGSTCheckCall(call, YES))) return why;
+    r = call.result;
+    EXPECT([r.recordId isEqualToString:finalId] && [r.reportStatus isEqualToString:@"final"] && r.isFinal,
+           ([NSString stringWithFormat:@"%@ %@", r.recordId, r.reportStatus]));
+    EXPECT([r.summary isEqualToString:@"mock report"], r.summary ?: @"no summary");
+    EXPECT(r.suggestions.count == 1 && [r.suggestions[0] isEqualToString:@"“清”的后鼻音收得再完整一些。"], [r.suggestions description]);
+    EXPECT(r.overall != nil && r.overall.doubleValue == 93.7, @"overall from score.overall");
+    EXPECT([r.report[@"source"] isEqualToString:@"llm"] && [r.score[@"integrity"] isEqual:@100] &&
+               [r.timing[@"channel"] isEqualToString:@"rest"],
+           @"report, score and timing objects");
+    EXPECT([YGSTParse(r.dataJSON.UTF8String)[@"recordId"] isEqualToString:finalId], r.dataJSON);
+    gets = YGSTMockEntries(baseURL, @"GET", [@"/api/v1/report/" stringByAppendingString:finalId], timeout);
+    EXPECT(gets.count == 1 && gets[0][@"idempotencyKey"] == [NSNull null], @"one GET without Idempotency-Key");
+    // pending: one lookup without waitForFinalMs, a normal result
+    call = YGSTReport(client, pendingId, 0, timeout);
+    if ((why = YGSTCheckCall(call, YES))) return why;
+    r = call.result;
+    EXPECT([r.reportStatus isEqualToString:@"pending"] && !r.isFinal && [r.summary isEqualToString:@"即时稿：整体读得流畅。"],
+           r.reportStatus ?: @"no reportStatus");
+    // waitForFinalMs: again every second until final
+    call = YGSTReport(client, waitId, 6000, timeout);
+    if ((why = YGSTCheckCall(call, YES))) return why;
+    r = call.result;
+    EXPECT(r.isFinal && call.seconds >= 1.9, ([NSString stringWithFormat:@"%@ after %.2f s", r.reportStatus, call.seconds]));
+    gets = YGSTMockEntries(baseURL, @"GET", [@"/api/v1/report/" stringByAppendingString:waitId], timeout);
+    EXPECT(gets.count == 3, @"three lookups");
+    if ((why = YGSTCheckLaterLookupFails(client, baseURL, run, timeout))) return why;
+    // errors
+    call = YGSTReport(client, @"nope", 0, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 40001 && [call.error.userInfo[YuguCompatHTTPStatusKey] isEqual:@400] &&
+               [call.error.localizedDescription isEqualToString:@"评测记录不存在: nope"],
+           [call.error description]);
+    call = YGSTReport(client, @" ", 0, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 90010, [call.error description]);
+    call = YGSTReport([[YuguReportClient alloc] initWithAppKey:@"mock-app-key" secretKey:@"mock-secret-key" baseURL:baseURL],
+                      finalId, 0, timeout);
+    if ((why = YGSTCheckCall(call, YES))) return why;
+    call = YGSTReport([[YuguReportClient alloc] initWithAppKey:@"mock-app-key" secretKey:@"wrong" baseURL:baseURL], finalId,
+                      0, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 2003, [call.error description]);
+    return nil;
+}
+
+NSString *YGSTCheckReportClient(NSString *baseURL, NSTimeInterval timeout) {
+    KYTestEngine *engine = YGSTMockEngine(baseURL, timeout);
+    NSString *failure = YGSTReportChecks(engine, baseURL, timeout);
+    [engine deleteEngine];
+    return failure;
+}
+
+static NSString *YGSTWithoutEngineChecks(struct skegn **skegnEngine, NSTimeInterval timeout) {
+    KYTestEngine *engine = YGSTMockEngine(@"http://127.0.0.1:9", timeout);
+    YGSTClientCall *call;
+    NSString *why;
+    struct skegn *e;
+    EXPECT(engine != nil, @"initEngine");
+    [engine deleteEngine]; // no initialized engine any more
+    call = YGSTReport([YuguReportClient clientFromEngine], @"eval_x", 0, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 60007 && [call.error.localizedDescription isEqualToString:@"引擎未初始化"], [call.error description]);
+    call = YGSTTts([[YuguTtsClient alloc] init], [[YuguTtsRequest alloc] initWithText:@"x"], nil, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 60007, [call.error description]);
+    call = YGSTReport([[YuguReportClient alloc] initWithAppKey:@" " secretKey:@"s"], @"eval_x", 0, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 90010, [call.error description]);
+    call = YGSTTts([[YuguTtsClient alloc] initWithAppKey:@"ak" secretKey:@"sk" baseURL:@"ftp://example.com"],
+                   [[YuguTtsRequest alloc] initWithText:@"x"], nil, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 90010, [call.error description]);
+    // skegn_new gives its credentials, skegn_delete takes them back: port 9 refuses, so 20009 after the retries
+    e = skegn_new(kYGSTPort9);
+    *skegnEngine = e;
+    EXPECT(e != NULL, @"skegn_new");
+    call = YGSTReport([YuguReportClient clientFromEngine], @"eval_x", 0, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 20009 && call.error.userInfo[YuguCompatHTTPStatusKey] == nil, [call.error description]);
+    *skegnEngine = NULL;
+    skegn_delete(e);
+    call = YGSTReport([YuguReportClient clientFromEngine], @"eval_x", 0, timeout);
+    if ((why = YGSTCheckCall(call, NO))) return why;
+    EXPECT(call.error.code == 60007, [call.error description]);
+    return nil;
+}
+
+NSString *YGSTCheckClientsWithoutEngine(NSTimeInterval timeout) {
+    struct skegn *e = NULL;
+    NSString *failure = YGSTWithoutEngineChecks(&e, timeout);
+    if (e) skegn_delete(e);
+    return failure;
+}
+
+// The examples of README.md 不支持的内核, 语音合成 TtsClient and 报告查询 ReportClient, word for word.
+// Never called: compiled with the tests so that the examples keep compiling against the package.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+
+static void ReadmeThrowExample(KYTestConfig *test, KYTestResultBlock resultBlock, void (^finishBlock)(BOOL, NSString *)) {
+    YuguCompat.throwOnUnsupportedCoreType = YES;
+    @try {
+        [[KYTestEngine sharedInstance] startEngineWithTestConfig:test result:resultBlock finishBlock:finishBlock];
+    } @catch (NSException *e) {
+        NSLog(@"%@ %@", e.name, e.reason); // NSInvalidArgumentException 不支持的评测内核：open.eval
+    }
+}
+
+static void ReadmeTtsExample(void) {
+    YuguTtsRequest *request = [[YuguTtsRequest alloc] initWithText:@"床前明月光"];
+    request.language = @"zh-CN";
+    request.voice = @"xiaoyan";
+    [[YuguTtsClient clientFromEngine] tts:request options:nil completion:^(YuguTtsResult *result, NSError *error) {
+        if (result) {
+            NSLog(@"%@ %.2f", result.absoluteAudioUrl, result.duration);
+        } else {
+            NSLog(@"%ld %@", (long)error.code, error.localizedDescription);
+        }
+    }];
+}
+
+static void ReadmeReportExample(NSString *recordId) {
+    YuguReportOptions *options = [[YuguReportOptions alloc] init];
+    options.waitForFinalMs = 15000;
+    [[YuguReportClient clientFromEngine] getReport:recordId options:options completion:^(YuguReportResult *result, NSError *error) {
+        if (!result) {
+            NSLog(@"%ld %@", (long)error.code, error.localizedDescription);
+            return;
+        }
+        NSLog(@"%@ %d %@ %@", result.reportStatus, result.isFinal, result.summary, result.suggestions);
+    }];
+}
+
+#pragma clang diagnostic pop

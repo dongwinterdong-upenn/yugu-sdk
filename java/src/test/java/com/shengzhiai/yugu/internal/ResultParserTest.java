@@ -370,6 +370,40 @@ class ResultParserTest {
         assertEquals(203, r.getSentences().get(1).getSpan().getStart());
     }
 
+    @Test
+    void compatOpenEvalCn() {
+        // open.eval.cn (2.1.1), recorded 2026-10-13 with two model answers: the native open question fields
+        // plus Shengtong's flat pronunciation, fluency, integrity, coherence and speed, no words or sentences
+        EvalResult r = parse("compat_open.eval.cn.json");
+        assertCommon(r, "open_00289cd06bd0", "open", "zh");
+        assertEquals(96.0, r.getOverall());
+        assertEquals(71.0, r.getDims().getPronunciation());
+        assertEquals(100.0, r.getDims().getFluency());
+        assertEquals(100.0, r.getDims().getIntegrity());
+        assertEquals(267.0, r.getDims().getSpeed());
+        assertEquals(100, r.getResultNode().get("coherence").asInt());
+        assertTrue(r.getWords().isEmpty());
+        assertTrue(r.getSentences().isEmpty());
+        assertNull(r.getConnected());
+        OpenScores o = r.getOpen();
+        assertNotNull(o);
+        assertEquals(96.0, o.getOverall());
+        assertEquals("situational", o.getTaskType());
+        assertEquals("我是学生。", o.getTranscript());
+        assertTrue(o.getHasSpeech());
+        assertEquals(100.0, o.getContent().getOverall());
+        assertEquals(100.0, o.getContent().getTaskAchievement());
+        assertEquals(100.0, o.getLanguageUse().getOverall());
+        assertEquals(88.0, o.getDelivery().getOverall());
+        assertEquals(71.0, o.getDelivery().getPronunciation());
+        assertEquals("266.7 字/分", o.getDelivery().getSpeechRateLabel());
+        assertEquals("回答完全符合参考答案，表达清晰准确。", o.getFeedback().getStrengths());
+        assertEquals(2, o.getFeedback().getSuggestions().size());
+        assertFalse(o.getOpenTaskAudit().getPromptEcho());
+        assertFalse(o.getOpenTaskAudit().getCapApplied());
+        assertEquals("answers", r.getResultNode().get("openTaskAudit").get("refKind").asText());
+    }
+
     // ------------------------------------------------------------------ WebSocket frames
 
     @Test
