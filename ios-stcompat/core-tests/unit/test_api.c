@@ -552,6 +552,82 @@ static void test_report_after_lookup(void) {
     CHECK_INT(a.degraded, 1);
 }
 
+/* 2.3.0 reportStatus partial: the AI summary and suggestions are ready, the per-dimension comments are
+ * still being written. waitForFinalMs looks up again through pending and partial and stops at final;
+ * isFinal stays final only. */
+static void test_report_partial(void) {
+    static const char *const statuses[] = {"pending", "partial", "partial", "final"};
+    static const char *const answers[] = {
+        "{\"recordId\":\"eval_p\",\"report\":{\"summary\":\"即时稿：整体读得流畅。\",\"suggestions\":[\"注意后鼻音。\"]},"
+        "\"reportStatus\":\"pending\"}",
+        "{\"recordId\":\"eval_p\",\"report\":{\"source\":\"llm\",\"summary\":\"AI 点评\",\"suggestions\":[\"建议一\"]},"
+        "\"reportStatus\":\"partial\"}",
+        "{\"recordId\":\"eval_p\",\"report\":{\"source\":\"llm\",\"summary\":\"AI 点评\",\"suggestions\":[\"建议一\"]},"
+        "\"reportStatus\":\"partial\"}",
+        "{\"recordId\":\"eval_p\",\"report\":{\"source\":\"llm\",\"summary\":\"AI 点评\",\"suggestions\":[\"建议一\"],"
+        "\"dimensions\":{\"accuracy\":\"准确\"}},\"reportStatus\":\"final\"}",
+    };
+    ygst_report r;
+    ygst_buf s;
+    ygst_rp_action a;
+    int64_t start = 1000, t;
+    size_t pos = 0;
+    int i, lookups;
+    ygst_report_init(&r);
+    ygst_buf_init(&s);
+    CHECK_INT(ygst_report_parse(span_of(answers[1]), &r), 0);
+    CHECK_STR(ygst_buf_cstr(&r.report_status), "partial");
+    CHECK(ygst_report_is_partial(&r));
+    CHECK(ygst_report_is_waiting(&r));
+    CHECK(!ygst_report_is_pending(&r));
+    CHECK(!ygst_report_is_final(&r));
+    CHECK_STR(ygst_buf_cstr(&r.summary), "AI 点评");
+    CHECK_INT(ygst_report_next_suggestion(r.suggestions, &pos, &s), 1);
+    CHECK_STR(ygst_buf_cstr(&s), "建议一");
+    /* pending waits as before; final, instant, none and no status do not */
+    CHECK_INT(ygst_report_parse(span_of(answers[0]), &r), 0);
+    CHECK(ygst_report_is_waiting(&r) && ygst_report_is_pending(&r) && !ygst_report_is_partial(&r));
+    CHECK_INT(ygst_report_parse(span_of(answers[3]), &r), 0);
+    CHECK(!ygst_report_is_waiting(&r) && ygst_report_is_final(&r));
+    CHECK_INT(ygst_report_parse(span_of("{\"reportStatus\":\"instant\"}"), &r), 0);
+    CHECK(!ygst_report_is_waiting(&r) && !ygst_report_is_final(&r));
+    CHECK_INT(ygst_report_parse(span_of("{\"reportStatus\":\"none\"}"), &r), 0);
+    CHECK(!ygst_report_is_waiting(&r));
+    CHECK_INT(ygst_report_parse(span_of("{\"reportStatus\":\"Partial\"}"), &r), 0); /* the values are lower case */
+    CHECK(!ygst_report_is_waiting(&r) && !ygst_report_is_partial(&r));
+    CHECK_INT(ygst_report_parse(span_of("{\"reportStatus\":\"partially\"}"), &r), 0);
+    CHECK(!ygst_report_is_partial(&r));
+    CHECK_INT(ygst_report_parse(span_of("{\"recordId\":\"eval_n\"}"), &r), 0);
+    CHECK(!ygst_report_is_waiting(&r) && !ygst_report_is_partial(&r));
+    CHECK(!ygst_report_is_partial(NULL) && !ygst_report_is_waiting(NULL));
+    /* a call over pending, partial, partial, final with 50 ms answers: four lookups, the final returned */
+    lookups = 0;
+    t = start;
+    for (i = 0; i < 4; i++) {
+        lookups++;
+        t += 50;
+        CHECK_INT(ygst_report_parse(span_of(answers[i]), &r), 0);
+        CHECK_STR(ygst_buf_cstr(&r.report_status), statuses[i]);
+        a = ygst_report_after_lookup(8000, start, t, 1, ygst_report_is_waiting(&r), i > 0);
+        if (a.kind != YGST_RP_AGAIN) break;
+        CHECK_INT(a.delay_ms, YGST_REPORT_POLL_MS);
+        t += a.delay_ms;
+    }
+    CHECK_INT(lookups, 4);
+    CHECK_INT(a.kind, YGST_RP_RETURN);
+    CHECK(ygst_report_is_final(&r));
+    /* the time runs out while partial: the partial answer is the result */
+    CHECK_INT(ygst_report_parse(span_of(answers[1]), &r), 0);
+    a = ygst_report_after_lookup(1500, start, start + 1100, 1, ygst_report_is_waiting(&r), 1);
+    CHECK_INT(a.kind, YGST_RP_RETURN);
+    CHECK_INT(a.degraded, 0);
+    /* waitForFinalMs 0: one lookup, partial returned as it is */
+    a = ygst_report_after_lookup(0, start, start + 50, 1, ygst_report_is_waiting(&r), 0);
+    CHECK_INT(a.kind, YGST_RP_RETURN);
+    ygst_buf_free(&s);
+    ygst_report_free(&r);
+}
+
 static void test_report_lookup_failed_line(void) {
     ygst_buf b;
     ygst_buf_init(&b);
@@ -604,6 +680,7 @@ void suite_api(void) {
     RUN("api", test_report_answer);
     RUN("api", test_report_poll_delay);
     RUN("api", test_report_after_lookup);
+    RUN("api", test_report_partial);
     RUN("api", test_report_lookup_failed_line);
     RUN("api", test_api_log_line);
 }

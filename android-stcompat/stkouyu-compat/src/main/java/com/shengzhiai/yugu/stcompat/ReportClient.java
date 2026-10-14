@@ -86,10 +86,10 @@ public final class ReportClient {
 
     /**
      * Looks up the report of an evaluation and waits for the answer, see
-     * {@link ReportOptions#setWaitForFinalMs} for waiting for the AI final draft. A pending answer is
-     * a normal result. When a lookup after the first one fails, the latest answer is returned and a
-     * WARN line names the error. Blocks on the network: call it on a worker thread, or use
-     * {@link #getReportAsync}.
+     * {@link ReportOptions#setWaitForFinalMs} for waiting for the AI final draft. A pending or
+     * partial answer is a normal result. When a lookup after the first one fails, the latest answer
+     * is returned and a WARN line names the error. Blocks on the network: call it on a worker thread,
+     * or use {@link #getReportAsync}.
      *
      * @param recordId {@code recordId} of the evaluation result
      * @param options null for the defaults
@@ -151,9 +151,9 @@ public final class ReportClient {
     }
 
     /**
-     * One lookup, then while the answer is pending and {@code waitMs} allows, another one every
-     * {@link #POLL_INTERVAL_MS}. The clock also counts the pauses of the configured sleeper, so a
-     * sleeper that returns early (tests) cannot make the wait endless.
+     * One lookup, then while the answer is pending or partial (SDK 2.3.0) and {@code waitMs} allows,
+     * another one every {@link #POLL_INTERVAL_MS}. The clock also counts the pauses of the configured
+     * sleeper, so a sleeper that returns early (tests) cannot make the wait endless.
      */
     private ReportResult lookUp(String recordId, long waitMs) {
         String path = PATH + ApiSupport.pathSegment(recordId);
@@ -194,7 +194,7 @@ public final class ReportClient {
                 break;
             }
             latest = answer;
-            if (waitMs <= 0 || !latest.isPending()) {
+            if (waitMs <= 0 || !latest.awaitingFinal()) {
                 break;
             }
             long next = started + POLL_INTERVAL_MS;

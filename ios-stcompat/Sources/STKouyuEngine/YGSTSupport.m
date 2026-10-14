@@ -20,6 +20,8 @@
 @implementation YGSTSettings {
     YGSTEngineCredentials *_engineCredentials; // guarded by @synchronized(self)
     const void *_engineOwner;                  // compared, never dereferenced
+    NSInteger _maxPending;                     // 2.3.0, guarded by @synchronized(self)
+    NSInteger _pendingCount;                   // 2.3.0, guarded by @synchronized(self)
 }
 
 + (instancetype)shared {
@@ -60,6 +62,39 @@
 - (YGSTEngineCredentials *)engineCredentials {
     @synchronized(self) {
         return _engineCredentials;
+    }
+}
+
+- (NSInteger)maxPendingEvaluations {
+    @synchronized(self) {
+        return _maxPending;
+    }
+}
+
+- (void)setMaxPendingEvaluations:(NSInteger)maxPendingEvaluations {
+    int stored = ygst_pipe_clamp((long long)maxPendingEvaluations);
+    int old;
+    ygst_buf line;
+    @synchronized(self) {
+        old = (int)_maxPending;
+        _maxPending = stored;
+    }
+    if (old == stored) return;
+    ygst_buf_init(&line);
+    if (ygst_pipe_setting_line(old, stored, &line) == 0) YGSTLogEmit(YGST_LEVEL_INFO, YGSTStringFromBuf(&line));
+    ygst_buf_free(&line);
+}
+
+- (NSInteger)pendingEvaluations {
+    @synchronized(self) {
+        return _pendingCount;
+    }
+}
+
+- (void)addPendingEvaluations:(NSInteger)delta {
+    @synchronized(self) {
+        _pendingCount += delta;
+        if (_pendingCount < 0) _pendingCount = 0;
     }
 }
 
@@ -532,6 +567,9 @@ NSURLSession *YGSTSharedURLSession(void) {
         c.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
         c.timeoutIntervalForRequest = 60;
         c.timeoutIntervalForResource = 600;
+        // 2.3.0: pipelined evaluations upload side by side (up to 16 waiting plus the recording one), more
+        // than the system's 4 (iOS) or 6 (macOS) HTTP/1.1 connections per host would let through at once
+        c.HTTPMaximumConnectionsPerHost = YGST_PIPE_MAX_PENDING * 2;
         // the delegate only collects task metrics (2.1.1); bodies still go to the completion handlers
         session = [NSURLSession sessionWithConfiguration:c delegate:YGSTSharedSessionDelegate() delegateQueue:nil];
     });

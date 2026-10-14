@@ -22,6 +22,12 @@ carries recordId, and TtsClient.tts and ReportClient.getReport run against the m
 Idempotency-Key reused across retries, no key on report lookups, retries and errors, and
 waitForFinalMs over a recordId containing "pending".
 
+2.3.0: waitForFinalMs looks up again through reportStatus partial (the AI summary and suggestions are
+ready, the per-dimension comments are still being written) and stops at final, against
+timing_server.py, which answers a configured sequence of statuses (the shared mock has no partial).
+Pipelined evaluation lives in the Objective-C engine; its busy rule and log lines are C core unit
+tests (test_pipeline.c), the engine itself is tested by XCTest on macOS.
+
   run_it.py --driver build/it_driver --mock ../tools/mock-server/server.mjs --spec ../spec
             [--junit it.xml] [--log it.log]
 """
@@ -173,7 +179,7 @@ def s_success_envelope(c):
         c(e["idempotencyKey"] == r["tokenId"], "Idempotency-Key is the tokenId")
         c(e.get("fields") == {"refText": "今天天气很好", "phoneme_output": "1"}, "form fields %r" % e.get("fields"))
         c(e["contentType"].startswith("multipart/form-data; boundary=----YuguSTCompat"), "multipart content type")
-        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.2.0", "User-Agent %r" % e["userAgent"])
+        c(e["userAgent"] == "yugu-ios-stcompat-sdk/2.3.0", "User-Agent %r" % e["userAgent"])
     b = billing()
     c(b["billed"] == 1 and b["byKey"].get(r["tokenId"]) == 1, "billed once %r" % b)
 
@@ -899,9 +905,9 @@ def literal(v):
     return str(v)
 
 
-def api(*extra):
-    """The JSON line of the driver in --tts or --report mode."""
-    cmd = [ARGS.driver, "--port", str(PORT)] + [str(x) for x in extra]
+def api(*extra, port=None):
+    """The JSON line of the driver in --tts or --report mode, against the mock or the given port."""
+    cmd = [ARGS.driver, "--port", str(port or PORT)] + [str(x) for x in extra]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if p.returncode != 0:
         raise AssertionError("driver exit %d: %s" % (p.returncode, p.stderr))
@@ -949,7 +955,7 @@ def s_tts(c):
     if e:
         c(e[0]["idempotencyKey"] == r["idempotencyKey"], "Idempotency-Key sent")
         c(e[0]["contentType"] == "application/json; charset=utf-8", "JSON body %r" % e[0]["contentType"])
-        c(e[0]["userAgent"] == "yugu-ios-stcompat-sdk/2.2.0", "User-Agent %r" % e[0]["userAgent"])
+        c(e[0]["userAgent"] == "yugu-ios-stcompat-sdk/2.3.0", "User-Agent %r" % e[0]["userAgent"])
         c(e[0]["bytes"] == len(json.dumps(req, ensure_ascii=False, separators=(",", ":")).encode("utf-8")),
           "the body as built")
     b = billing()
@@ -1040,7 +1046,7 @@ def s_report(c):
     e = mock_log()
     c([(x["method"], x["path"], x["idempotencyKey"]) for x in e] == [("GET", "/api/v1/report/eval_abc123", None)],
       "one GET without a key %r" % e)
-    c(e and e[0]["userAgent"] == "yugu-ios-stcompat-sdk/2.2.0", "User-Agent")
+    c(e and e[0]["userAgent"] == "yugu-ios-stcompat-sdk/2.3.0", "User-Agent")
     c(billing()["billed"] == 0, "a lookup is not billed")
     # the recordId is trimmed and percent-encoded as one path segment
     r = api("--report", "  eval_a b  ")
@@ -1162,6 +1168,59 @@ def s_report_later_lookup_fails(c):
     c(len(gets) == 2, "two lookups %r" % len(gets))
 
 
+TS_AI_SUMMARY = "AI 点评：整体读得流畅，个别字的声调可以更准。"
+TS_AI_SUGGESTIONS = ["“清”的后鼻音收得再完整一些。", "长句中间换气再自然一些。"]
+
+
+def ts_reports():
+    return [(e["recordId"], e["status"], e["idempotencyKey"]) for e in timing_server("GET", "/__ctl/log")
+            if e.get("kind") == "report"]
+
+
+def s_report_partial(c):
+    """2.3.0 reportStatus partial: the AI summary and suggestions are ready, the per-dimension comments are
+    still being written. waitForFinalMs looks up again every 1000 ms through pending and partial and stops at
+    final; isFinal is 1 for final only; without waitForFinalMs, or when the time runs out, the partial answer
+    is the result. Against timing_server.py, which answers the configured statuses in turn."""
+    timing_server("POST", "/__ctl/reset")
+    timing_server("POST", "/__ctl/config", {"reportStatuses": ["pending", "partial", "partial", "final"]})
+    r = api("--report", "eval_partial_1", "--wait-for-final-ms", "8000", port=TIMING_PORT)
+    c(r["outcome"] == "result" and r["lookups"] == 4 and r.get("reportStatus") == "final" and r.get("isFinal") == 1,
+      "final on the fourth lookup %r" % {k: r.get(k) for k in ("outcome", "lookups", "reportStatus", "code", "message")})
+    starts = r.get("lookupMs") or []
+    c(len(starts) == 4 and all(1000 <= b - a < 2000 for a, b in zip(starts, starts[1:])), "one second apart %r" % starts)
+    c(r.get("summary") == TS_AI_SUMMARY and r.get("suggestions") == TS_AI_SUGGESTIONS, "the AI final draft")
+    c("dimensions" in (r.get("report") or {}), "the final draft has the per-dimension comments")
+    c(r.get("isPartial") == 0 and r.get("isPending") == 0, "final is neither pending nor partial")
+    check_report_line(c, r, "eval_partial_1", "final", 4)
+    c(ts_reports() == [("eval_partial_1", s, None) for s in ("pending", "partial", "partial", "final")],
+      "the lookups the server answered, without Idempotency-Key %r" % ts_reports())
+    # waitForFinalMs 0: one lookup, partial is a normal result, not final
+    timing_server("POST", "/__ctl/reset")
+    timing_server("POST", "/__ctl/config", {"reportStatuses": ["partial", "final"]})
+    r = api("--report", "eval_partial_2", port=TIMING_PORT)
+    c(r["outcome"] == "result" and r["lookups"] == 1 and r.get("reportStatus") == "partial", "one lookup %r" % {
+        k: r.get(k) for k in ("outcome", "lookups", "reportStatus")})
+    c(r.get("isFinal") == 0 and r.get("isPartial") == 1 and r.get("isPending") == 0, "partial is not final %r" % {
+        k: r.get(k) for k in ("isFinal", "isPartial", "isPending")})
+    c(r.get("summary") == TS_AI_SUMMARY and r.get("suggestions") == TS_AI_SUGGESTIONS and r.get("hasSummary") == 1,
+      "the AI summary and suggestions of a partial report %r" % r.get("summary"))
+    c("dimensions" not in (r.get("report") or {}), "no per-dimension comments yet")
+    check_report_line(c, r, "eval_partial_2", "partial", 1)
+    c("AI 点评" not in r["log"], "no report text in the log")
+    # the time runs out while partial: the latest answer, not an error
+    timing_server("POST", "/__ctl/config", {"reportStatuses": ["partial"]})
+    r = api("--report", "eval_partial_3", "--wait-for-final-ms", "1500", port=TIMING_PORT)
+    c(r["outcome"] == "result" and r["lookups"] == 2 and r.get("reportStatus") == "partial" and r.get("isFinal") == 0,
+      "partial after 1500 ms %r" % {k: r.get(k) for k in ("outcome", "lookups", "reportStatus", "lookupMs")})
+    c(r["elapsedMs"] < 2500, "returned when the next lookup would start too late %r" % r["elapsedMs"])
+    # instant does not wait: the AI final draft will not come
+    timing_server("POST", "/__ctl/config", {"reportStatuses": ["instant", "final"]})
+    r = api("--report", "eval_partial_4", "--wait-for-final-ms", "5000", port=TIMING_PORT)
+    c(r["lookups"] == 1 and r.get("reportStatus") == "instant", "instant at once %r" % r.get("lookups"))
+    timing_server("POST", "/__ctl/reset")
+
+
 SCENARIOS = [
     s_success_envelope, s_word_params_custom, s_attach_audio_url, s_retry_500_same_key, s_retry_429_retry_after, s_timeout_then_replay,
     s_slow_inflight_replay, s_inflight_conflict_40901, s_nonce_reuse_rejected, s_no_retry_400, s_retries_exhausted, s_auto_retry, s_auto_retry_custom_errid, s_drop_then_success,
@@ -1173,7 +1232,7 @@ SCENARIOS = [
     s_realtime_too_short,
     s_stream_default, s_stream_refused_rest, s_timing_only_at_info, s_server_timing_rest, s_server_timing_ws,
     s_tts, s_tts_retries_and_errors, s_tts_idempotency_key, s_report, s_report_wait_for_final, s_report_errors,
-    s_report_later_lookup_fails,
+    s_report_later_lookup_fails, s_report_partial,
 ]
 
 

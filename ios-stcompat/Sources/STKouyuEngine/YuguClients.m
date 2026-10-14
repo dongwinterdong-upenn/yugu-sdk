@@ -5,7 +5,7 @@
 //  TtsClient：POST /api/v1/tts/generate，ReportClient：GET /api/v1/report/{recordId}。请求体与签名参数，
 //  报告路径，绝对音频地址，响应与报告字段，等待 AI 终稿的判断与日志行都在 C 核心 core/ygst_api.c，
 //  由 Linux 上的单元测试与集成测试覆盖。请求经评测共用的 NSURLSession，重试判断与错误映射发出
-//  （YGSTApiCall），回调在主线程。
+//  （YGSTApiCall），回调在主线程。2.3.0 起 waitForFinalMs 在 reportStatus 为 partial 时同样再查。
 //
 //  Copyright 2026 优谷雅言 open.shengzhiai.com
 //  SPDX-License-Identifier: Apache-2.0
@@ -393,7 +393,8 @@ static NSURL *YGSTApiURL(NSString *baseURL, const char *path) {
 
 @end
 
-/// One getReport call: a lookup, and with waitForFinalMs one per second while the report is pending.
+/// One getReport call: a lookup, and with waitForFinalMs one per second while the report is pending or
+/// (2.3.0) partial.
 /// ygst_report_after_lookup decides, as the Android shim: the first lookup's error ends the call with
 /// that error; a later failed lookup ends it with the latest answer and one WARN line. Runs on the
 /// API queue.
@@ -460,11 +461,12 @@ static NSURL *YGSTApiURL(NSString *baseURL, const char *path) {
     ygst_report_init(&rep);
     ygst_report_parse(data, &rep);
     self.latest = [YuguReportResult ygst_resultWithReport:&rep data:data requested:self.recordId];
-    a = ygst_report_after_lookup(self.waitMs, self.started, YGSTMonotonicMs(), 1, ygst_report_is_pending(&rep), 1);
+    // 2.3.0: pending and partial (the AI summary and suggestions without the dimension comments) wait
+    a = ygst_report_after_lookup(self.waitMs, self.started, YGSTMonotonicMs(), 1, ygst_report_is_waiting(&rep), 1);
     ygst_report_free(&rep);
     if (a.kind == YGST_RP_AGAIN) {
-        YGSTLogf(YGST_LEVEL_DEBUG, @"getReport %@: pending, lookup %d in %ld ms", self.recordId, self.lookups + 1,
-                 a.delay_ms);
+        YGSTLogf(YGST_LEVEL_DEBUG, @"getReport %@: %@, lookup %d in %ld ms", self.recordId,
+                 YGSTNonEmpty(self.latest.reportStatus), self.lookups + 1, a.delay_ms);
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)a.delay_ms * (int64_t)NSEC_PER_MSEC), YGSTApiQueue(), ^{
             [self next];
         });

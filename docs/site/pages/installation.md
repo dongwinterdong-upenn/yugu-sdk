@@ -6,11 +6,11 @@
 |---|---|---|
 | 服务端 Java | `com.shengzhiai.yugu:yugu-java-sdk:2.1.1` | Maven `https://open.shengzhiai.com/maven/` |
 | 安卓 | `com.shengzhiai.yugu:yugu-android-sdk:2.1.1` | 同上 |
-| 安卓声通平替 | `com.shengzhiai.yugu:stkouyu-compat:2.2.0` | 同上 |
+| 安卓声通平替 | `com.shengzhiai.yugu:stkouyu-compat:2.3.0` | 同上 |
 | 网页 | `@shengzhiai/yugu-web-sdk@2.1.1` | npm `https://open.shengzhiai.com/npm/` |
 | 微信小程序 | `@shengzhiai/yugu-miniprogram-sdk@2.1.1` | 同上 |
 | iOS | 包 `yugu-ios-sdk`，产品 `YuguSDK`，标签 `2.1.0` | SwiftPM `https://open.shengzhiai.com/git/yugu-ios-sdk.git` |
-| iOS 声通平替 | 包 `stkouyu-ios-compat`，模块 `STKouyuEngine`，标签 `2.2.0` | SwiftPM `https://open.shengzhiai.com/git/stkouyu-ios-compat.git` |
+| iOS 声通平替 | 包 `stkouyu-ios-compat`，模块 `STKouyuEngine`，标签 `2.3.0` | SwiftPM `https://open.shengzhiai.com/git/stkouyu-ios-compat.git` |
 
 ## 添加依赖
 

@@ -106,7 +106,7 @@ public class MockServerIntegrationTest extends CompatTestBase {
         assertEquals("/sent.eval.cn", req.getString("path"));
         assertEquals(token, req.getString("idempotencyKey"));
         assertEquals("今天天气很好", req.getJSONObject("fields").getString("refText"));
-        assertEquals("yugu-stkouyu-compat/2.2.0", req.getString("userAgent"));
+        assertEquals("yugu-stkouyu-compat/2.3.0", req.getString("userAgent"));
         JSONObject billing = server.billing();
         assertEquals(1, billing.getInt("billed"));
         assertEquals(1, billing.getJSONObject("byKey").getInt(token));

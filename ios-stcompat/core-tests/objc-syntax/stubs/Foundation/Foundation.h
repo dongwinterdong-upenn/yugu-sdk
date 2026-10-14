@@ -233,10 +233,15 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 + (instancetype)array;
 + (instancetype)arrayWithObjects:(const ObjectType __unsafe_unretained[])objects count:(NSUInteger)cnt;
 - (ObjectType)objectAtIndexedSubscript:(NSUInteger)idx;
+- (NSUInteger)indexOfObject:(ObjectType)anObject;
+- (NSUInteger)indexOfObjectIdenticalTo:(ObjectType)anObject;
+- (NSArray<ObjectType> *)subarrayWithRange:(NSRange)range;
+- (BOOL)isEqualToArray:(NSArray<ObjectType> *)otherArray;
 @end
 
 @interface NSMutableArray<ObjectType> : NSArray <ObjectType>
 - (void)addObject:(ObjectType)anObject;
+- (void)removeObjectIdenticalTo:(ObjectType)anObject;
 @end
 
 @interface NSDictionary<__covariant KeyType, __covariant ObjectType> : NSObject <NSCopying, NSMutableCopying,
@@ -520,6 +525,7 @@ typedef NS_ENUM(NSUInteger, NSHTTPCookieAcceptPolicy) {
 @property NSURLRequestCachePolicy requestCachePolicy;
 @property NSTimeInterval timeoutIntervalForRequest;
 @property NSTimeInterval timeoutIntervalForResource;
+@property NSInteger HTTPMaximumConnectionsPerHost;
 @property BOOL HTTPShouldSetCookies;
 @property NSHTTPCookieAcceptPolicy HTTPCookieAcceptPolicy;
 @property (copy) NSDictionary *HTTPAdditionalHeaders;

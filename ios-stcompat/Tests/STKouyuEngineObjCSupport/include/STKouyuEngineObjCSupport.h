@@ -90,4 +90,40 @@ FOUNDATION_EXPORT NSString *_Nullable YGSTCheckReportClient(NSString *baseURL, N
 /// gives its credentials and skegn_delete takes them back. No mock needed.
 FOUNDATION_EXPORT NSString *_Nullable YGSTCheckClientsWithoutEngine(NSTimeInterval timeout);
 
+/// 2.3.0 YuguCompat.maxPendingEvaluations: 0 by default, clamped to 0..16, one INFO line per change of the
+/// stored value; pendingEvaluations 0 without evaluations. No mock needed. Leaves the switch at 0.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckPipelineSetting(void);
+/// 2.3.0, the default 0: a start after stopEngine and before the result is refused as in 2.2.0 through
+/// both start methods (finishBlock NO with errId 60008, onStartFailBlock "engine is busy", no delegate
+/// call, one WARN line each, no request); after the result the next start works.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckPipelineDefaultOff(NSString *baseURL, NSString *specDir,
+                                                                  NSTimeInterval timeout);
+/// 2.3.0 maxPendingEvaluations 3: A, B and C streamed back to back with realtime_feedback, each started
+/// from the previous one's onRecordEndBlock, the mock answering C first and A last. Each final once, to
+/// its own blocks, with its own tokenId, in completion order; reading progress only to its own blocks,
+/// until its own final, the tail after its end frame included (A's arrives after B was started);
+/// pendingEvaluations and getEngineStatus in the record-end blocks; one INFO line per start; each
+/// evaluated once over its own connection.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckPipelineThreeInFlight(NSString *baseURL, NSString *specDir,
+                                                                     NSTimeInterval timeout);
+/// 2.3.0 maxPendingEvaluations 1: a third start is refused while one session waits for its result and one
+/// records, and while two wait; it is accepted again after a result.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckPipelineCap(NSString *baseURL, NSString *specDir, NSTimeInterval timeout);
+/// 2.3.0 cancelEngine while two sessions wait for their results and one records: no callback afterwards,
+/// pendingEvaluations 0 at once, nothing evaluated for the one recording, the next start works.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckPipelineCancel(NSString *baseURL, NSString *specDir,
+                                                              NSTimeInterval timeout);
+/// 2.3.0 a pipelined session whose WebSocket fails (mockFault ws-kill-after:1, before end) is evaluated in
+/// one request with its tokenId while the next session records, and still delivers.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckPipelineFallback(NSString *baseURL, NSString *specDir,
+                                                                NSTimeInterval timeout);
+/// 2.3.0 audioPath sessions count as waiting for their results from the start: with maxPendingEvaluations
+/// 1 two files evaluate side by side, a third start (file or recording) is refused until a result.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckPipelineFileSessions(NSString *baseURL, NSString *specDir,
+                                                                    NSTimeInterval timeout);
+/// 2.3.0 ReportClient against core-tests/integration/timing_server.py (reportStatus partial is not in the
+/// shared mock): waitForFinalMs looks up through pending and partial and stops at final; partial without
+/// waiting, or when the time runs out, is a result with isFinal NO and the AI summary and suggestions.
+FOUNDATION_EXPORT NSString *_Nullable YGSTCheckReportPartial(NSString *baseURL, NSTimeInterval timeout);
+
 NS_ASSUME_NONNULL_END

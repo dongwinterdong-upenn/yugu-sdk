@@ -1,6 +1,6 @@
 # 声通安卓平替接入说明
 
-`com.shengzhiai.yugu:stkouyu-compat:2.2.0` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
+`com.shengzhiai.yugu:stkouyu-compat:2.3.0` 是声通 `17kouyu_1.0.0.jar` 的平替 AAR。`com.stkouyu` 包中的公共类，接口，方法，字段与常量都与声通 jar 一致，评测在优谷雅言云平台完成。接入方替换依赖，删除 `.so` 文件之后，原有代码不改动即可编译运行，需要更换的只有 appKey 与 secretKey，服务地址可选。
 
 各端平替层的概览与切换步骤见仓库根目录 [SHENGTONG-MIGRATION.md](../SHENGTONG-MIGRATION.md)，版本兼容矩阵见 [COMPATIBILITY.md](../COMPATIBILITY.md)。
 
@@ -9,7 +9,7 @@
 | 项目 | 说明 |
 |---|---|
 | 对应的声通版本 | `17kouyu_1.0.0.jar`，`Build.VERSION` 为 `1.0.62` |
-| 平替层版本 | `2.2.0`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.2.0 (api 1.0.62)` |
+| 平替层版本 | `2.3.0`，`getSDKVersion()` 返回 `yugu-stkouyu-compat/2.3.0 (api 1.0.62)` |
 | 系统要求 | Android 5.0 及更高版本，`minSdk 21` |
 | 字节码版本 | Java 8 |
 | 运行时依赖 | 无，网络请求用 `HttpURLConnection`，边录边传与朗读进度用 AAR 内置的 WebSocket 客户端，录音用 `AudioRecord`，JSON 用系统自带的 `org.json` |
@@ -56,11 +56,11 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    api 'com.shengzhiai.yugu:stkouyu-compat:2.2.0'
+    api 'com.shengzhiai.yugu:stkouyu-compat:2.3.0'
 }
 ```
 
-不使用远程仓库时，把 `stkouyu-compat-2.2.0.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.2.0.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
+不使用远程仓库时，把 `stkouyu-compat-2.3.0.aar` 放进 `libs` 目录，依赖写成 `api files('libs/stkouyu-compat-2.3.0.aar')`。AAR 没有传递依赖，单个文件即可使用。依赖方式保持 `api`，依赖 `stkouyu_evaluation` 的其他模块照常访问 `com.stkouyu` 中的类。
 
 ### 需要删除的文件与配置
 
@@ -255,6 +255,8 @@ RecordSetting 的字段按下表转成平台表单字段。值为空的字段不
 
 上一次评测的结果返回之前引擎处于忙碌状态，新的 `startRecord` 与 `existsAudioTrans` 会被拒绝。结果回调执行时引擎已经空闲，可以在 `onScore` 中直接开始下一题。开启 VAD 时，说话结束后静音达到 `seek` 乘以 10 毫秒，默认 600 毫秒，录音自动停止。`forceRecord` 为 true 时 VAD 只报告状态，不停止录音。
 
+`2.3.0` 起可以用 `YuguCompat.setMaxPendingEvaluations` 打开连续评测，上一题停止录音之后即可开始下一题，状态在处理完停止之后回到 `IDLE`，忙碌规则与状态的变化见“连续评测”一节。不打开时忙碌规则与状态都与 `2.2.0` 相同。
+
 ### 朗读进度
 
 `RecordSetting.setRealtime_feedback(1)` 时，录音开始后平替层经平台的兼容实时评测通道边录边传，学生朗读过程中 `OnRecorderListener.onScore` 收到 `eof` 为 0 的中间结果，给出已经读到参考文本的哪个位置。停止录音后照常回调一次 `eof` 为 1 的最终结果，内容与整段上传时相同。中间结果的结构沿用声通 `realtime_feedback`，`result.words` 为这一次新读到的字或词：
@@ -375,6 +377,58 @@ manager.startRecord(rs, new OnRecorderListener() {
 - 实时评测通道：握手时请求 WebSocket 压缩扩展 permessage-deflate，平台同意后下发的消息经过压缩，平替层解压后再回调。JSON 结果压缩后一般只有原来的十分之一左右。平台未同意时照常不压缩传输。解压后的大小同样受 8 MB 上限约束，超过上限的消息在解压过程中即被拒绝。
 - 兼容接口：请求带 `Accept-Encoding: gzip`，平台返回 gzip 压缩的结果，由平替层解压，日志因此能同时给出网络上的字节数与解压后的字节数。
 
+## 连续评测
+
+`2.3.0` 起可以打开连续评测，用于一组题连着读，例如八个句子。默认关闭，与声通 SDK 相同，一次只评测一题，上一题的结果返回之前 `startRecord` 收到 `onStartRecordFail("engine is busy")` 或 errId 60008，学生要等每一题出分才能读下一题。打开之后，上一题停止录音即可开始下一题，前面各题在后台继续评测，结果按评测完成的先后返回。
+
+```java
+YuguCompat.setMaxPendingEvaluations(8); // 最多 8 题同时等待结果，0 为关闭
+```
+
+- 开关：`setMaxPendingEvaluations(n)` 的 n 为等待结果的评测个数上限，取值 0 到 16，小于 0 按 0 处理，大于 16 按 16 处理。每次 `startRecord` 与 `existsAudioTrans` 开始时读取这一设置，设置改动时记录一条 INFO 日志。`getMaxPendingEvaluations()` 返回当前设置，`YuguCompat.reset()` 恢复为 0。
+- 忙碌规则：n 大于 0 时，有录音正在进行或已暂停，或者等待结果的评测已多于 n 个，新的 `startRecord` 与 `existsAudioTrans` 才被拒绝，回调与关闭时相同。其余情况立即开始，所以录音进行时最多有 n 个评测在等待结果。`existsAudioTrans` 开始之后即算作一个等待结果的评测。`startRecord` 的各个重载都按这一规则，`setIsStream(true)` 的外部音频与 `STRecorder` 录好之后用 `existsAudioTrans` 评测的文件同样适用。
+- 各题独立：每一题有各自的 `tokenId`，监听器，录音文件与网络连接。重试，退回整段上传，超时与 `autoRetry` 都按题进行，与关闭时相同。
+- 录音文件：不设置 `recordName` 时文件名为 `<tokenId>.wav`，各题自然不同。各题使用同一个 `recordName` 或 `recordFilePath` 时，上一题还在等待结果，这一题改写到同一目录中文件名后加 `-<tokenId>` 的文件，例如 `answer-<tokenId>.wav`，同时记录一条 WARN 日志，`getLastRecordPath()` 返回实际使用的文件，上一题的录音不被覆盖。文件评测在回调最终结果之前读取 `audioPath` 指定的文件，这段时间不要改写或删除这个文件，`STRecorder` 录下一题时换一个文件名。
+- 回调：每一题的回调与关闭时相同，都发给这一题开始时传入的监听器，在主线程执行。最终结果按评测完成的先后到达，不一定是开始的先后。朗读进度的中间结果只发给各自的监听器，与关闭时一样，停止录音之后到最终结果之前仍可能到达。
+- 对应题目：为每一题创建各自的监听器，结果即对应这一题。同一个监听器服务多道题时，按结果 JSON 的 `tokenId` 区分各次评测，`refText` 为这一题的参考文本。`recordId` 为平台评测记录编号，用于查询报告与对照日志。
+- 状态：`getEngineStatus()` 只反映正在录音的一题。停止录音后先为 `STOP`，平替层处理完停止，即录音线程结束，录音文件写完之后，在回调 `onRecordEnd` 之前回到 `IDLE`，这一题的评测仍在继续。打开连续评测时 `existsAudioTrans` 不改变状态。
+- 进度：`YuguCompat.pendingEvaluations()` 返回已经停止录音或开始文件评测，还没有回调最终结果的评测个数，这一题的最终结果回调执行之前减一，可以用来显示一组题的评测进度。
+- 取消与释放：`cancel()` 与 `cancle()` 停止正在录音的一题，同时取消全部等待结果的评测，之后这些题都不再有回调，等待个数回到 0，随后可以开始新的一题。正在录音的一题不发结束帧，平台不评测。已经停止录音的各题已交给平台，平台可能照常评测与计费，结果不再回调。`recycle()` 同样取消全部评测，释放全部资源。`clearActivityListener()` 同时去掉等待结果的各题的监听器，这些题的结果不再回调，到达后照常空出名额。
+- 日志：级别为 INFO 时，每一题开始时输出一行 `pipelined evaluation tokenId=... pending=2 maxPendingEvaluations=8`，`pending` 为开始时等待结果的评测个数，每一题照常输出一行 `timing`。因忙碌被拒绝时的 WARN 日志另外给出等待个数与上限。日志不记录密钥，签名，音频与结果内容。
+- 关闭：`setMaxPendingEvaluations(0)` 之后新开始的评测恢复一次一题，还在等待结果的评测照常返回结果，全部返回之前新的评测被拒绝。
+
+在 `onRecordEnd` 中开始下一题，每一题使用各自的监听器：
+
+```java
+YuguCompat.setMaxPendingEvaluations(8);
+
+void startItem(final int index) {
+    RecordSetting rs = new RecordSetting(CoreType.CN_SENT_EVAL, sentences[index]);
+    manager.startRecord(rs, new OnRecorderListener() {
+        @Override public void onRecordEnd() {
+            // 这一题停止录音，评测在后台继续，接着开始下一题
+            if (index + 1 < sentences.length) {
+                startItem(index + 1);
+            }
+        }
+        @Override public void onScore(String json) {
+            // 这一题的最终结果，按评测完成的先后到达
+            results[index] = json;
+            showWaiting(YuguCompat.pendingEvaluations()); // 还在等待结果的题数
+        }
+        @Override public void onStartRecordFail(String reason) {
+            // 录音正在进行，或等待结果的评测多于上限
+        }
+        @Override public void onStart() { }
+        @Override public void onPause() { }
+        @Override public void onTick(long millisUntilFinished, double percentUntilFinished) { }
+        @Override public void onRecording(int vadStatus, int soundIntensity) { }
+    });
+}
+```
+
+学生读完一题时调用 `manager.stopRecord()`，开启 VAD 或设置 `duration` 时也可以由平替层自动停止，随后回调 `onRecordEnd`，下一题即开始录音。
+
 ## 结果 JSON
 
 ```json
@@ -481,6 +535,9 @@ manager.startRecord(rs, new OnRecorderListener() {
 | `isStreamUpload()` | 当前是否边录边传 |
 | `setThrowOnUnsupportedCoreType(boolean)` | 不支持的内核改为抛出 `IllegalArgumentException`，默认 false，见“不支持的内核”一节 |
 | `isThrowOnUnsupportedCoreType()` | 当前是否抛出异常 |
+| `setMaxPendingEvaluations(int)` | 连续评测，等待结果的评测个数上限，取值 0 到 16，默认 0 为一次一题，见“连续评测”一节 |
+| `getMaxPendingEvaluations()` | 当前上限 |
+| `pendingEvaluations()` | 已经停止录音或开始文件评测，还没有回调最终结果的评测个数 |
 | `getVersion()` | 版本字符串 |
 | `reset()` | 恢复默认值 |
 
@@ -621,7 +678,7 @@ reports.getReportAsync(recordId, options, new ReportClient.Callback() {
 | `instant` | 即时稿，不会有 AI 终稿 |
 | `none` | 没有报告 |
 
-- 等待终稿：`waitForFinalMs` 默认为 0，只查询一次。大于 0 时，结果为 `pending` 就每隔 1000 毫秒再查一次，直到不再是 `pending` 或用完这段时间，返回最后一次的结果。仍为 `pending` 是正常结果，不是错误。中文的 AI 终稿一般在评测返回后约 6 秒生成，九成在 11 秒内，英文目前约 16 秒。等待途中某次查询失败时返回此前最后一次的结果，同时记录一条 WARN 日志。
+- 等待终稿：`waitForFinalMs` 默认为 0，只查询一次。大于 0 时，结果为 `pending` 就每隔 1000 毫秒再查一次，直到不是 `pending` 或用完这段时间，返回最后一次的结果。仍为 `pending` 是正常结果，不是错误。`isFinal()` 只在 `final` 时为 true，`isPending()` 只在 `pending` 时为 true。中文与英文的 AI 终稿一般在评测返回后约 4 秒生成。等待途中某次查询失败时返回此前最后一次的结果，同时记录一条 WARN 日志。
 - 结果：`getRecordId()`，`getReportStatus()`，`isFinal()`，`getSummary()` 整体点评，`getSuggestions()` 改进建议，`getOverall()` 即 `score.overall` 总分，`getReport()` 与 `getScore()` 为 `report` 与 `score` 对象，`getTiming()` 为分段耗时，`getDataJson()` 为响应中 `data` 的原文。
 - `report` 对象：`dimensions` 为各维度点评，`dimensionSuggestions` 为各维度建议，`skillInsights` 为技能观察，每项含 `aspect`，`observation`，`quote` 与 `confidence`。
 - 中文开放题 `open.eval.cn` 的点评在 `score.feedback` 中，`reportStatus` 总是 `final`。
@@ -637,6 +694,7 @@ reports.getReportAsync(recordId, options, new ReportClient.Callback() {
 | 音频地址 | `attachAudioUrl` 开启时结果带音频下载地址 | 同样返回，`setNeedAttachAudioUrlInResult(true)` 时结果 JSON 带平台返回的 `audioUrl`，地址保留 7 天，到期删除。录音同时保存在本地，`getLastRecordPath()` 返回路径 |
 | 实时反馈 | `realtime_feedback` 开启时有中间结果 | 同样有中间结果，`onScore` 收到 `eof` 为 0 的 JSON，`result.words` 为新读到的字或词，结构同声通，分数只表示是否与参考文本一致。另有 `result.progress` 逐字给出朗读状态。需要访问平台的 wss 地址，连不上时退回整段上传，只有最终结果。`OnRecordListener` 没有中间结果 |
 | 上传方式 | 录音过程中上传 | 默认同样边录边传，需要访问平台的 wss 地址，连不上时停止录音后整段上传。`YuguCompat.setStreamUpload(false)` 改为停止录音后整段上传 |
+| 连续评测 | 一次评测一题，上一题的结果返回之前引擎正忙 | 默认相同。`YuguCompat.setMaxPendingEvaluations(n)` 之后，上一题停止录音即可开始下一题，最多 n 题同时等待结果，见“连续评测”一节 |
 | 授权文件 | 需要 provision 文件 | 不需要，`updateProvision` 返回 true，`inquireProvision` 回调 `{"provision":"cloud","message":"cloud mode, no provision file needed"}` |
 | VAD | 引擎内置 | 本地能量 VAD，状态取值相同 |
 | 日志上传 | `LogCat` 定时上传 | 只写本地文件，`pushLog` 与 `pushLogManually` 不上传 |
@@ -652,14 +710,14 @@ reports.getReportAsync(recordId, options, new ReportClient.Callback() {
 `tools/api-diff/run.sh` 核对平替 AAR 与接入方手中的声通 jar 接口是否一致，接入方可以用自己的 jar 运行：
 
 ```bash
-tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.2.0.aar --report-dir api-diff-report
+tools/api-diff/run.sh path/to/17kouyu_1.0.0.jar stkouyu-compat-2.3.0.aar --report-dir api-diff-report
 ```
 
 核对分两步。第一步用 japicmp `0.23.1` 检查公共与受保护元素的二进制兼容与源码兼容，japicmp 在首次运行时从 Maven Central 下载，校验 SHA-1 与 SHA-256 后存入 `tools/api-diff/lib`。随后严格检查 japicmp 的报告，注解与修饰符的变化也算差异，只容许类文件版本从 Java 7 升到 Java 8。第二步用 javap 逐条比对类声明，成员签名，泛型签名，异常声明与常量值，`native` 修饰符除外。发现缺失或改变的元素时退出码为 1，报告写入 `--report-dir` 指定的目录。
 
 运行条件为 JDK 11 或更高版本，bash，首次运行还需要 curl 或 wget。环境变量 `JAPICMP_JAR` 可以指定已下载的 japicmp，`ANDROID_JAR` 可以指定 `android.jar`。
 
-`2.2.0` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`。`TtsClient` 与 `ReportClient` 等新增的类在 `com.shengzhiai.yugu.stcompat` 包中，不在声通 jar 的包内，不影响核对。
+`2.3.0` 与声通 `1.0.0` jar 的核对结果：39 个公共类，480 个公共与受保护成员，缺失 0 个，改变 0 个，多出的公共类只有 `com.stkouyu.YuguCompat`，连续评测的三个方法也在这个类中。`TtsClient` 与 `ReportClient` 等新增的类在 `com.shengzhiai.yugu.stcompat` 包中，不在声通 jar 的包内，不影响核对。
 
 ## 构建与测试
 
@@ -671,7 +729,7 @@ api-compat-test/run.sh
 ../ci/android-stcompat.sh
 ```
 
-单元测试与 Robolectric 测试覆盖参数映射，结果与错误 JSON，errId 映射，WAV 读写，VAD，状态机，autoRetry，生命周期，回调线程与 `SkEgn` 接口，以及朗读进度的中间结果，实时评测通道的退回与重连，WebSocket 客户端的握手，掩码，分片，心跳，关闭与帧大小上限。`2.1.1` 增加的测试覆盖边录边传的默认与关闭，permessage-deflate 的协商，压缩消息的解压与解压后的大小上限，gzip 结果的解压，`timing=1` 的发送条件与从结果中删除，分段耗时日志的内容与日志中没有密钥。压缩测试使用测试内的 WebSocket 服务端，分别在保留与不保留压缩上下文时压缩消息。`2.2.0` 增加的测试覆盖不支持内核的错误文字，各个入口的 WARN 日志，`skegn_start` 立即回调与之后 `skegn_feed` 和 `skegn_stop` 的返回值，抛异常开关在各个入口的行为，`TtsClient` 与 `ReportClient` 的请求，签名，重试，错误码，线程与日志，在平台模拟服务上的语音合成，报告查询与等待终稿，以及分段耗时日志中的 `recordId`。集成测试启动仓库中 `tools/mock-server` 的平台模拟服务，需要 Node 20 与 `tools/mock-server/node_modules`。`api-compat-test` 中的代码按声通接口编写，分别对声通 jar 与平替 AAR 用 javac 编译，两次都要通过。声通 jar 不随仓库分发，路径由环境变量 `ST_ORIGINAL_JAR` 指定，文件不存在时跳过这一项，同时给出提示。
+单元测试与 Robolectric 测试覆盖参数映射，结果与错误 JSON，errId 映射，WAV 读写，VAD，状态机，autoRetry，生命周期，回调线程与 `SkEgn` 接口，以及朗读进度的中间结果，实时评测通道的退回与重连，WebSocket 客户端的握手，掩码，分片，心跳，关闭与帧大小上限。`2.1.1` 增加的测试覆盖边录边传的默认与关闭，permessage-deflate 的协商，压缩消息的解压与解压后的大小上限，gzip 结果的解压，`timing=1` 的发送条件与从结果中删除，分段耗时日志的内容与日志中没有密钥。压缩测试使用测试内的 WebSocket 服务端，分别在保留与不保留压缩上下文时压缩消息。`2.2.0` 增加的测试覆盖不支持内核的错误文字，各个入口的 WARN 日志，`skegn_start` 立即回调与之后 `skegn_feed` 和 `skegn_stop` 的返回值，抛异常开关在各个入口的行为，`TtsClient` 与 `ReportClient` 的请求，签名，重试，错误码，线程与日志，在平台模拟服务上的语音合成，报告查询与等待终稿，以及分段耗时日志中的 `recordId`。`2.3.0` 增加的测试覆盖连续评测：关闭时与 `2.2.0` 相同的拒绝，三题连着录音，结果按完成的先后发给各自的监听器，中间结果不串题，上限，取消，释放与去掉监听器，等待结果的一题退回整段上传，固定的 `recordName` 不覆盖等待结果的录音，文件评测与 `STRecorder` 录好的文件，状态，等待个数，音频焦点与日志，以及报告查询遇到 `partial` 时继续等待。这些测试使用测试内的实时评测通道与 HTTP 传输，由测试决定每个结果何时返回，另有两项在平台模拟服务上用真实的 WebSocket 与 HTTP 连接同时评测多题。集成测试启动仓库中 `tools/mock-server` 的平台模拟服务，需要 Node 20 与 `tools/mock-server/node_modules`。`api-compat-test` 中的代码按声通接口编写，分别对声通 jar 与平替 AAR 用 javac 编译，两次都要通过。声通 jar 不随仓库分发，路径由环境变量 `ST_ORIGINAL_JAR` 指定，文件不存在时跳过这一项，同时给出提示。
 
 沙箱集成测试 `SandboxIntegrationTest` 按声通接入方的写法调用真实平台，覆盖句子评测，段落逐字得分，未知 appKey 的鉴权错误，录音下载地址，朗读进度，边录边传时最终结果的压缩与平台耗时，以及整段上传时的 `Server-Timing`，每次运行最多 9 次平台调用，实时评测连接也计入。朗读进度一项按实时速度送入 `spec/fixtures/audio/zh_progress.wav`。设置环境变量 `YUGU_SANDBOX_APPKEY` 与 `YUGU_SANDBOX_SECRET` 后运行，`YUGU_SANDBOX_BASE` 默认为 `https://open.shengzhiai.com`，平台地址经 `EngineSetting.setServerAddress` 设置。未设置密钥时这些测试跳过，`./gradlew test` 照常通过。
 
@@ -693,7 +751,7 @@ api-compat-test/run.sh
 
 ### 开始录音立即失败
 
-`onStartRecordFail` 的参数给出原因。常见原因是没有在运行时申请 `RECORD_AUDIO` 权限，或其他应用占用了麦克风。上一次评测的结果尚未返回时会收到 `engine is busy`。
+`onStartRecordFail` 的参数给出原因。常见原因是没有在运行时申请 `RECORD_AUDIO` 权限，或其他应用占用了麦克风。上一次评测的结果尚未返回时会收到 `engine is busy`。打开连续评测后，收到 `engine is busy` 说明录音仍在进行，或者等待结果的评测已多于上限，见“连续评测”一节。
 
 ### 评测返回 2003 或 2010
 

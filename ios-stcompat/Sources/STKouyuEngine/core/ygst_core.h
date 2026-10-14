@@ -11,6 +11,8 @@
  * Since 2.1.1 the same round streams every recording by default, and the per-phase timing of an
  * evaluation (its log lines, the Server-Timing header and the platform timing object) is here.
  * Since 2.2.0 the requests, answers and decisions of TtsClient and ReportClient are here as well.
+ * Since 2.3.0 the busy rule of pipelined evaluation (YuguCompat.maxPendingEvaluations) and its log
+ * lines are here, and the report lookup waits through reportStatus partial.
  * The Objective-C layer only moves bytes between this core and NSURLSession / AVFoundation.
  *
  * Internal header. Not part of the public module.
@@ -25,7 +27,7 @@
 extern "C" {
 #endif
 
-#define YGST_SDK_VERSION "2.2.0"
+#define YGST_SDK_VERSION "2.3.0"
 #define YGST_USER_AGENT "yugu-ios-stcompat-sdk/" YGST_SDK_VERSION
 #define YGST_DEFAULT_BASE_URL "https://open.shengzhiai.com"
 
@@ -775,7 +777,7 @@ int ygst_timing_stages(ygst_span timing, const char *token_id, ygst_buf *out);
  * and the error mapping of the evaluations. */
 
 #define YGST_TTS_PATH "api/v1/tts/generate"
-#define YGST_REPORT_POLL_MS 1000 /* waitForFinalMs: one lookup per second while the report is pending */
+#define YGST_REPORT_POLL_MS 1000 /* waitForFinalMs: one lookup per second while the report is pending or partial */
 
 typedef struct {
     const char *text;        /* required */
@@ -833,7 +835,7 @@ int ygst_classify_api(const ygst_outcome *o, ygst_classification *c);
 
 typedef struct {
     ygst_buf record_id;      /* data.recordId when it is a string */
-    ygst_buf report_status;  /* data.reportStatus: final, pending, instant, none; empty when absent */
+    ygst_buf report_status;  /* data.reportStatus: final, pending, partial (2.3.0), instant, none; empty when absent */
     int has_summary;
     ygst_buf summary;        /* data.report.summary */
     int has_overall;
@@ -852,10 +854,16 @@ int ygst_report_parse(ygst_span data, ygst_report *r);
  * 0 at the end or for anything but an array. *pos starts at 0. */
 int ygst_report_next_suggestion(ygst_span suggestions, size_t *pos, ygst_buf *out);
 int ygst_report_is_pending(const ygst_report *r);
+/* 2.3.0: reportStatus partial, the AI summary and suggestions are ready and the per-dimension comments
+ * are still being written. */
+int ygst_report_is_partial(const ygst_report *r);
+/* 2.3.0: pending or partial, the answer waitForFinalMs looks up again. isFinal stays final only. */
+int ygst_report_is_waiting(const ygst_report *r);
 int ygst_report_is_final(const ygst_report *r);
 /* waitForFinalMs: after an answer, the milliseconds until the next lookup, or -1 to return this
- * answer. A pending answer is looked up again after YGST_REPORT_POLL_MS while that lookup starts
- * within wait_ms of the call's start (monotonic milliseconds); wait_ms <= 0 is one lookup. */
+ * answer. An answer still waiting for the final draft (pending, or partial since 2.3.0) is looked up
+ * again after YGST_REPORT_POLL_MS while that lookup starts within wait_ms of the call's start
+ * (monotonic milliseconds); wait_ms <= 0 is one lookup. */
 long ygst_report_poll_delay(long long wait_ms, int64_t started_ms, int64_t now_ms, int pending);
 
 typedef enum {
@@ -871,9 +879,10 @@ typedef struct {
 } ygst_rp_action;
 
 /* getReport after one lookup, as the Android shim decides it. ok: the lookup answered, pending: its
- * reportStatus is pending; answered: an earlier lookup of this call answered. An answer is looked up
- * again while ygst_report_poll_delay allows it, else returned. A failed lookup ends the call with its
- * error when it was the first; after an answer the call ends with the latest answer, degraded. */
+ * reportStatus is pending or partial (ygst_report_is_waiting); answered: an earlier lookup of this call
+ * answered. An answer is looked up again while ygst_report_poll_delay allows it, else returned. A
+ * failed lookup ends the call with its error when it was the first; after an answer the call ends with
+ * the latest answer, degraded. */
 ygst_rp_action ygst_report_after_lookup(long long wait_ms, int64_t started_ms, int64_t now_ms, int ok, int pending,
                                         int answered);
 /* The WARN line of a degraded getReport, without the report text:
@@ -889,6 +898,57 @@ int ygst_report_lookup_failed_line(const char *record_id, int code, int lookups,
  * lookups below 0 is left out. */
 int ygst_api_log_line(const char *op, const char *record_id, const char *status, int code, int lookups,
                       int attempts, long long ms, ygst_buf *out);
+
+/* ------------------------------------------------------------------ pipelined evaluation (2.3.0) */
+
+/* YuguCompat.maxPendingEvaluations, read when a KYTestEngine session starts. 0, the default, is one
+ * evaluation at a time as before: a session stays the engine's session until its result is delivered,
+ * and a start before that is refused with errId 60008. n above 0 is pipelined evaluation: once the
+ * stop of a recording has been handled the session evaluates in the background and the next session
+ * may record at once, while at most n sessions wait for their results. Every session keeps its own
+ * tokenId, blocks, recording file, connection, retries and fallback. The Objective-C engine keeps the
+ * sessions; the decisions and the log lines are here. */
+
+#define YGST_PIPE_MAX_PENDING 16 /* the upper bound of maxPendingEvaluations */
+
+/* The switch as stored: below 1 is 0, above YGST_PIPE_MAX_PENDING is YGST_PIPE_MAX_PENDING. */
+int ygst_pipe_clamp(long long n);
+/* 1 when a session started with this setting moves to the background once its stop has been handled
+ * (max_pending above 0), 0 when it stays the engine's session until its result (one at a time). */
+int ygst_pipe_hands_over(int max_pending);
+
+typedef enum {
+    YGST_PIPE_START = 1,        /* start the new session now */
+    YGST_PIPE_BUSY_SESSION = 2, /* refused with 60008: the engine's session has not been handed over (it
+                                 * records, is paused, waits for permission or for stopEngine), or, one at
+                                 * a time, has not delivered its result */
+    YGST_PIPE_BUSY_PENDING = 3, /* refused with 60008: more than max_pending sessions wait for their results */
+    YGST_PIPE_FINISH_STOP = 4   /* pipelined: the stop of the engine's session is being handled; finish
+                                 * handling it now (the session is handed over), then decide again */
+} ygst_pipe_decision;
+
+/* The busy rule of a start. max_pending: the new session's setting. session_active: the engine has a
+ * session that was not handed over. session_stopping: that session's stop is being handled (its
+ * recording ended, the audio is being finalised). pending: the engine's sessions handed over whose
+ * results were not delivered. With max_pending 0 a start is refused while there is any session at all,
+ * as before 2.3.0. A pipelined start is refused while a session records, or while more than
+ * max_pending sessions wait for their results; so up to max_pending evaluations run in the background
+ * while the next recording runs. */
+ygst_pipe_decision ygst_pipe_decide_start(int max_pending, int session_active, int session_stopping, int pending);
+
+/* The log lines, in the key=value form of the Android shim, without keys, signatures, audio or text.
+ * INFO, a pipelined start; pending: the sessions waiting for their results when this one starts,
+ * audio_path: an audioPath session, which waits for its result from the start:
+ *   pipelined evaluation tokenId=3f0b6a1c9d2e4f5a8b7c6d5e4f3a2b1c pending=2 maxPendingEvaluations=3
+ *   pipelined evaluation tokenId=9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d pending=0 maxPendingEvaluations=1 (audioPath) */
+int ygst_pipe_start_line(const char *token_id, int pending, int max_pending, int audio_path, ygst_buf *out);
+/* WARN, a start refused because more than max_pending sessions wait:
+ *   start rejected: engine is busy (pending=2 maxPendingEvaluations=1) */
+int ygst_pipe_busy_line(int pending, int max_pending, ygst_buf *out);
+/* INFO, a change of the switch, the values as stored:
+ *   pipelined evaluation on: maxPendingEvaluations=3 (was 0)
+ *   pipelined evaluation off: maxPendingEvaluations=0 (was 3) */
+int ygst_pipe_setting_line(int old_value, int new_value, ygst_buf *out);
 
 #ifdef __cplusplus
 }

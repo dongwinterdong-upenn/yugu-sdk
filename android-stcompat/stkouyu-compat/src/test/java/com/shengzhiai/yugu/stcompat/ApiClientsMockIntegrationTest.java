@@ -108,7 +108,7 @@ public class ApiClientsMockIntegrationTest extends CompatTestBase {
         assertEquals(1, posts.size());
         assertEquals(r.getIdempotencyKey(), posts.get(0).getString("idempotencyKey"));
         assertEquals("application/json; charset=utf-8", posts.get(0).getString("contentType"));
-        assertEquals("yugu-stkouyu-compat/2.2.0", posts.get(0).getString("userAgent"));
+        assertEquals("yugu-stkouyu-compat/2.3.0", posts.get(0).getString("userAgent"));
         JSONObject billing = server.billing();
         assertEquals(1, billing.getInt("billed"));
         assertEquals("tts", billing.getJSONArray("records").getJSONObject(0).getString("op"));

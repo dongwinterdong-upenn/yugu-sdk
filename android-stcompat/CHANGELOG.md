@@ -2,6 +2,31 @@
 
 `com.shengzhiai.yugu:stkouyu-compat` 的版本记录。格式参照 Keep a Changelog，版本号遵循语义化版本，破坏性变更只在主版本号升级时出现。
 
+## 版本 `2.3.0` 2026-10-14
+
+连续评测：一组题可以连着读，上一题的结果返回之前即可开始下一题。
+
+### 新增
+
+- `YuguCompat.setMaxPendingEvaluations(n)` 打开连续评测，n 为等待结果的评测个数上限，取值 0 到 16，小于 0 按 0 处理。默认 0 与 `2.2.0` 相同，一次评测一题。n 大于 0 时，只有录音正在进行或已暂停，或者等待结果的评测多于 n 个时，新的 `startRecord` 与 `existsAudioTrans` 才被拒绝，回调与关闭时相同，其余情况立即开始。每一题有各自的 `tokenId`，监听器，录音文件与网络连接，结果按评测完成的先后发给这一题开始时传入的监听器，在主线程回调。用法见 README 的连续评测一节。
+- `YuguCompat.getMaxPendingEvaluations()` 返回当前设置，`YuguCompat.pendingEvaluations()` 返回已经停止录音或开始文件评测，还没有回调最终结果的评测个数，可以用来显示一组题的评测进度。
+- 打开连续评测时，`cancel()`，`cancle()` 与 `recycle()` 同时取消全部等待结果的评测，之后这些题都不再有回调，等待个数回到 0。`clearActivityListener()` 同时去掉这些评测的监听器。
+- 日志：开关改动时输出一行 INFO 日志。打开连续评测后每一题开始时输出一行 `pipelined evaluation`，给出开始时等待结果的评测个数与上限，每一题照常输出一行 `timing`。
+
+### 变更
+
+- `getSDKVersion()` 返回 `yugu-stkouyu-compat/2.3.0 (api 1.0.62)`，请求头 `User-Agent` 为 `yugu-stkouyu-compat/2.3.0`。
+- 打开连续评测后，`getEngineStatus()` 只反映正在录音的一题：停止录音的一题处理完停止之后，在回调 `onRecordEnd` 之前回到 `IDLE`，`existsAudioTrans` 不改变状态。`muteMusic` 的音频焦点在最后一个静音的录音结束时归还，上一题结束时不打断下一题的静音。
+- 打开连续评测后，各题使用同一个 `recordName` 或 `recordFilePath` 时，上一题还在等待结果，这一题写入同一目录中文件名后加 `-<tokenId>` 的文件，记录一条 WARN 日志，`getLastRecordPath()` 返回实际使用的文件，上一题的录音不被覆盖。
+
+### 与声通 SDK 的差异
+
+- 声通 SDK 一次只评测一题。连续评测为平替层新增的功能，三个方法都在 `YuguCompat` 中，声通 jar 没有这个类。不调用 `setMaxPendingEvaluations` 时行为与声通 SDK 相同。
+
+### 破坏性变更
+
+- 无。连续评测默认关闭，关闭时的回调，状态与忙碌规则与 `2.2.0` 相同。
+
 ## 版本 `2.2.0` 2026-10-13
 
 报告查询与语音合成，不支持的内核给出写明内核的错误，也可以改为抛出异常。

@@ -55,6 +55,13 @@ FOUNDATION_EXTERN void YGSTLogf(NSInteger level, NSString *format, ...) NS_FORMA
 @property (atomic, copy) NSString *configuredBaseURL;
 /// 2.2.0: an unsupported coreType throws (KYTestEngine) or fails skegn_start instead of a 60003 callback.
 @property (atomic) BOOL throwOnUnsupportedCoreType;
+/// 2.3.0: YuguCompat.maxPendingEvaluations as stored (ygst_pipe_clamp), read when a session starts.
+/// The setter logs one INFO line when the value changes.
+@property (atomic) NSInteger maxPendingEvaluations;
+/// 2.3.0: KYTestEngine sessions of every engine whose evaluation was asked for (stop handled, or an
+/// audioPath start) and whose final was not delivered, nor cancelled.
+@property (atomic, readonly) NSInteger pendingEvaluations;
+- (void)addPendingEvaluations:(NSInteger)delta;
 /// 2.2.0: the engine initialized last (initEngine or skegn_new) gives its credentials; owner identifies
 /// that engine, so that deleteEngine, skegn_delete or a failed initEngine of another one keep them.
 - (void)setEngineCredentials:(YGSTEngineCredentials *)credentials owner:(const void *)owner;

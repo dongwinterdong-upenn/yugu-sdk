@@ -38,6 +38,8 @@
  * (signing, headers, retry controller, waitForFinalMs) and print one JSON line with "op" instead of
  * the evaluation line.
  *
+ * 2.3.0: --report looks up again through reportStatus partial as well as pending, and prints isPartial.
+ *
  * --base-url goes through the same resolution as KYStartEngineConfig.server. https needs a build
  * with -DYGST_IT_TLS and -lssl -lcrypto: OpenSSL with SNI, TLS 1.2 or later and certificate plus
  * host name verification against the system CA store, or against --ca-file. --app-key-env and
@@ -1823,8 +1825,9 @@ static int run_tts(const options *o, const char *base, const target *tgt, int64_
 }
 
 /* ReportClient.getReport: one lookup, and with waitForFinalMs one per second while the report is
- * pending. ygst_report_after_lookup decides, as YuguClients.m: the first lookup's error ends the call
- * with that error, a later failed lookup ends it with the latest answer and one WARN line ("warn"). */
+ * pending or (2.3.0) partial. ygst_report_after_lookup decides, as YuguClients.m: the first lookup's
+ * error ends the call with that error, a later failed lookup ends it with the latest answer and one
+ * WARN line ("warn"). */
 static int run_report(const options *o, const char *base, const target *tgt, int64_t started) {
     ygst_buf path, url, ex, line, id, starts, warn;
     ygst_fields none;
@@ -1871,14 +1874,15 @@ static int run_report(const options *o, const char *base, const target *tgt, int
                 last = res; /* the answer moves, rep points into it */
                 api_result_init(&res);
                 ygst_report_parse(last.data, &rep);
-                act = ygst_report_after_lookup(o->wait_for_final_ms, started, mono_ms(), 1, ygst_report_is_pending(&rep),
+                /* 2.3.0: pending and partial are looked up again, as YuguClients.m */
+                act = ygst_report_after_lookup(o->wait_for_final_ms, started, mono_ms(), 1, ygst_report_is_waiting(&rep),
                                                answered);
                 answered = 1;
             } else {
                 act = ygst_report_after_lookup(o->wait_for_final_ms, started, mono_ms(), 0, 0, answered);
             }
             if (act.kind != YGST_RP_AGAIN) break;
-            fprintf(stderr, "report pending, next lookup in %ld ms\n", act.delay_ms);
+            fprintf(stderr, "report %s, next lookup in %ld ms\n", ygst_buf_cstr(&rep.report_status), act.delay_ms);
             sleep_ms(act.delay_ms);
         }
         if (act.degraded) {
@@ -1908,8 +1912,8 @@ static int run_report(const options *o, const char *base, const target *tgt, int
             char num[64];
             put_str_member(&ex, "recordId", rep.record_id.len ? ygst_buf_cstr(&rep.record_id) : ygst_buf_cstr(&id));
             put_str_member(&ex, "reportStatus", ygst_buf_cstr(&rep.report_status));
-            snprintf(num, sizeof num, ",\"isFinal\":%d,\"isPending\":%d,\"hasSummary\":%d", ygst_report_is_final(&rep),
-                     ygst_report_is_pending(&rep), rep.has_summary);
+            snprintf(num, sizeof num, ",\"isFinal\":%d,\"isPending\":%d,\"isPartial\":%d,\"hasSummary\":%d",
+                     ygst_report_is_final(&rep), ygst_report_is_pending(&rep), ygst_report_is_partial(&rep), rep.has_summary);
             ygst_buf_append_str(&ex, num);
             put_str_member(&ex, "summary", ygst_buf_cstr(&rep.summary));
             ygst_buf_append_str(&ex, ",\"suggestions\":[");

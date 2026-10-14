@@ -21,15 +21,18 @@ import java.util.List;
  * </pre>
  *
  * {@code reportStatus}: {@link #STATUS_FINAL} the AI final draft, {@link #STATUS_PENDING} the instant
- * draft while the AI draft is generated, {@link #STATUS_INSTANT} the AI draft will not come,
- * {@link #STATUS_NONE} no report. Open questions ({@code open.eval.cn}) have their feedback in
- * {@code score.feedback} and are always final.
+ * draft while the AI draft is generated, {@code partial} (SDK 2.3.0) the AI summary and suggestions
+ * are ready while the comments per dimension are still written, {@link #STATUS_INSTANT} the AI draft
+ * will not come, {@link #STATUS_NONE} no report. Open questions ({@code open.eval.cn}) have their
+ * feedback in {@code score.feedback} and are always final.
  */
 public final class ReportResult {
     public static final String STATUS_FINAL = "final";
     public static final String STATUS_PENDING = "pending";
     public static final String STATUS_INSTANT = "instant";
     public static final String STATUS_NONE = "none";
+    /** AI summary and suggestions ready, comments per dimension still written (SDK 2.3.0); not public API. */
+    static final String STATUS_PARTIAL = "partial";
 
     private final String recordId;
     private final String reportStatus;
@@ -82,7 +85,7 @@ public final class ReportResult {
         return reportStatus;
     }
 
-    /** {@code reportStatus} is {@code final}: the AI final draft. */
+    /** {@code reportStatus} is {@code final}: the AI final draft. {@code partial} is not final. */
     public boolean isFinal() {
         return STATUS_FINAL.equals(reportStatus);
     }
@@ -90,6 +93,14 @@ public final class ReportResult {
     /** {@code reportStatus} is {@code pending}: an instant draft, the AI draft is still being generated. */
     public boolean isPending() {
         return STATUS_PENDING.equals(reportStatus);
+    }
+
+    /**
+     * The AI final draft is still to come: {@code pending}, or {@code partial} (SDK 2.3.0), the AI
+     * summary and suggestions without the comments per dimension. Waiting goes on while this holds.
+     */
+    boolean awaitingFinal() {
+        return STATUS_PENDING.equals(reportStatus) || STATUS_PARTIAL.equals(reportStatus);
     }
 
     /** {@code report.summary}, the overall comment; null when absent. */

@@ -161,6 +161,7 @@ int main(int argc, char **argv) {
     suite_realtime();
     suite_timing();
     suite_api();
+    suite_pipeline();
     if (junit) write_junit(junit);
     printf("\nC core tests: %d cases, %d failed cases, %d checks, %d failed checks\n", g_ncases, g_failed_cases,
            ygt_checks, g_failed_checks);

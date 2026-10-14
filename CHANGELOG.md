@@ -2,6 +2,17 @@
 
 格式参照 Keep a Changelog，版本号规则见 `COMPATIBILITY.md`。各端的详细变更见各端目录下的 CHANGELOG.md。
 
+## 版本 `2.3.0`，2026-10-14
+
+安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个声通平替发 `2.3.0`，其余各端版本不变。
+
+### 新增
+- 两个平替层新增连续评测：安卓 `YuguCompat.setMaxPendingEvaluations(n)`，iOS `YuguCompat.maxPendingEvaluations`，默认 0，与 `2.2.0` 相同。n 大于 0 时，上一题停止录音后即可开始下一题，最多 n 题同时在等结果，结果按完成先后回调到各题自己的监听器，用 `tokenId` 对应题目。另有 `pendingEvaluations` 返回还在等结果的题数。`cancel` 一类调用同时取消等结果的各题。
+- 平台侧：AI 终稿分几路并行生成，中文与英文一般都在评测返回后约 4 秒就绪。英文题的中文版随后补进同一份报告。
+
+### 变更
+- 两个平替的版本号与 User-Agent 为 `2.3.0`。
+
 ## 版本 `2.2.0`，2026-10-13
 
 安卓 `com.stkouyu` 与 iOS `STKouyuEngine` 两个声通平替发 `2.2.0`。安卓，Java，网页，小程序四个原生包发 `2.1.1`，iOS 原生包仍为 `2.1.0`。

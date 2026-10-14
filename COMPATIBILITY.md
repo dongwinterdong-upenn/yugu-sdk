@@ -4,9 +4,10 @@
 
 | SDK 版本 | 发布日期 | 接口版本 | 契约版本 | 状态 |
 |---|---|---|---|---|
-| `2.2.0` | 2026-10-13 | v1 | `2.1` | 两个声通平替的当前版本，新增语音合成与报告查询，不支持的内核可改为抛异常 |
-| `2.1.2` | 2026-10-13 | v1 | `2.1` | 只发了两个声通平替，新增中文开放题 `open.eval.cn`，可直接升级到 `2.2.0` |
-| `2.1.1` | 2026-10-13 | v1 | `2.1` | 两个声通平替上午发布，可直接升级到 `2.2.0`。安卓，Java，网页，小程序四个原生包下午发布，为这四端的当前版本，兼容评测放开 `open.eval.cn` |
+| `2.3.0` | 2026-10-14 | v1 | `2.1` | 两个声通平替的当前版本，新增连续评测，打开后上一题的结果返回之前即可开始下一题 |
+| `2.2.0` | 2026-10-13 | v1 | `2.1` | 只发了两个声通平替，新增语音合成与报告查询，不支持的内核可改为抛异常，可直接升级到 `2.3.0` |
+| `2.1.2` | 2026-10-13 | v1 | `2.1` | 只发了两个声通平替，新增中文开放题 `open.eval.cn`，可直接升级到 `2.3.0` |
+| `2.1.1` | 2026-10-13 | v1 | `2.1` | 两个声通平替上午发布，可直接升级到 `2.3.0`。安卓，Java，网页，小程序四个原生包下午发布，为这四端的当前版本，兼容评测放开 `open.eval.cn` |
 | `2.1.0` | 2026-10-12 | v1 | `2.1` | iOS 原生包的当前版本，其余各端可直接升级 |
 | `2.0.0` | 2026-10-08 | v1 | `2.0` | 可用，可直接升级到 `2.1.0` |
 | `1.0.0` | 2026-06-24 | v1 | `1.x` | 停止维护，`2.0` 起改包名与坐标，迁移见 `MIGRATION-2.0.md` |
@@ -19,11 +20,11 @@
 |---|---|---|---|
 | 服务端 Java | `com.shengzhiai.yugu:yugu-java-sdk:2.1.1` | Java 11 字节码，构建用 JDK 17 与 Maven 3.8 | JDK 11 |
 | 安卓 | `com.shengzhiai.yugu:yugu-android-sdk:2.1.1` | Kotlin 1.9，AGP 8.5，Java 8 字节码 | Android 5.0，API 21 |
-| 安卓声通平替 | `com.shengzhiai.yugu:stkouyu-compat:2.2.0` | Java 8 字节码，无第三方依赖 | Android 5.0，API 21 |
+| 安卓声通平替 | `com.shengzhiai.yugu:stkouyu-compat:2.3.0` | Java 8 字节码，无第三方依赖 | Android 5.0，API 21 |
 | 网页 | `@shengzhiai/yugu-web-sdk@2.1.1` | ES2018，附 TypeScript 声明 | Chrome 73，Edge 79，Firefox 68，Safari 13，Node 18 |
 | 微信小程序 | `@shengzhiai/yugu-miniprogram-sdk@2.1.1` | ES2017 CommonJS，附 TypeScript 声明 | 基础库 `2.20.1` |
 | iOS | SwiftPM `https://open.shengzhiai.com/git/yugu-ios-sdk.git` `2.1.0` | Swift `5.9`，Xcode 15 | iOS 13，macOS 11，YuguCore 另支持 Linux |
-| iOS 声通平替 | SwiftPM `https://open.shengzhiai.com/git/stkouyu-ios-compat.git` `2.2.0` | Objective-C | iOS 12，实时朗读进度需要 iOS 13 |
+| iOS 声通平替 | SwiftPM `https://open.shengzhiai.com/git/stkouyu-ios-compat.git` `2.3.0` | Objective-C | iOS 12，实时朗读进度需要 iOS 13 |
 
 ## 声通接口对应版本
 

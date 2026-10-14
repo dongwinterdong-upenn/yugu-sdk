@@ -226,7 +226,7 @@ public class SkEgnTest extends CompatTestBase {
         long e = SkEgn.skegn_new(CFG, app);
         byte[] buf = new byte[128];
         int n = SkEgn.skegn_opt(e, SkEgn.SKEGN_OPT_GET_VERSION, buf, buf.length);
-        assertEquals("yugu-stkouyu-compat/2.2.0 (api 1.0.62)", new String(buf, 0, n, StandardCharsets.US_ASCII));
+        assertEquals("yugu-stkouyu-compat/2.3.0 (api 1.0.62)", new String(buf, 0, n, StandardCharsets.US_ASCII));
         assertEquals(0, buf[n]);
         n = SkEgn.skegn_opt(e, SkEgn.SKEGN_OPT_GET_MODULES, buf, buf.length);
         assertEquals("{\"modules\":[\"cloud\"]}", new String(buf, 0, n, StandardCharsets.US_ASCII));

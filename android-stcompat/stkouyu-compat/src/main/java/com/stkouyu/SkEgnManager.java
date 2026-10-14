@@ -35,6 +35,8 @@ import com.stkouyu.setting.RecordSetting;
  * sessions send their audio over the compat realtime channel while recording (SDK 2.1.1, switch off
  * with {@code YuguCompat.setStreamUpload(false)}). With {@code RecordSetting.setRealtime_feedback(1)}
  * {@code onScore} also receives intermediate results with {@code "eof":0} before the final one.
+ * One evaluation at a time unless {@code YuguCompat.setMaxPendingEvaluations(n)} lets the next
+ * recording start while up to n earlier results are still on their way (SDK 2.3.0).
  */
 public class SkEgnManager {
     public static final String SERVER_TYPE_CLOUD = "cloud";
@@ -61,7 +63,10 @@ public class SkEgnManager {
     /** Non-zero while an engine is initialised, 0 after recycle (the Shengtong SDK kept the native handle here). */
     public static long engine;
 
-    /** Engine state: IDLE, RECORDING, PAUSED, STOP (recording ended, result pending or delivered). */
+    /**
+     * Engine state: IDLE, RECORDING, PAUSED, STOP (recording ended, result pending or delivered). With
+     * pipelined evaluation the state follows the recording: IDLE again once a stop is handled.
+     */
     public enum engine_status {
         IDLE,
         RECORDING,
@@ -182,7 +187,9 @@ public class SkEgnManager {
      * 60006 or 60007; a missing microphone answers onStartRecordFail. An unsupported coreType
      * (errId 60003, {@code 不支持的评测内核：<coreType>}) logs one WARN line; with
      * {@code YuguCompat.setThrowOnUnsupportedCoreType(true)} every startRecord and existsAudioTrans
-     * overload throws IllegalArgumentException with that text instead of calling back.
+     * overload throws IllegalArgumentException with that text instead of calling back. Busy means
+     * until the previous result was delivered, or with {@code YuguCompat.setMaxPendingEvaluations(n)}
+     * while a recording runs or more than n results are outstanding.
      */
     public void startRecord(RecordSetting setting, OnRecorderListener listener) {
         core.startRecord(setting, listener, null);
@@ -272,7 +279,10 @@ public class SkEgnManager {
         engine = 0L;
     }
 
-    /** Stops and discards the current session without any further callback. Idempotent. */
+    /**
+     * Stops and discards the current session without any further callback; with pipelined
+     * evaluation also every session still waiting for its result. Idempotent.
+     */
     public void cancel() {
         core.cancel();
     }
@@ -332,7 +342,7 @@ public class SkEgnManager {
         return SERVER_TYPE_CLOUD;
     }
 
-    /** {@code yugu-stkouyu-compat/2.2.0 (api 1.0.62)}. */
+    /** {@code yugu-stkouyu-compat/2.3.0 (api 1.0.62)}. */
     public String getSDKVersion() {
         return CompatConfig.SDK_VERSION;
     }

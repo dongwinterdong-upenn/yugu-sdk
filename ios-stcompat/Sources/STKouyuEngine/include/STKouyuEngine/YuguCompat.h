@@ -26,10 +26,10 @@ typedef NS_ENUM(NSInteger, YuguCompatLogLevel) {
 /// 平替层的扩展配置与版本信息。所有方法线程安全，设置在下一次评测生效。
 @interface YuguCompat : NSObject
 
-/// "2.2.0"
+/// "2.3.0"
 @property (class, nonatomic, readonly, copy) NSString *sdkVersion;
 
-/// User-Agent，"yugu-ios-stcompat-sdk/2.2.0"
+/// User-Agent，"yugu-ios-stcompat-sdk/2.3.0"
 @property (class, nonatomic, readonly, copy) NSString *userAgent;
 
 /// 默认平台地址 https://open.shengzhiai.com
@@ -68,6 +68,18 @@ typedef NS_ENUM(NSInteger, YuguCompatLogLevel) {
 /// skegn_get_last_error 为 60003，打印一行 error 日志，不回调。其余错误照常回调。
 /// Swift 不能捕获 Objective-C 异常，Swift 工程打开前需要自行确认内核受支持。
 @property (class, nonatomic) BOOL throwOnUnsupportedCoreType;
+
+/// 2.3.0 流水线评测，KYTestEngine 每次开始评测时读取，默认 0。
+/// 0 时与 2.2.0 相同，一次只做一次评测，上一次结果回调之前开始评测回调 errId 60008。
+/// 大于 0 时停录处理完毕的评测转到后台等结果，下一次评测可以立即开始录音，后台等结果的评测最多 n 次。
+/// 正在录音或暂停时，或后台等结果的评测多于 n 次时，开始评测照旧回调 60008。
+/// 每次评测有自己的 tokenId，回调，录音文件与网络连接，结果按完成先后回调。取值限定在 0 到 16，负数按 0。
+/// 取值变化时打印一行 info 日志。
+@property (class, nonatomic) NSInteger maxPendingEvaluations;
+
+/// 2.3.0 已停录或以 audioPath 开始，还没有回调结果的评测次数，全部 KYTestEngine 实例合计。
+/// 结果回调开始之前减一，cancelEngine 与 deleteEngine 取消的评测随即不再计入。C 接口的评测不计入。
+@property (class, nonatomic, readonly) NSInteger pendingEvaluations;
 
 @end
 
@@ -155,8 +167,8 @@ NS_SWIFT_NAME(TtsClient)
 /// 报告查询选项
 NS_SWIFT_NAME(ReportOptions)
 @interface YuguReportOptions : NSObject
-/// 等待 AI 终稿的最长时间，单位毫秒，默认 0 只查一次。大于 0 时，reportStatus 为 pending 就每 1000 毫秒
-/// 再查一次，直到不再是 pending 或时间用完，返回最后一次的结果，仍为 pending 也是正常结果。
+/// 等待 AI 终稿的最长时间，单位毫秒，默认 0 只查一次。大于 0 时，reportStatus 为 pending 或 partial 就每
+/// 1000 毫秒再查一次，直到二者都不是或时间用完，返回最后一次的结果，仍为 pending 或 partial 也是正常结果。
 /// 第一次查询失败时回调该错误。之后的查询失败时回调最近一次查到的结果，error 为 nil，打印一行 warn 日志。
 @property (nonatomic) NSInteger waitForFinalMs;
 /// 单次请求的超时，单位秒，默认 30
@@ -168,10 +180,10 @@ NS_SWIFT_NAME(ReportResult)
 @interface YuguReportResult : NSObject
 /// 评测记录号
 @property (nonatomic, readonly, copy) NSString *recordId;
-/// final 为 AI 终稿，pending 为即时稿，AI 终稿正在生成，instant 为即时稿，AI 终稿不会再来，none 为没有报告。
-/// 平台没有给出时为 nil
+/// final 为 AI 终稿，pending 为即时稿，AI 终稿正在生成，partial 为 AI 整体点评与建议已就绪，各维度点评仍在生成，
+/// instant 为即时稿，AI 终稿不会再来，none 为没有报告。平台没有给出时为 nil
 @property (nonatomic, readonly, copy, nullable) NSString *reportStatus;
-/// reportStatus 为 final
+/// reportStatus 为 final，partial 时为 NO
 @property (nonatomic, readonly, getter=isFinal) BOOL final;
 /// 整体点评 report.summary
 @property (nonatomic, readonly, copy, nullable) NSString *summary;

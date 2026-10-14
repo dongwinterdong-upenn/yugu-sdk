@@ -45,4 +45,4 @@ items:
 | `data.reportStatus` | `final` 为 AI 终稿，`pending` 为终稿生成中，`instant` 为终稿不会再来，`none` 为没有报告 |
 | `data.timing` | 声通兼容评测的分段耗时，保留 7 天 |
 
-AI 终稿在评测返回之后生成，中文约 5 秒，英文约 11 秒。两个平替的 `ReportClient` 设 `waitForFinalMs` 时会每秒再查一次，直到不再是 `pending` 或时间用完。报告查询天然幂等，SDK 照常重试。评测时设置 `includeReport` 会生成 AI 报告，评测结果的 `report` 另含整体点评与改进建议。接口定义见[报告查询](page:api-report)。
+AI 终稿在评测返回之后生成，中文与英文一般约 4 秒。两个平替的 `ReportClient` 设 `waitForFinalMs` 时会每秒再查一次，直到不再是 `pending` 或时间用完。报告查询天然幂等，SDK 照常重试。评测时设置 `includeReport` 会生成 AI 报告，评测结果的 `report` 另含整体点评与改进建议。接口定义见[报告查询](page:api-report)。

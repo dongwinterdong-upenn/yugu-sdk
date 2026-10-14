@@ -16,8 +16,13 @@ tests of this package start this server instead for those cases:
   the client offers it: client_max_window_bits=15 in the answer only when offered, context
   takeover unless no_context_takeover was asked for, every message compressed, a long message sent
   in fragments of 8 KB with RSV1 on the first one only. Compressed client messages are inflated.
+- GET /api/v1/report/{recordId} (2.3.0): the report lookup with reportStatus partial, which the shared
+  mock does not have. The n-th lookup of a recordId answers the n-th status of "reportStatuses" (the
+  last one from then on), default pending, partial, final: pending is the instant draft, partial has
+  the AI summary and suggestions without the per-dimension comments, final has them all.
 - POST /__ctl/config {"deflate":"accept"|"decline","fragment":8192,"resultWords":N,"gzip":true,
-  "serverTiming":true}, POST /__ctl/reset, GET /__ctl/log: what each request carried.
+  "serverTiming":true,"reportStatuses":[..]}, POST /__ctl/reset, GET /__ctl/log: what each request
+  carried.
 
 Signatures are not checked: the mock platform covers them. Stdlib only.
 
@@ -32,15 +37,21 @@ import socketserver
 import sys
 import threading
 import time
+import urllib.parse
 import zlib
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 SERVER_TIMING = {"total": 321, "engine": 300, "platform": 21}
 ENGINE_STAGES = {"text_frontend_ms": 12.5, "asr_ms": 33.0, "pipeline_total_ms": 290.0}
-DEFAULTS = {"deflate": "accept", "fragment": 8192, "resultWords": 40, "gzip": True, "serverTiming": True}
+DEFAULTS = {"deflate": "accept", "fragment": 8192, "resultWords": 40, "gzip": True, "serverTiming": True,
+            "reportStatuses": ["pending", "partial", "final"]}
+REPORT_PATH = "/api/v1/report/"
+INSTANT_SUMMARY = "即时稿：整体读得流畅。"
+AI_SUMMARY = "AI 点评：整体读得流畅，个别字的声调可以更准。"
+AI_SUGGESTIONS = ["“清”的后鼻音收得再完整一些。", "长句中间换气再自然一些。"]
 
 LOCK = threading.Lock()
-STATE = {"config": dict(DEFAULTS), "log": [], "seq": 0}
+STATE = {"config": dict(DEFAULTS), "log": [], "seq": 0, "reportLookups": {}}
 
 
 def now_ms():
@@ -190,6 +201,35 @@ def compat_rest(req, wfile):
             "acceptEncoding": req.header("accept-encoding"), "userAgent": req.header("user-agent"),
             "idempotencyKey": req.header("idempotency-key"), "gzip": zipped, "bodyBytes": plain, "wireBytes": len(body)})
     send_response(wfile, 200, body, headers)
+
+
+# ------------------------------------------------------------------ report lookup (2.3.0)
+
+
+def report_object(status):
+    """The report of one status: the instant draft, the AI summary and suggestions (partial), or all of it."""
+    if status == "pending":
+        return {"summary": INSTANT_SUMMARY, "suggestions": ["注意后鼻音。"]}
+    body = {"source": "llm", "summary": AI_SUMMARY, "suggestions": list(AI_SUGGESTIONS)}
+    if status == "final":
+        body["dimensions"] = {"integrity": "读得完整。", "accuracy": "个别字的声调可以更准。"}
+        body["dimensionSuggestions"] = {"accuracy": [AI_SUGGESTIONS[0]]}
+        body["skillInsights"] = [{"aspect": "节奏", "observation": "停顿自然。", "confidence": "medium"}]
+    return body
+
+
+def report_lookup(req, wfile):
+    record_id = urllib.parse.unquote(req.path[len(REPORT_PATH):])
+    statuses = config()["reportStatuses"] or ["final"]
+    with LOCK:
+        n = STATE["reportLookups"].get(record_id, 0)
+        STATE["reportLookups"][record_id] = n + 1
+    status = statuses[min(n, len(statuses) - 1)]
+    data = {"recordId": record_id, "overall": 88.5, "score": {"overall": 88.5, "integrity": 100},
+            "report": report_object(status), "reportStatus": status}
+    record({"kind": "report", "path": req.path, "recordId": record_id, "lookup": n + 1, "status": status,
+            "idempotencyKey": req.header("idempotency-key") or None, "userAgent": req.header("user-agent")})
+    json_response(wfile, {"code": 0, "message": "success", "data": data, "timestamp": now_ms()})
 
 
 # ------------------------------------------------------------------ WebSocket
@@ -418,6 +458,7 @@ class Handler(socketserver.StreamRequestHandler):
             with LOCK:
                 STATE["config"] = dict(DEFAULTS)
                 STATE["log"] = []
+                STATE["reportLookups"] = {}
             json_response(self.wfile, {"ok": True})
         elif req.path == "/__ctl/log" and req.method == "GET":
             with LOCK:
@@ -425,6 +466,8 @@ class Handler(socketserver.StreamRequestHandler):
             json_response(self.wfile, snapshot)
         elif req.method == "GET" and req.header("upgrade").lower() == "websocket":
             compat_ws(req, self.connection, self.rfile)
+        elif req.method == "GET" and req.path.startswith(REPORT_PATH) and len(req.path) > len(REPORT_PATH):
+            report_lookup(req, self.wfile)
         elif req.method == "POST" and req.path.count("/") == 1 and len(req.path) > 1:
             compat_rest(req, self.wfile)
         else:

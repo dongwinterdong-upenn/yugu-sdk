@@ -14,6 +14,16 @@
 //  methods with YuguCompat.throwOnUnsupportedCoreType; initEngine gives TtsClient and ReportClient the
 //  credentials of the engine.
 //
+//  2.3.0 pipelined evaluation, YuguCompat.maxPendingEvaluations read at each start. 0, the default, is
+//  one evaluation at a time as before: _session is the engine's session until its result. n above 0:
+//  once the stop of the recording has been handled the session moves from _session to _pending and is
+//  evaluated there, so the next start can record at once; ygst_pipe_decide_start (core) refuses a start
+//  while _session records or while more than n sessions are pending. Every session keeps its own
+//  tokenId, blocks, recording file, uploader or WebSocket round, retries and REST fallback; its reading
+//  progress reaches its own callbacks until its final, while it waits for its result as well.
+//  cancelEngine, deleteEngine and initEngine end the recording session and every pending one without a
+//  callback.
+//
 //  Copyright 2026 优谷雅言 open.shengzhiai.com
 //  SPDX-License-Identifier: Apache-2.0
 //
@@ -53,6 +63,13 @@ static NSString *const YGSTProvisionJSON = @"{\"provision\":\"cloud\",\"message\
 @property (atomic) BOOL cancelled;
 @property (nonatomic) YGSTMode mode;
 @property (nonatomic) YGSTPhase phase;
+/// 2.3.0: YuguCompat.maxPendingEvaluations when the session was started; above 0 it moves to the
+/// pending sessions once its stop has been handled.
+@property (nonatomic) NSInteger maxPending;
+/// 2.3.0: the waitForStop of the finalizeCapture queued by stopCapture (phase Stopping).
+@property (nonatomic) BOOL finalizeWaitsForStop;
+/// 2.3.0: counted in YuguCompat.pendingEvaluations, from the evaluation request to its end.
+@property (nonatomic) BOOL evaluationCounted;
 @property (nonatomic) ygst_ct_status coreTypeStatus;
 @property (nonatomic) unsigned long coreTypeEnum;
 @property (nonatomic) BOOL configMissing;
@@ -147,7 +164,8 @@ static char kYGSTEngineQueueKey;
     double _seek;
     double _connectTimeout;
     double _serverTimeout;
-    YGSTSession *_session;
+    YGSTSession *_session; // the session that records, or one at a time the session until its result
+    NSMutableArray<YGSTSession *> *_pending; // 2.3.0: handed over, evaluating, in hand-over order
     YGSTRecorder *_recorder;
     NSString *_lastRecordPath;
     // main thread only
@@ -175,8 +193,18 @@ static char kYGSTEngineQueueKey;
         _appKey = @"";
         _secretKey = @"";
         _lastRecordPath = @"";
+        _pending = [NSMutableArray array];
     }
     return self;
+}
+
+/// An engine released while evaluations run (one that was never deleted): its sessions can no longer
+/// deliver, so they leave YuguCompat.pendingEvaluations. No block of the queue holds the engine here.
+- (void)dealloc {
+    if (_session.evaluationCounted) [[YGSTSettings shared] addPendingEvaluations:-1];
+    for (YGSTSession *s in _pending) {
+        if (s.evaluationCounted) [[YGSTSettings shared] addPendingEvaluations:-1];
+    }
 }
 
 // ------------------------------------------------------------------ queue and delivery
@@ -259,6 +287,12 @@ static char kYGSTEngineQueueKey;
             YGSTLogf(YGST_LEVEL_WARN, @"initEngine while session %@ is running: the session is cancelled",
                      self->_session.tokenId);
             [self detachAndTeardown:self->_session];
+        }
+        // 2.3.0: the pipelined sessions waiting for their results, which the old keys signed, end as well
+        for (YGSTSession *p in [self->_pending copy]) {
+            YGSTLogf(YGST_LEVEL_WARN, @"initEngine while session %@ waits for its result: the session is cancelled",
+                     p.tokenId);
+            [self detachAndTeardown:p];
         }
         self->_initialized = ok;
         self->_appKey = ok ? appKey : @"";
@@ -382,6 +416,7 @@ static const char *YGSTKeep(NSString *s, NSMutableArray<NSData *> *keep) {
     ygst_fields custom;
     s.tokenId = YGSTNewTokenId();
     s.timing = [[YGSTTiming alloc] init];
+    s.maxPending = [YGSTSettings shared].maxPendingEvaluations; // 2.3.0: read when the session starts
     if (!c) {
         s.configMissing = YES;
         s.unsupportedMessage = YGSTUnsupportedCoreTypeMessage(nil);
@@ -546,12 +581,7 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
              delivery:YGSTRejectResult | YGSTRejectDelegate];
         return;
     }
-    if (_session) {
-        // the running session owns the delegate, so only the blocks of this call hear about it
-        YGSTLogf(YGST_LEVEL_WARN, @"start rejected: session %@ has not finished", _session.tokenId);
-        [self reject:s errId:YGST_ERRID_ENGINE_BUSY message:nil reason:@"engine is busy" delivery:YGSTRejectStartFail];
-        return;
-    }
+    if (![self admitSession:s]) return;
     if ([s.coreProvideType isEqualToString:KYEngineNative]) {
         YGSTLogf(YGST_LEVEL_WARN, @"coreProvideType native: evaluated in the cloud");
     }
@@ -568,6 +598,16 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
         return;
     }
     _session = s;
+    if (s.maxPending > 0) {
+        // 2.3.0: one INFO line per pipelined start with the sessions waiting for their results
+        ygst_buf line;
+        ygst_buf_init(&line);
+        if (ygst_pipe_start_line(s.tokenId.UTF8String, (int)_pending.count, (int)s.maxPending, s.mode == YGSTModeFile,
+                                 &line) == 0) {
+            YGSTLogEmit(YGST_LEVEL_INFO, YGSTStringFromBuf(&line));
+        }
+        ygst_buf_free(&line);
+    }
     YGSTLogf(YGST_LEVEL_INFO, @"session %@: %@ %@, %@", s.tokenId, s.coreType,
              s.mode == YGSTModeFile ? @"file" : (s.mode == YGSTModeStream ? @"stream" : @"microphone"),
              s.streamOverWebSocket ? (s.realtimeFeedback ? @"streamed with reading progress" : @"streamed")
@@ -583,6 +623,41 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
         [self startMicrophoneSession:s];
         break;
     }
+}
+
+/// On the queue. 2.3.0, the busy rule (ygst_pipe_decide_start): YES when s may start now, otherwise s is
+/// refused with 60008 as before 2.3.0. One at a time (s.maxPending 0) any session of the engine makes
+/// the start busy. Pipelined, a stop of the recording session that is still being handled is finished
+/// here first (the audio that reached the queue before this start is in the recording), so that a start
+/// right after stopEngine records at once; the start is busy while a session records, is paused, waits
+/// for permission or for stopEngine, and while more than s.maxPending sessions wait for their results.
+- (BOOL)admitSession:(YGSTSession *)s {
+    int pass;
+    for (pass = 0; pass < 2; pass++) {
+        YGSTSession *current = _session;
+        ygst_pipe_decision d =
+            ygst_pipe_decide_start((int)s.maxPending, current != nil, current.phase == YGSTPhaseStopping,
+                                   (int)_pending.count);
+        if (d == YGST_PIPE_START) return YES;
+        if (d == YGST_PIPE_FINISH_STOP && pass == 0) {
+            [self finalizeCapture:current waitForStop:current.finalizeWaitsForStop];
+            continue;
+        }
+        if (d == YGST_PIPE_BUSY_PENDING) {
+            ygst_buf line;
+            ygst_buf_init(&line);
+            if (ygst_pipe_busy_line((int)_pending.count, (int)s.maxPending, &line) == 0) {
+                YGSTLogEmit(YGST_LEVEL_WARN, YGSTStringFromBuf(&line));
+            }
+            ygst_buf_free(&line);
+        } else {
+            // the running session owns the delegate, so only the blocks of this call hear about it
+            YGSTLogf(YGST_LEVEL_WARN, @"start rejected: session %@ has not finished", current.tokenId);
+        }
+        [self reject:s errId:YGST_ERRID_ENGINE_BUSY message:nil reason:@"engine is busy" delivery:YGSTRejectStartFail];
+        return NO;
+    }
+    return NO;
 }
 
 /// A start that never became the running session, or a recorder that failed while starting.
@@ -638,6 +713,8 @@ typedef NS_OPTIONS(NSUInteger, YGSTRejectDelivery) {
     // the timing line counts from this start as from stopEngine
     s.timing->_t.start_ms = YGSTMonotonicMs();
     s.timing->_t.stop_ms = s.timing->_t.start_ms;
+    // 2.3.0: nothing to record, the evaluation is asked for now (pipelined: in the background at once)
+    [self beginEvaluation:s];
     [self postStarted:s recording:NO];
     data = [NSData dataWithContentsOfFile:s.audioPath options:NSDataReadingMappedIfSafe error:&error];
     if (!data) {
@@ -916,6 +993,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     // the evaluation is asked for now: stopEngine marked it already, else VAD, duration or a limit
     if (!waitForStop && !s.timing->_t.stop_ms) s.timing->_t.stop_ms = YGSTMonotonicMs();
     s.phase = YGSTPhaseStopping;
+    s.finalizeWaitsForStop = waitForStop; // 2.3.0: a pipelined start may finish the stop first
     [self stopTicks:s];
     if (s.mode == YGSTModeMicrophone) [_recorder stop];
     dispatch_async(_q, ^{
@@ -952,6 +1030,9 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     s.uploadAudio = upload;
     s.uploadExtension = ext;
     s.audio = [NSMutableData data];
+    // 2.3.0: the stop is handled, the evaluation is asked for before the record-end callbacks run, so that
+    // pendingEvaluations counts it there and a start from onRecordEndBlock records at once when pipelined
+    if (!check && !waitForStop) [self beginEvaluation:s];
     [self post:s
          block:^(id<KYTestEngineDelegate> d) {
              if (s.onRecordEnd) s.onRecordEnd();
@@ -1050,6 +1131,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
 /// stopEngine: a running WebSocket round sends end and delivers the final itself. Without one, or
 /// when it failed before end, the round is evaluated in one request with the same tokenId.
 - (void)submit:(YGSTSession *)s audio:(NSData *)audio extension:(NSString *)ext {
+    [self beginEvaluation:s]; // forceRecord: stopEngine after the recording ended at duration
     if (s.realtime && [s.realtime finish]) {
         s.phase = YGSTPhaseEvaluating;
         return;
@@ -1058,16 +1140,54 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     [self evaluate:s audio:audio extension:ext];
 }
 
-/// The round failed before end while waiting to send it: REST evaluates the whole recording.
+/// The round failed before end while waiting to send it: REST evaluates the whole recording, for a
+/// pipelined session waiting for its result as for the engine's session.
 - (void)evaluateAfterRealtimeFailed:(YGSTSession *)s {
-    if (s.cancelled || s != _session || s.phase != YGSTPhaseEvaluating) return;
+    if (![self isLive:s] || s.phase != YGSTPhaseEvaluating) return;
     s.realtime = nil;
     [self evaluate:s audio:s.uploadAudio extension:s.uploadExtension ?: @"wav"];
 }
 
-/// eof 0 reading progress through the same callbacks as the result.
+// ------------------------------------------------------------------ pipelined evaluation (2.3.0)
+
+/// The engine's session, or a pipelined session waiting for its result, not cancelled.
+- (BOOL)isLive:(YGSTSession *)s {
+    if (!s || s.cancelled) return NO;
+    return s == _session || [_pending indexOfObjectIdenticalTo:s] != NSNotFound;
+}
+
+/// The evaluation of s is asked for: its stop was handled, stopEngine ended a forceRecord recording, or
+/// an audioPath session started. From here until its final is delivered or it is cancelled it counts in
+/// YuguCompat.pendingEvaluations. Started pipelined, it moves from _session to the pending sessions,
+/// and the next start may record. Idempotent.
+- (void)beginEvaluation:(YGSTSession *)s {
+    if (!s.evaluationCounted) {
+        s.evaluationCounted = YES;
+        [[YGSTSettings shared] addPendingEvaluations:1];
+    }
+    if (ygst_pipe_hands_over((int)s.maxPending) && _session == s) {
+        _session = nil;
+        [_pending addObject:s];
+        YGSTLogf(YGST_LEVEL_DEBUG, @"session %@ evaluates in the background, %lu waiting for their results", s.tokenId,
+                 (unsigned long)_pending.count);
+    }
+}
+
+/// s delivered its final or was cancelled: it is neither the engine's session nor pending any more.
+- (void)endEvaluation:(YGSTSession *)s {
+    if (_session == s) _session = nil;
+    [_pending removeObjectIdenticalTo:s];
+    if (s.evaluationCounted) {
+        s.evaluationCounted = NO;
+        [[YGSTSettings shared] addPendingEvaluations:-1];
+    }
+}
+
+/// eof 0 reading progress through the same callbacks as the result, until the session's final. 2.3.0: a
+/// pipelined session waiting for its result keeps getting its own progress (the tail the platform sends
+/// after the end frame included), as one at a time; nothing after its final, nothing to another session.
 - (void)deliverProgress:(NSString *)json session:(YGSTSession *)s {
-    if (!s || s.cancelled || s != _session || s.phase == YGSTPhaseDone) return;
+    if (![self isLive:s] || s.phase == YGSTPhaseDone) return;
     [self deliverScore:json session:s];
 }
 
@@ -1079,6 +1199,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     NSTimeInterval timeout = [self attemptTimeoutForSession:s];
     __weak KYTestEngine *weakSelf = self;
     s.phase = YGSTPhaseEvaluating;
+    [self beginEvaluation:s];
     // a round that streamed and failed before end falls back to this request
     s.timing->_t.mode = s.timing->_t.mode == YGST_TM_WS ? YGST_TM_WS_REST : YGST_TM_REST;
     req = [YGSTRequest requestWithBaseURL:[self effectiveBaseURL]
@@ -1128,7 +1249,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
 - (void)uploadFinished:(YGSTUploadResult *)result session:(YGSTSession *)s {
     NSString *json = nil;
     int errId = result.success ? 0 : result.errId;
-    if (s.cancelled || s != _session) return;
+    if (![self isLive:s]) return; // cancelled, or replaced by initEngine
     s.uploader = nil;
     if (result.success) {
         json = YGSTResultJSON(result, s.tokenId, _appKey, s.userId, s.refText,
@@ -1148,7 +1269,7 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
 }
 
 - (void)complete:(YGSTSession *)s json:(NSString *)json {
-    if (_session == s) _session = nil;
+    [self endEvaluation:s];
     s.phase = YGSTPhaseDone;
     s.uploadAudio = nil;
     [s.realtime cancel];
@@ -1222,14 +1343,17 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
 }
 
 - (void)detachAndTeardown:(YGSTSession *)s {
+    // the recorder belongs to the engine's session; a pipelined session waiting for its result leaves it
+    // to the session that records now
+    BOOL own = _session == s;
     s.cancelled = YES;
-    if (_session == s) _session = nil;
+    [self endEvaluation:s];
     [self stopTicks:s];
-    if (s.mode == YGSTModeMicrophone && (s.phase == YGSTPhaseCapturing || s.phase == YGSTPhasePaused ||
-                                         s.phase == YGSTPhaseStarting)) {
+    if (own && s.mode == YGSTModeMicrophone && (s.phase == YGSTPhaseCapturing || s.phase == YGSTPhasePaused ||
+                                                s.phase == YGSTPhaseStarting)) {
         [_recorder stop];
     }
-    if (s.mode == YGSTModeMicrophone) [self releaseRecorderHandlers];
+    if (own && s.mode == YGSTModeMicrophone) [self releaseRecorderHandlers];
     [s.uploader cancel];
     s.uploader = nil;
     [s.realtime cancel]; // closes the connection: without end the platform evaluates nothing
@@ -1238,17 +1362,23 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     YGSTLogf(YGST_LEVEL_INFO, @"session %@ cancelled", s.tokenId);
 }
 
+/// The engine's session and (2.3.0) every pipelined session waiting for its result: none of them calls
+/// back afterwards, pendingEvaluations drops by as many.
+- (void)teardownAll {
+    YGSTSession *s = _session;
+    if (s) [self detachAndTeardown:s];
+    for (YGSTSession *p in [_pending copy]) [self detachAndTeardown:p];
+}
+
 - (void)cancelEngine {
     [self onQueueSync:^{
-        YGSTSession *s = self->_session;
-        if (s) [self detachAndTeardown:s];
+        [self teardownAll];
     }];
 }
 
 - (void)deleteEngine {
     [self onQueueSync:^{
-        YGSTSession *s = self->_session;
-        if (s) [self detachAndTeardown:s];
+        [self teardownAll];
         [self->_recorder stop];
         self->_recorder = nil;
         self->_initialized = NO;

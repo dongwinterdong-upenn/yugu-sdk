@@ -89,4 +89,17 @@
     [YGSTSettings shared].throwOnUnsupportedCoreType = throwOnUnsupportedCoreType;
 }
 
++ (NSInteger)maxPendingEvaluations {
+    return [YGSTSettings shared].maxPendingEvaluations;
+}
+
++ (void)setMaxPendingEvaluations:(NSInteger)maxPendingEvaluations {
+    // clamped to 0..16, one INFO line when the stored value changes (YGSTSettings)
+    [YGSTSettings shared].maxPendingEvaluations = maxPendingEvaluations;
+}
+
++ (NSInteger)pendingEvaluations {
+    return [YGSTSettings shared].pendingEvaluations;
+}
+
 @end

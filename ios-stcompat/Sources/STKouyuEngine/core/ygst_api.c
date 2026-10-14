@@ -6,7 +6,8 @@
  * (CONTRACT 2.2, 2.3, 4, 6, 7). The JSON body of a TTS request with its signed parameters, the
  * report path, the absolute audio URL, the fields of the answers, the wait for the AI final draft and
  * the log line of a call. ygst_classify_api (ygst_retry.c) classifies the answers; the Objective-C
- * layer sends the requests with the session and the retry controller of the evaluations.
+ * layer sends the requests with the session and the retry controller of the evaluations. Since 2.3.0
+ * the wait goes on through reportStatus partial as well as pending.
  */
 #include "ygst_core.h"
 
@@ -269,6 +270,15 @@ static int status_is(const ygst_report *r, const char *status) {
 
 int ygst_report_is_pending(const ygst_report *r) {
     return status_is(r, "pending");
+}
+
+int ygst_report_is_partial(const ygst_report *r) {
+    return status_is(r, "partial");
+}
+
+int ygst_report_is_waiting(const ygst_report *r) {
+    /* 2.3.0: partial has the AI summary and suggestions, the dimension comments are still written */
+    return ygst_report_is_pending(r) || ygst_report_is_partial(r);
 }
 
 int ygst_report_is_final(const ygst_report *r) {

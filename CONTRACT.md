@@ -163,7 +163,7 @@ voice 英文取 `female` 或 `male`，中文取 `xiaoyan` 女声或 `xiaofeng` �
 | `reportStatus` | `final` 为 AI 终稿。`pending` 为即时稿，AI 终稿还在生成，稍后再查。`instant` 为即时稿，AI 终稿没有生成出来，不会再变。`none` 为本次评测没有报告 |
 | `timing` | 声通兼容评测才有，字段同兼容评测结果的 `timing`，另有 `channel`，取 `rest` 或 `ws`，保留 7 天 |
 
-AI 终稿在评测返回之后生成，一般中文约 5 秒，英文约 11 秒就绪，`reportStatus` 为 `pending` 时隔 1 秒再查。英文题的 `report` 用英文写，维度为完整度，准确度，流利度，朗读技巧四项，`report.i18n.zh` 另有同样结构的中文版。开放题的点评在 `score.feedback`，随评测结果同步给出，`reportStatus` 恒为 `final`。评测结果 `compositeReport` 里的各项建议是评测当时的即时稿，以 AI 终稿的 `report` 为准。
+AI 终稿在评测返回之后生成，中文与英文一般约 4 秒就绪，`reportStatus` 为 `pending` 时隔 1 秒再查。英文题的 `report` 用英文写，维度为完整度，准确度，流利度，朗读技巧四项，`report.i18n.zh` 另有同样结构的中文版。开放题的点评在 `score.feedback`，随评测结果同步给出，`reportStatus` 恒为 `final`。评测结果 `compositeReport` 里的各项建议是评测当时的即时稿，以 AI 终稿的 `report` 为准。
 
 ## 5 实时评测
 
@@ -344,6 +344,8 @@ SDK 在上传前对 WAV 与 PCM 做预检，模式 OFF，WARN，REJECT，默认 
 平台不评测的内核，例如 `open.eval`，`choice.rec` 与法语，日语，韩语内核，平替层不发请求，回调 `{"tokenId": "...", "errId": 60003, "error": "不支持的评测内核：open.eval", "eof": 1, "applicationId": "..."}`，同时记一行警告日志，未指定内核时写“未指定”。`2.2.0` 起可以打开安卓 `YuguCompat.setThrowOnUnsupportedCoreType(true)` 或 iOS `YuguCompat.throwOnUnsupportedCoreType`，开始评测时直接抛异常，安卓为 `IllegalArgumentException`，iOS 为 `NSInvalidArgumentException`，文案相同，不回调。iOS 的 C 接口 `skegn_start` 不能抛异常，返回 -1，最近错误为 60003。
 
 `2.2.0` 起两个平替层另带语音合成与报告查询，走 4.1 与 4.2 节，用初始化引擎时的 appKey 与 secretKey 签名，也可以单独指定密钥。安卓为 `com.shengzhiai.yugu.stcompat` 包里的 `TtsClient` 与 `ReportClient`，iOS 为 `YuguCompat.h` 里的 `YuguTtsClient` 与 `YuguReportClient`，Swift 名为 `TtsClient` 与 `ReportClient`。报告查询可以设 `waitForFinalMs`，`reportStatus` 为 `pending` 时每秒再查一次，直到不再是 `pending` 或时间用完。日志级别为 INFO 时分段耗时一行另有 `recordId`，可与报告查询返回的 `timing` 对照。
+
+`2.3.0` 起两个平替层可以打开连续评测：安卓 `YuguCompat.setMaxPendingEvaluations(n)`，iOS `YuguCompat.maxPendingEvaluations`，默认 0，与声通一样一次评一题。n 大于 0 时，上一题停止录音后即可开始下一题，最多 n 题同时在等结果，各题的结果按完成先后回调到各自开始时传入的监听器，用结果 JSON 里的 `tokenId` 对应题目。
 
 ## 11 沙箱
 

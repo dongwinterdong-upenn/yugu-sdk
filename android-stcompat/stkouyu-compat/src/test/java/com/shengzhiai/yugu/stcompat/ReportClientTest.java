@@ -34,7 +34,10 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/** ReportClient (SDK 2.2.0) on the fake transport: lookup, parsing, waiting for the final draft, errors, log. */
+/**
+ * ReportClient (SDK 2.2.0) on the fake transport: lookup, parsing, waiting for the final draft
+ * (through pending and, SDK 2.3.0, partial), errors, log.
+ */
 @RunWith(RobolectricTestRunner.class)
 public class ReportClientTest extends CompatTestBase {
     static final String FINAL_DATA = "{\"recordId\":\"eval_3fb45f4c8e71\",\"score\":{\"overall\":88.5,\"integrity\":100,"
@@ -188,6 +191,62 @@ public class ReportClientTest extends CompatTestBase {
             // ok
         }
         assertEquals(15000, new ReportOptions().setWaitForFinalMs(15000).getWaitForFinalMs());
+    }
+
+    /** SDK 2.3.0: partial (summary and suggestions ready, comments per dimension not yet) keeps the wait going. */
+    @Test
+    public void waitForFinalPollsThroughPartialAndStopsAtFinal() throws Exception {
+        transport.respond(200, status("eval_q", "pending"));
+        transport.respond(200, status("eval_q", "partial"));
+        transport.respond(200, status("eval_q", "partial"));
+        transport.respond(200, status("eval_q", "final"));
+        transport.respond(200, status("eval_q", "pending"));
+        ReportClient c = ReportClient.create("ak", "sk");
+        ReportResult r = offMain(() -> c.getReport("eval_q", new ReportOptions().setWaitForFinalMs(20000)));
+        assertTrue(r.isFinal());
+        assertEquals("final", r.getReportStatus());
+        assertEquals("s-final", r.getSummary());
+        assertEquals(4, r.getLookups());
+        assertEquals("no lookup after final", 4, transport.count());
+        assertEquals("three pauses between four lookups", 3, sleeps.size());
+        List<String> info = linesStartingWith("3 report ");
+        assertEquals(String.valueOf(lines), 1, info.size());
+        assertTrue(info.get(0), info.get(0).matches("3 report recordId=eval_q status=final lookups=4 attempts=4 ms=\\d+"));
+    }
+
+    @Test
+    public void partialIsNotFinalAndIsReturnedWhenTheTimeIsUsedUp() throws Exception {
+        ReportClient c = ReportClient.create("ak", "sk");
+        transport.defaultBody(status("eval_q", "partial"));
+        ReportResult once = offMain(() -> c.getReport("eval_q", null));
+        assertEquals("partial", once.getReportStatus());
+        assertFalse(once.isFinal());
+        assertFalse(once.isPending());
+        assertEquals("s-partial", once.getSummary());
+        assertEquals(1, once.getLookups());
+        // 2500 ms: lookups at 0, 1000 and 2000 ms, then the latest partial answer
+        ReportResult waited = offMain(() -> c.getReport("eval_q", new ReportOptions().setWaitForFinalMs(2500)));
+        assertEquals("partial", waited.getReportStatus());
+        assertFalse(waited.isFinal());
+        assertEquals(3, waited.getLookups());
+        assertEquals(4, transport.count());
+        List<String> info = linesStartingWith("3 report recordId=eval_q status=partial lookups=3 ");
+        assertEquals(String.valueOf(lines), 1, info.size());
+        // a partial answer then a status that is neither pending nor partial ends the wait
+        transport.respond(200, status("eval_i", "partial"));
+        transport.respond(200, status("eval_i", "instant"));
+        ReportResult instant = offMain(() -> c.getReport("eval_i", new ReportOptions().setWaitForFinalMs(20000)));
+        assertEquals("instant", instant.getReportStatus());
+        assertEquals(2, instant.getLookups());
+        // the asynchronous call waits the same way
+        transport.respond(200, status("eval_a", "partial"));
+        transport.respond(200, status("eval_a", "final"));
+        Recorder rec = new Recorder();
+        c.getReportAsync("eval_a", new ReportOptions().setWaitForFinalMs(3000), rec);
+        Main.await("onSuccess", 5000, () -> rec.calls > 0);
+        assertTrue(rec.onMain);
+        assertTrue(rec.result.isFinal());
+        assertEquals(2, rec.result.getLookups());
     }
 
     @Test

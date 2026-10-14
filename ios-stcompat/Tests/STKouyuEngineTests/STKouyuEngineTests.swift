@@ -56,7 +56,7 @@ final class SwiftSurfaceTests: XCTestCase {
         XCTAssertEqual(KY_MultiEngine.rawValue, 2)
         XCTAssertEqual(KYTestType_Wordspell.rawValue, 22)
         XCTAssertEqual(KYCompress_Speex.rawValue, 1)
-        XCTAssertEqual(STKouyuEngineVersionNumber, 2.2)
+        XCTAssertEqual(STKouyuEngineVersionNumber, 2.3)
     }
 
     func testEngineSelectorsCompile() {
@@ -120,8 +120,8 @@ final class SwiftSurfaceTests: XCTestCase {
     }
 
     func testYuguCompatSettings() {
-        XCTAssertEqual(YuguCompat.sdkVersion, "2.2.0")
-        XCTAssertEqual(YuguCompat.userAgent, "yugu-ios-stcompat-sdk/2.2.0")
+        XCTAssertEqual(YuguCompat.sdkVersion, "2.3.0")
+        XCTAssertEqual(YuguCompat.userAgent, "yugu-ios-stcompat-sdk/2.3.0")
         XCTAssertEqual(YuguCompat.defaultBaseURL, "https://open.shengzhiai.com")
         YuguCompat.baseURL = "ftp://nope"
         XCTAssertNil(YuguCompat.baseURL)
@@ -333,8 +333,87 @@ final class TimingAndCompressionTests: XCTestCase {
         XCTAssertNil(YGSTCheckTimingServerRest(env.0, env.1, 60, &report))
         print("REST timing: " + ((report as String?) ?? "-"))
     }
+
+    /// 2.3.0 reportStatus partial, which the shared mock does not answer: timing_server.py gives the
+    /// statuses of a recordId in turn.
+    func testReportPollsThroughPartial() {
+        guard let env = environment() else { return }
+        XCTAssertNil(YGSTCheckReportPartial(env.0, 30))
+    }
 }
 #endif
+
+/// 2.3.0 pipelined evaluation (YuguCompat.maxPendingEvaluations) through the Objective-C API against the
+/// mock platform: the default refuses the next start as in 2.2.0, three evaluations in flight deliver in
+/// completion order to their own blocks, the cap, cancel, a pending session falling back to one request,
+/// and audioPath sessions counted as pending. The delays come from the mock's fault queue
+/// (ws-delay-result, slow); every check sets the switch back to 0.
+final class PipelinedEvaluationTests: XCTestCase {
+    private func mock() throws -> (String, String) {
+        let env = ProcessInfo.processInfo.environment
+        guard let base = env["YUGU_MOCK_BASE_URL"], let spec = env["YUGU_SPEC_DIR"] else {
+            throw XCTSkip("YUGU_MOCK_BASE_URL and YUGU_SPEC_DIR are not set")
+        }
+        return (base, spec)
+    }
+
+    func testSwitchClampsAndLogsChanges() {
+        XCTAssertNil(YGSTCheckPipelineSetting())
+        XCTAssertEqual(YuguCompat.maxPendingEvaluations, 0)
+    }
+
+    /// The Swift names, and the Swift line of README.md.
+    func testSwiftNames() {
+        XCTAssertEqual(YuguCompat.maxPendingEvaluations, 0)
+        XCTAssertEqual(YuguCompat.pendingEvaluations, 0)
+        YuguCompat.maxPendingEvaluations = 3
+        XCTAssertEqual(YuguCompat.maxPendingEvaluations, 3)
+        YuguCompat.maxPendingEvaluations = 99
+        XCTAssertEqual(YuguCompat.maxPendingEvaluations, 16)
+        YuguCompat.maxPendingEvaluations = -1
+        XCTAssertEqual(YuguCompat.maxPendingEvaluations, 0)
+        let pending: Int = YuguCompat.pendingEvaluations
+        XCTAssertEqual(pending, 0)
+        YuguCompat.maxPendingEvaluations = 3
+        print(YuguCompat.pendingEvaluations)
+        YuguCompat.maxPendingEvaluations = 0
+    }
+
+    func testDefaultOffRefusesTheNextStart() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckPipelineDefaultOff(base, spec, 30))
+    }
+
+    func testThreeInFlightDeliverInCompletionOrder() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckPipelineThreeInFlight(base, spec, 30))
+    }
+
+    func testCapRefusesUntilAResult() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckPipelineCap(base, spec, 30))
+    }
+
+    func testCancelEndsEveryPendingSession() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckPipelineCancel(base, spec, 30))
+    }
+
+    func testPendingSessionFallsBackToOneRequest() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckPipelineFallback(base, spec, 30))
+    }
+
+    func testAudioPathSessionsCountAsPending() throws {
+        let (base, spec) = try mock()
+        XCTAssertNil(YGSTCheckPipelineFileSessions(base, spec, 30))
+    }
+
+    override func tearDown() {
+        YuguCompat.maxPendingEvaluations = 0
+        super.tearDown()
+    }
+}
 
 /// 2.2.0 unsupported coreType: the text, the WARN line and YuguCompat.throwOnUnsupportedCoreType. Swift
 /// cannot catch Objective-C exceptions, so the Objective-C checks throw and catch them.

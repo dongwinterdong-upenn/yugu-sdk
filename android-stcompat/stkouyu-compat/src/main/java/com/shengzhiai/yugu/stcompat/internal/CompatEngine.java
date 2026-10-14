@@ -27,8 +27,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Engine behind {@code SkEgnManager} (DESIGN 6): cloud only, one evaluation at a time, every
- * listener callback on the main thread.
+ * Engine behind {@code SkEgnManager} (DESIGN 6): cloud only, every listener callback on the main
+ * thread. By default one evaluation at a time:
  *
  * <pre>
  * IDLE -startRecord-> RECORDING -pauseRecord-> PAUSED -restartRecord-> RECORDING
@@ -39,6 +39,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * A new session may start once the previous result was delivered; until then the engine is busy
  * (onStartRecordFail("engine is busy") or errId 60008).
+ *
+ * <p>Pipelined evaluation (SDK 2.3.0, {@code YuguCompat.setMaxPendingEvaluations(n)}, n read at each
+ * start): a session whose recording ended stays in {@link #pending} until its final result is
+ * delivered, and a new session starts unless a session is recording or paused or more than n
+ * sessions are pending. With n = 0 that is exactly the rule above. Every session keeps its own
+ * tokenId, listeners, file, realtime round and requests; results arrive in completion order. The
+ * status follows the recording session: a pipelined session goes from STOP back to IDLE once its
+ * stop is handled (capture ended, file complete), and a pipelined existsAudioTrans leaves it IDLE.
+ * cancel and recycle end the recording session and every pending one without further callbacks.
  */
 public final class CompatEngine {
     /** At most 2 extra submissions for autoRetry. */
@@ -105,6 +114,11 @@ public final class CompatEngine {
         final boolean streaming;
         /** The log level was INFO or DEBUG at the start: requests carry timing=1 (SDK 2.1.1). */
         final boolean timing;
+        /**
+         * Started with {@code YuguCompat.setMaxPendingEvaluations(n)}, n &gt; 0 (SDK 2.3.0): the status
+         * goes back to IDLE once the stop is handled, while the evaluation goes on.
+         */
+        final boolean pipelined;
         final EvalTiming phases;
         final CancelToken token = new CancelToken();
         final WavStreamStripper stripper = new WavStreamStripper();
@@ -140,8 +154,9 @@ public final class CompatEngine {
         Runnable tickTask;
 
         Session(String tokenId, RecordSetting setting, Config config, OnRecorderListener rl, OnRecordListener l,
-                boolean stream, boolean fileMode) {
+                boolean stream, boolean fileMode, boolean pipelined) {
             this.tokenId = tokenId;
+            this.pipelined = pipelined;
             this.setting = setting;
             this.config = config;
             this.coreType = setting.getCoreType() == null ? "" : setting.getCoreType().trim();
@@ -171,12 +186,24 @@ public final class CompatEngine {
     private final Object startLock = new Object();
     private volatile Context context;
     private final Player player = new Player();
+    /**
+     * Guards the audio focus of muteMusic (SDK 2.3.0): pipelined sessions overlap, so the focus is
+     * abandoned only when the last session holding it restores the music.
+     */
+    private final Object musicLock = new Object();
+    /** Sessions holding the audio focus, guarded by musicLock. */
+    private int musicHolders;
 
     // guarded by lock
     private Config config;
     private boolean initialized;
     private SkEgnManager.engine_status status = SkEgnManager.engine_status.IDLE;
     private Session current;
+    /**
+     * Sessions whose recording ended, and file evaluations, without a delivered final result, oldest
+     * first; cancelled sessions are removed (SDK 2.3.0). Without pipelining it holds at most current.
+     */
+    private final ArrayList<Session> pending = new ArrayList<Session>();
     private String lastRecordPath;
     private OnRecorderListener defaultRecorderListener;
     private OnPlayerListener playerListener;
@@ -393,6 +420,8 @@ public final class CompatEngine {
 
     private void startRecordLocked(RecordSetting s, OnRecorderListener rl, OnRecordListener l) {
         final Session session;
+        final int max;
+        final int pendingAtStart;
         synchronized (lock) {
             if (rl == null && l == null) {
                 rl = defaultRecorderListener;
@@ -402,8 +431,9 @@ public final class CompatEngine {
                         CompatErrIds.message(CompatErrIds.ENGINE_NOT_INITIALIZED), null);
                 return;
             }
-            if (busyLocked()) {
-                YLog.w("startRecord rejected: engine is busy (" + status + ")");
+            max = CompatConfig.maxPendingEvaluations();
+            if (busyLocked(max)) {
+                YLog.w("startRecord rejected: engine is busy (" + status + busyDetailLocked(max) + ")");
                 if (rl != null) {
                     postStartFail(rl, "engine is busy");
                 } else {
@@ -417,7 +447,8 @@ public final class CompatEngine {
                 postEarlyError("startRecord", rl, l, invalid, FormMapper.rejection(s, invalid), config.appKey);
                 return;
             }
-            session = new Session(Codec.newTokenId(), s, config, rl, l, s.getIsStream(), false);
+            session = new Session(Codec.newTokenId(), s, config, rl, l, s.getIsStream(), false, max > 0);
+            pendingAtStart = pending.size();
             boolean vadOn = config.vadEnabled || s.isVADEnabled();
             session.vad = new EnergyVad(s.getSeek(), s.getRef_length());
             session.reportRecording = vadOn || s.isNeedSoundIntensity();
@@ -432,7 +463,8 @@ public final class CompatEngine {
             status = SkEgnManager.engine_status.RECORDING;
         }
         try {
-            session.file = recordFile(s, session.tokenId);
+            File f = recordFile(s, session.tokenId);
+            session.file = session.pipelined ? ownRecordFile(f, session.tokenId) : f;
             session.writer = new Wav.Writer(session.file, Wav.SAMPLE_RATE, Wav.CHANNELS);
         } catch (IOException e) {
             abortStart(session, CompatErrIds.AUDIO_FILE_MISSING, "cannot create record file: " + e.getMessage());
@@ -455,7 +487,7 @@ public final class CompatEngine {
             }
         }
         if (s.isMuteMusic()) {
-            session.mutedMusic = DeviceUtils.muteAudioFocus(context, true);
+            muteMusic(session);
         }
         synchronized (lock) {
             lastRecordPath = session.file.getAbsolutePath();
@@ -463,6 +495,9 @@ public final class CompatEngine {
         YLog.i("recording started tokenId=" + session.tokenId + " coreType=" + session.coreType
                 + (session.stream ? " (stream)" : "") + (session.realtime ? " (realtime_feedback)" : "")
                 + (session.streaming ? " (streaming upload)" : " (upload after stop)"));
+        if (session.pipelined) {
+            logPipelinedStart(session, pendingAtStart, max);
+        }
         if (session.round != null) {
             session.round.start();
         }
@@ -656,7 +691,7 @@ public final class CompatEngine {
                 return;
             }
             status = SkEgnManager.engine_status.STOP;
-            s.evaluating = true;
+            markPendingLocked(s);
         }
         s.phases.stop();
         stopTicks(s);
@@ -675,6 +710,7 @@ public final class CompatEngine {
                 }
                 closeWriter(s);
                 restoreMusic(s);
+                stopHandled(s);
                 deliverFinal(s, Envelope.error(s.tokenId, errId, reason, s.config.appKey));
             }
         });
@@ -723,7 +759,7 @@ public final class CompatEngine {
                 return;
             }
             status = SkEgnManager.engine_status.STOP;
-            s.evaluating = true;
+            markPendingLocked(s);
         }
         s.phases.stop();
         stopTicks(s);
@@ -758,6 +794,8 @@ public final class CompatEngine {
         }
         s.phases.audioPcm(s.pcmBytes);
         YLog.i("recording ended tokenId=" + s.tokenId + " pcmBytes=" + s.pcmBytes);
+        // a pipelined session is IDLE again before its onRecordEnd, so the app can start the next item there
+        stopHandled(s);
         MainThread.post(new Runnable() {
             @Override
             public void run() {
@@ -790,10 +828,31 @@ public final class CompatEngine {
         }
     }
 
+    /** RecordSetting.muteMusic: requests the transient audio focus for the session. */
+    private void muteMusic(Session s) {
+        synchronized (musicLock) {
+            s.mutedMusic = DeviceUtils.muteAudioFocus(context, true);
+            if (s.mutedMusic) {
+                musicHolders++;
+            }
+        }
+    }
+
+    /**
+     * Gives the audio focus back when the last session holding it ends: a pipelined session ends
+     * while the next recording may already hold the focus again (SDK 2.3.0). Without pipelining one
+     * session holds it at a time, so this is the request and abandon pair of 2.2.0.
+     */
     private void restoreMusic(Session s) {
-        if (s.mutedMusic) {
+        synchronized (musicLock) {
+            if (!s.mutedMusic) {
+                return;
+            }
             s.mutedMusic = false;
-            DeviceUtils.muteAudioFocus(context, false);
+            musicHolders = Math.max(0, musicHolders - 1);
+            if (musicHolders == 0) {
+                DeviceUtils.muteAudioFocus(context, false);
+            }
         }
     }
 
@@ -810,13 +869,16 @@ public final class CompatEngine {
         RecordSetting s = setting != null ? setting : new RecordSetting();
         FormMapper.throwIfUnsupported("existsAudioTrans", s);
         final Session session;
+        final int max;
+        final int pendingAtStart;
         synchronized (lock) {
             if (!initialized || config == null) {
                 postEarlyError("existsAudioTrans", rl, l, CompatErrIds.ENGINE_NOT_INITIALIZED,
                         CompatErrIds.message(CompatErrIds.ENGINE_NOT_INITIALIZED), null);
                 return;
             }
-            if (busyLocked()) {
+            max = CompatConfig.maxPendingEvaluations();
+            if (busyLocked(max)) {
                 postEarlyError("existsAudioTrans", rl, l, CompatErrIds.ENGINE_BUSY,
                         CompatErrIds.message(CompatErrIds.ENGINE_BUSY), config.appKey);
                 return;
@@ -826,13 +888,18 @@ public final class CompatEngine {
                 postEarlyError("existsAudioTrans", rl, l, invalid, FormMapper.rejection(s, invalid), config.appKey);
                 return;
             }
-            session = new Session(Codec.newTokenId(), s, config, rl, l, false, true);
+            session = new Session(Codec.newTokenId(), s, config, rl, l, false, true, max > 0);
+            pendingAtStart = pending.size();
             current = session;
-            status = SkEgnManager.engine_status.STOP;
-            session.evaluating = true;
+            // a pipelined file evaluation counts as pending at once; the status follows recordings only
+            status = session.pipelined ? SkEgnManager.engine_status.IDLE : SkEgnManager.engine_status.STOP;
+            markPendingLocked(session);
             if (s.getAudioPath() != null) {
                 lastRecordPath = s.getAudioPath();
             }
+        }
+        if (session.pipelined) {
+            logPipelinedStart(session, pendingAtStart, max);
         }
         // no recording to stop: the timing log counts from this call
         session.phases.stop();
@@ -1151,8 +1218,8 @@ public final class CompatEngine {
     }
 
     /**
-     * Posts the final JSON; the session stops being busy right before the callback runs, and the
-     * timing summary is logged right before it too.
+     * Posts the final JSON; the session stops being busy (and pending) right before the callback
+     * runs, and the timing summary is logged right before it too.
      */
     private void deliverFinal(final Session s, final String json) {
         MainThread.post(new Runnable() {
@@ -1163,6 +1230,7 @@ public final class CompatEngine {
                         return;
                     }
                     s.evaluating = false;
+                    pending.remove(s);
                 }
                 s.finalDelivered = true;
                 s.phases.delivered();
@@ -1207,6 +1275,23 @@ public final class CompatEngine {
         });
     }
 
+    /**
+     * Whether a new start is refused as busy; {@code max} is the pipelined evaluation switch read at
+     * this start. 0: the rule of 2.2.0, busy while the current session records, is paused or waits
+     * for its result (pending can only hold current then; a session left from a pipelined time still
+     * counts). n &gt; 0 (SDK 2.3.0): busy while a session records or is paused, or while more than n
+     * sessions wait for their result, so a new recording may run beside up to n pending ones.
+     */
+    private boolean busyLocked(int max) {
+        if (max <= 0) {
+            return busyLocked() || !pending.isEmpty();
+        }
+        Session s = current;
+        boolean recording = s != null && !s.cancelled && (status == SkEgnManager.engine_status.RECORDING
+                || status == SkEgnManager.engine_status.PAUSED);
+        return recording || pending.size() > max;
+    }
+
     private boolean busyLocked() {
         Session s = current;
         if (s == null || s.cancelled) {
@@ -1214,6 +1299,39 @@ public final class CompatEngine {
         }
         return status == SkEgnManager.engine_status.RECORDING || status == SkEgnManager.engine_status.PAUSED
                 || s.evaluating;
+    }
+
+    /** Pending count and switch for the busy log line of a pipelined start, "" without pipelining. */
+    private String busyDetailLocked(int max) {
+        return max > 0 ? ", pending=" + pending.size() + " maxPendingEvaluations=" + max : "";
+    }
+
+    /** The session stopped recording (or is a file evaluation): it waits for its result. */
+    private void markPendingLocked(Session s) {
+        s.evaluating = true;
+        if (!pending.contains(s)) {
+            pending.add(s);
+        }
+    }
+
+    /**
+     * A pipelined session's stop is handled (capture ended, file complete): the status is IDLE again
+     * unless a newer session started meanwhile. Sessions without pipelining stay in STOP as before.
+     */
+    private void stopHandled(Session s) {
+        if (!s.pipelined) {
+            return;
+        }
+        synchronized (lock) {
+            if (current == s && !s.cancelled && status == SkEgnManager.engine_status.STOP) {
+                status = SkEgnManager.engine_status.IDLE;
+            }
+        }
+    }
+
+    private static void logPipelinedStart(Session s, int pendingAtStart, int max) {
+        YLog.i("pipelined evaluation tokenId=" + s.tokenId + " pending=" + pendingAtStart + " maxPendingEvaluations=" + max
+                + (s.fileMode ? " (existsAudioTrans)" : ""));
     }
 
     // ================================================================ ticks (main thread)
@@ -1356,7 +1474,10 @@ public final class CompatEngine {
         });
     }
 
-    /** Stops and discards the current session; no further callbacks. Idempotent. */
+    /**
+     * Stops and discards the current session and, with pipelined evaluation, every session waiting
+     * for its result; no further callbacks from any of them. Idempotent.
+     */
     public void cancel() {
         synchronized (startLock) {
             cancelLocked();
@@ -1364,16 +1485,30 @@ public final class CompatEngine {
     }
 
     private void cancelLocked() {
-        final Session s;
+        List<Session> cancelled = new ArrayList<Session>();
         synchronized (lock) {
-            s = current;
+            Session s = current;
             current = null;
             status = SkEgnManager.engine_status.IDLE;
-            if (s == null || s.cancelled) {
-                return;
+            if (s != null && !s.cancelled) {
+                s.cancelled = true;
+                cancelled.add(s);
             }
-            s.cancelled = true;
+            for (Session p : pending) {
+                if (!p.cancelled) {
+                    p.cancelled = true;
+                    cancelled.add(p);
+                }
+            }
+            pending.clear();
         }
+        for (Session s : cancelled) {
+            discard(s);
+        }
+    }
+
+    /** Ends a cancelled session: the round and any request in flight, ticks, capture, file, audio focus. */
+    private void discard(final Session s) {
         YLog.i("session cancelled tokenId=" + s.tokenId);
         s.token.cancel();
         stopTicks(s);
@@ -1434,6 +1569,11 @@ public final class CompatEngine {
             if (current != null) {
                 current.recorderListener = null;
                 current.recordListener = null;
+            }
+            // pipelined sessions waiting for their result hold listeners too
+            for (Session p : pending) {
+                p.recorderListener = null;
+                p.recordListener = null;
             }
         }
     }
@@ -1608,6 +1748,22 @@ public final class CompatEngine {
         }
     }
 
+    /**
+     * Sessions whose recording ended, and file evaluations, that have not delivered their final
+     * result (SDK 2.3.0); the count drops right before the final callback runs.
+     */
+    public int pendingEvaluations() {
+        synchronized (lock) {
+            return pending.size();
+        }
+    }
+
+    /** {@link #pendingEvaluations()} of the process-wide engine, 0 when none was created. */
+    public static int pendingCount() {
+        CompatEngine e = instance;
+        return e == null ? 0 : e.pendingEvaluations();
+    }
+
     private ExecutorService executor() {
         synchronized (lock) {
             if (executor == null) {
@@ -1644,6 +1800,35 @@ public final class CompatEngine {
         File d = !Codec.isBlank(dir) ? new File(dir.trim()) : new File(AiUtil.externalFilesDir(context), "record");
         String n = !Codec.isBlank(name) ? name.trim() : tokenId + ".wav";
         return new File(d, n);
+    }
+
+    /**
+     * The record file of a pipelined recording (SDK 2.3.0): a fixed recordName or recordFilePath, fine
+     * one at a time, would truncate the file of a session still waiting for its result, which its
+     * pre-check, a REST upload or the fallback after a broken channel read. Then this recording goes
+     * to {@code <name>-<tokenId><extension>} in the same directory instead, with one WARN line;
+     * getLastRecordPath returns the file used.
+     */
+    private File ownRecordFile(File f, String tokenId) {
+        File want = f.getAbsoluteFile();
+        synchronized (lock) {
+            boolean taken = false;
+            for (Session p : pending) {
+                if (p.file != null && p.file.getAbsoluteFile().equals(want)) {
+                    taken = true;
+                    break;
+                }
+            }
+            if (!taken) {
+                return f;
+            }
+        }
+        String name = f.getName();
+        int dot = name.lastIndexOf('.');
+        String own = dot > 0 ? name.substring(0, dot) + "-" + tokenId + name.substring(dot) : name + "-" + tokenId;
+        YLog.w("record file " + name + " still belongs to an evaluation waiting for its result; tokenId " + tokenId
+                + " records to " + own);
+        return new File(want.getParentFile(), own);
     }
 
     private static boolean hasAudioExtension(String path) {

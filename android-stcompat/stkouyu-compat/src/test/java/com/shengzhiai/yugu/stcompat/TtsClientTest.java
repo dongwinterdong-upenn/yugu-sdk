@@ -205,8 +205,8 @@ public class TtsClientTest extends CompatTestBase {
         assertEquals("ak", call.header("X-App-Key"));
         assertTrue(call.header("X-Timestamp").matches("\\d{10}"));
         assertTrue(call.header("X-Nonce").matches("[0-9a-f]{32}"));
-        assertEquals("yugu-stkouyu-compat/2.2.0", call.header("User-Agent"));
-        assertEquals("yugu-stkouyu-compat/2.2.0", call.header("X-Yugu-SDK"));
+        assertEquals("yugu-stkouyu-compat/2.3.0", call.header("User-Agent"));
+        assertEquals("yugu-stkouyu-compat/2.3.0", call.header("X-Yugu-SDK"));
         assertEquals("application/json", call.header("Accept"));
         String key = call.header("Idempotency-Key");
         assertTrue(key, key.matches("[0-9a-f]{32}"));

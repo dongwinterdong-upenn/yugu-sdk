@@ -53,6 +53,9 @@ static NSURLSession *YGSTWebSocketSession(void) {
         // the round's own timers bound the handshake, the heartbeat and the wait for the result
         c.timeoutIntervalForRequest = 3600;
         c.timeoutIntervalForResource = 24 * 3600;
+        // 2.3.0: every pipelined evaluation keeps its own connection open until its final (up to 16
+        // waiting plus the recording one), more than the system's 4 or 6 connections per host
+        c.HTTPMaximumConnectionsPerHost = YGST_PIPE_MAX_PENDING * 2;
         session = [NSURLSession sessionWithConfiguration:c];
     });
     return session;

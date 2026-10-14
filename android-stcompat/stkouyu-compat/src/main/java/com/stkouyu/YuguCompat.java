@@ -2,6 +2,7 @@
 package com.stkouyu;
 
 import com.shengzhiai.yugu.stcompat.internal.CompatConfig;
+import com.shengzhiai.yugu.stcompat.internal.CompatEngine;
 import com.shengzhiai.yugu.stcompat.internal.RetryPolicy;
 import com.shengzhiai.yugu.stcompat.internal.YLog;
 
@@ -13,7 +14,7 @@ import com.shengzhiai.yugu.stcompat.internal.YLog;
  */
 public final class YuguCompat {
     /** Version of the compat layer. */
-    public static final String VERSION = "2.2.0";
+    public static final String VERSION = "2.3.0";
 
     public static final int LOG_OFF = 0;
     public static final int LOG_ERROR = 1;
@@ -109,14 +110,53 @@ public final class YuguCompat {
         return CompatConfig.throwOnUnsupportedCoreType();
     }
 
-    /** Version string, {@code yugu-stkouyu-compat/2.2.0 (api 1.0.62)}. */
+    /**
+     * Pipelined evaluation (SDK 2.3.0), for reading a group of items in a row: the next item can be
+     * recorded while the results of earlier ones are still on their way.
+     *
+     * <p>0 (default): one evaluation at a time as in the Shengtong SDK; until the previous result was
+     * delivered, {@code startRecord} answers {@code onStartRecordFail("engine is busy")} or errId 60008.
+     * n &gt; 0: a new {@code startRecord} or {@code existsAudioTrans} is refused the same way only while
+     * a recording runs or is paused, or while more than n sessions wait for their result; so a new
+     * recording may run while up to n earlier sessions are still evaluated. Every session keeps its
+     * own tokenId, listener, record file and network connection (a recordName still used by a waiting
+     * session becomes {@code <name>-<tokenId>.wav}); each result goes to the listener
+     * passed to its own start, on the main thread, in the order the evaluations finish. The result
+     * JSON carries {@code tokenId} and {@code recordId} to tell the evaluations apart.
+     * {@code getEngineStatus()} follows the recording: after a stop it is IDLE again as soon as the
+     * stop is handled, before {@code onRecordEnd}, while that evaluation goes on.
+     * {@code cancel()} and {@code recycle()} end the recording and every waiting session, none of
+     * them calls back afterwards.
+     *
+     * <p>Values are clamped to 0..16, negative means 0. Read when a recording or file evaluation
+     * starts. A change logs one INFO line.
+     */
+    public static void setMaxPendingEvaluations(int n) {
+        CompatConfig.setMaxPendingEvaluations(n);
+    }
+
+    /** The pipelined evaluation switch, see {@link #setMaxPendingEvaluations(int)}; 0 when off. */
+    public static int getMaxPendingEvaluations() {
+        return CompatConfig.maxPendingEvaluations();
+    }
+
+    /**
+     * Sessions whose recording ended (and file evaluations) that have not delivered their final
+     * result yet, for example to show progress while a group is evaluated (SDK 2.3.0). A session
+     * stops counting right before its final callback runs, and cancel or recycle set it to 0.
+     */
+    public static int pendingEvaluations() {
+        return CompatEngine.pendingCount();
+    }
+
+    /** Version string, {@code yugu-stkouyu-compat/2.3.0 (api 1.0.62)}. */
     public static String getVersion() {
         return CompatConfig.SDK_VERSION;
     }
 
     /**
-     * Restores base URL, log level, retry policy, timeouts, streaming upload and the exception for an
-     * unsupported coreType to their defaults.
+     * Restores base URL, log level, retry policy, timeouts, streaming upload, the exception for an
+     * unsupported coreType and pipelined evaluation (off) to their defaults.
      */
     public static void reset() {
         CompatConfig.setBaseUrlOverride(null);
@@ -124,6 +164,7 @@ public final class YuguCompat {
         CompatConfig.setTimeouts(0, 0, 0);
         CompatConfig.setStreamUpload(true);
         CompatConfig.setThrowOnUnsupportedCoreType(false);
+        CompatConfig.setMaxPendingEvaluations(0);
         YLog.resetLevel();
     }
 }

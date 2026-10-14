@@ -9,7 +9,7 @@ actions:
   - { label: 从声通迁移, href: 'page:migrate-shengtong' }
 facts:
   - { k: 当前版本, v: 2.1.1，iOS 2.1.0 }
-  - { k: 声通平替, v: 2.2.0 }
+  - { k: 声通平替, v: 2.3.0 }
   - { k: 服务基址, v: open.shengzhiai.com }
   - { k: 许可, v: Apache-2.0 }
 code:

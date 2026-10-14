@@ -6,10 +6,10 @@ import java.util.Random;
 /**
  * Process-wide configuration of the compat layer, set through {@code com.stkouyu.YuguCompat}
  * (base URL, log level, retry policy, timeouts, streaming upload, exception for an unsupported
- * coreType) and by tests (transport, WebSocket connector, audio input, sleeper).
+ * coreType, pipelined evaluation) and by tests (transport, WebSocket connector, audio input, sleeper).
  */
 public final class CompatConfig {
-    public static final String VERSION = "2.2.0";
+    public static final String VERSION = "2.3.0";
     public static final String API_VERSION = "1.0.62";
     public static final String SDK_VERSION = "yugu-stkouyu-compat/" + VERSION + " (api " + API_VERSION + ")";
     public static final String USER_AGENT = "yugu-stkouyu-compat/" + VERSION;
@@ -22,6 +22,8 @@ public final class CompatConfig {
     public static final long MAX_AUDIO_BYTES = 50L * 1024 * 1024;
     /** Longest audio evaluated: recordings stop here, longer WAV and PCM is rejected locally with errId 60009. */
     public static final int MAX_AUDIO_SECONDS = 300;
+    /** Upper bound of {@link #setMaxPendingEvaluations(int)} (SDK 2.3.0). */
+    public static final int MAX_PENDING_EVALUATIONS = 16;
 
     private static volatile String baseUrlOverride;
     private static volatile RetryPolicy retryPolicy = RetryPolicy.DEFAULT;
@@ -30,6 +32,8 @@ public final class CompatConfig {
     private static volatile long totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS;
     private static volatile boolean streamUpload = true;
     private static volatile boolean throwOnUnsupportedCoreType;
+    private static final Object PIPELINE_LOCK = new Object();
+    private static volatile int maxPendingEvaluations;
     private static volatile HttpTransport transport = new UrlConnectionTransport();
     private static volatile WsConnection.Connector wsConnector = WsClient.CONNECTOR;
     private static volatile AudioInput.Factory audioInputFactory = AudioRecordInput.FACTORY;
@@ -103,6 +107,31 @@ public final class CompatConfig {
         throwOnUnsupportedCoreType = enabled;
     }
 
+    /**
+     * Pipelined evaluation (SDK 2.3.0): 0 (default) is one evaluation at a time as before; n &gt; 0
+     * lets a new recording start while up to n earlier sessions still wait for their result. Read
+     * when a recording or a file evaluation starts.
+     */
+    public static int maxPendingEvaluations() {
+        return maxPendingEvaluations;
+    }
+
+    /**
+     * Sets the pipelined evaluation switch, clamped to 0..{@link #MAX_PENDING_EVALUATIONS} (negative
+     * means 0), and logs one INFO line when the value changes.
+     */
+    public static void setMaxPendingEvaluations(int n) {
+        int v = n < 0 ? 0 : Math.min(n, MAX_PENDING_EVALUATIONS);
+        int old;
+        synchronized (PIPELINE_LOCK) {
+            old = maxPendingEvaluations;
+            maxPendingEvaluations = v;
+        }
+        if (old != v) {
+            YLog.i("pipelined evaluation " + (v > 0 ? "on" : "off") + ": maxPendingEvaluations=" + v + " (was " + old + ")");
+        }
+    }
+
     public static HttpTransport transport() {
         return transport;
     }
@@ -153,6 +182,9 @@ public final class CompatConfig {
         totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS;
         streamUpload = true;
         throwOnUnsupportedCoreType = false;
+        synchronized (PIPELINE_LOCK) {
+            maxPendingEvaluations = 0;
+        }
         transport = new UrlConnectionTransport();
         wsConnector = WsClient.CONNECTOR;
         audioInputFactory = AudioRecordInput.FACTORY;
