@@ -4,6 +4,7 @@
 // Objective-C checks called from Tests/STKouyuEngineTests. See the header for why they are here.
 
 #import "include/STKouyuEngineObjCSupport.h"
+#import "YGSTTestGate.h"
 
 #import <STKouyuEngine/KYTestEngine.h>
 #import <STKouyuEngine/STKouyuEngine.h>
@@ -13,6 +14,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define EXPECT(cond, msg)                                                                     \
     do {                                                                                      \
@@ -1790,12 +1792,18 @@ static KYTestConfig *YGSTPipeFile(NSString *specDir) {
     return test;
 }
 
-/// Feeds pcm[from, to) in steps of 6400 bytes with the main run loop turning in between.
-static void YGSTPipeFeed(KYTestEngine *engine, NSData *pcm, NSUInteger from, NSUInteger to) {
+/// Feeds pcm[from, to) in one call: without realtime_feedback nothing comes back while it records.
+static void YGSTPipeFeedAll(KYTestEngine *engine, NSData *pcm, NSUInteger from, NSUInteger to) {
+    [engine feedAudioData:(void *)((const unsigned char *)pcm.bytes + from) audioLength:(int)(to - from)];
+}
+
+/// Feeds pcm in four steps with the main run loop turning in between, so that reading progress comes
+/// while the session records.
+static void YGSTPipeFeedSteps(KYTestEngine *engine, NSData *pcm) {
+    NSUInteger step = (pcm.length / 4 + 1) & ~(NSUInteger)1;
     NSUInteger off;
-    for (off = from; off < to; off += 6400) {
-        NSUInteger n = MIN((NSUInteger)6400, to - off);
-        [engine feedAudioData:(void *)((const unsigned char *)pcm.bytes + off) audioLength:(int)n];
+    for (off = 0; off < pcm.length; off += step) {
+        YGSTPipeFeedAll(engine, pcm, off, MIN(pcm.length, off + step));
         YGSTSpin(^BOOL {
             return NO;
         },
@@ -1803,11 +1811,60 @@ static void YGSTPipeFeed(KYTestEngine *engine, NSData *pcm, NSUInteger from, NSU
     }
 }
 
-static void YGSTPipeWait(NSTimeInterval seconds) {
-    YGSTSpin(^BOOL {
-        return NO;
+/// Waits on the calling thread without turning the main run loop: callbacks the engine posts to the
+/// main queue meanwhile stay queued.
+static BOOL YGSTWaitOffMain(BOOL (^done)(void), NSTimeInterval timeout) {
+    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:timeout];
+    while (!done() && [limit timeIntervalSinceNow] > 0) usleep(5000);
+    return done();
+}
+
+/// What a check saw, for its failure messages: the events, the gate and the last log lines of the SDK.
+static NSString *YGSTPipeContext(NSString *what, NSArray<NSString *> *events, YGSTTestGate *gate, YGSTLineCapture *capture) {
+    NSMutableString *s = [NSMutableString string];
+    NSArray<NSString *> *lines = nil;
+    NSUInteger i;
+    if (capture) {
+        @synchronized(capture) {
+            lines = [capture.lines copy];
+        }
+    }
+    [s appendString:what];
+    [s appendString:@"\nevents: "];
+    [s appendString:[events description]];
+    if (gate) {
+        [s appendString:@"\ngate:\n"];
+        [s appendString:[gate report]];
+    }
+    if (lines.count) {
+        [s appendString:@"\nlast SDK log lines:\n"];
+        for (i = lines.count > 60 ? lines.count - 60 : 0; i < lines.count; i++) {
+            [s appendString:lines[i]];
+            [s appendString:@"\n"];
+        }
+    }
+    return s;
+}
+
+/// Starts runs[i] now and each next one from the previous one's onRecordEndBlock, as README.md does.
+static void YGSTPipeChain(KYTestEngine *engine, NSArray<YGSTPipeRun *> *runs, NSUInteger i, BOOL realtimeFeedback,
+                          NSMutableArray<NSString *> *events) {
+    __weak KYTestEngine *weakEngine = engine;
+    void (^next)(void) = nil;
+    if (i + 1 < runs.count) {
+        next = ^{
+            YGSTPipeChain(weakEngine, runs, i + 1, realtimeFeedback, events);
+        };
+    }
+    YGSTPipeStart(engine, runs[i], YGSTPipeStream(@"sent.eval.cn", realtimeFeedback), events, next);
+}
+
+/// Waits until run answered its start: finishBlock YES or NO.
+static BOOL YGSTPipeAnswered(YGSTPipeRun *run, NSTimeInterval timeout) {
+    return YGSTSpin(^BOOL {
+        return run.started || run.finishError != nil;
     },
-             seconds);
+                    timeout);
 }
 
 /// The first and the last position of an event, -1 when absent.
@@ -1892,7 +1949,16 @@ NSString *YGSTCheckPipelineSetting(void) {
     return failure;
 }
 
-static NSString *YGSTPipelineDefaultOffChecks(KYTestEngine *engine, NSString *base, NSString *specDir,
+// The checks below run the engine against a YGSTTestGate in front of the mock: every answer of the
+// platform waits in the gate until the check lets it through, so the order of results and the moments
+// when sessions wait for their results are steps of the check, not delays a slow runner can outlast.
+
+/// An engine whose platform address is the gate in front of the mock.
+static KYTestEngine *YGSTGatedEngine(YGSTTestGate *gate, NSTimeInterval timeout) {
+    return gate ? YGSTMockEngine(gate.baseURL, timeout) : nil;
+}
+
+static NSString *YGSTPipelineDefaultOffChecks(KYTestEngine *engine, YGSTTestGate *gate, NSString *base, NSString *specDir,
                                               YGSTLineCapture *capture, NSTimeInterval timeout) {
     NSData *pcm = YGSTFixturePCM(specDir, @"zh_progress.wav");
     NSMutableArray<NSString *> *events = [NSMutableArray array];
@@ -1904,48 +1970,48 @@ static NSString *YGSTPipelineDefaultOffChecks(KYTestEngine *engine, NSString *ba
     YGSTPipeRun *c = [YGSTPipeRun named:@"C"];
     __weak KYTestEngine *weakEngine = engine;
     NSString *why;
-    EXPECT(engine != nil, @"initEngine");
+    EXPECT(engine != nil, @"initEngine through the gate");
     EXPECT(pcm.length > 64000, @"fixture zh_progress.wav");
     EXPECT(YuguCompat.maxPendingEvaluations == 0, @"the default is 0");
     engine.delegate = d;
-    // A's result comes 1.5 s after its end
-    YGSTMockCall(base, @"POST", @"/__mock/faults",
-                 @{@"faults" : @[ @{@"match" : @"/sent.eval.cn", @"fault" : @"ws-delay-result:1500"} ]}, timeout);
+    // A's result waits in the gate until every start below was answered
     YGSTPipeStart(engine, a, YGSTPipeStream(@"sent.eval.cn", NO), events, ^{
         // the stop handler, before A's result: both start methods are refused as in 2.2.0
         YGSTPipeStartResult(weakEngine, b1, YGSTPipeStream(@"sent.eval.cn", NO), events);
         YGSTPipeStart(weakEngine, b2, YGSTPipeStream(@"sent.eval.cn", NO), events, nil);
     });
-    EXPECT(YGSTSpin(^BOOL {
-               return a.started;
-           },
-                    timeout),
-           @"A started");
-    YGSTPipeFeed(engine, pcm, 0, pcm.length);
+    EXPECT(YGSTPipeAnswered(a, timeout) && a.started, YGSTPipeContext(@"A did not start", events, gate, capture));
+    YGSTPipeFeedAll(engine, pcm, 0, pcm.length);
     [engine stopEngine];
     YGSTPipeStartResult(engine, b3, YGSTPipeStream(@"sent.eval.cn", NO), events); // right after stopEngine
+    EXPECT(YGSTSpin(^BOOL {
+               return b1.finishError && b2.finishError && b3.finishError;
+           },
+                    timeout),
+           YGSTPipeContext(@"the three starts were not answered", events, gate, capture));
+    EXPECT(YGSTSpin(^BOOL {
+               return [gate isWaiting:a.tokenId];
+           },
+                    timeout),
+           YGSTPipeContext(@"A's result did not reach the gate", events, gate, capture));
+    EXPECT(a.finals.count == 0, @"A's result is held in the gate");
+    [gate letThrough:a.tokenId];
     EXPECT(YGSTSpin(^BOOL {
                return a.finals.count > 0;
            },
                     timeout),
-           @"A's result");
-    EXPECT(b1.finishError && b2.finishError && b3.finishError, @"the three starts were answered before A's result");
+           YGSTPipeContext(@"A's result", events, gate, capture));
     // after the result the next start works
     YGSTPipeStartResult(engine, c, YGSTPipeStream(@"sent.eval.cn", NO), events);
-    EXPECT(YGSTSpin(^BOOL {
-               return c.started || c.finishError != nil;
-           },
-                    timeout) &&
-               c.started,
-           c.finishError ?: @"C did not start");
-    YGSTPipeFeed(engine, pcm, 0, pcm.length);
+    [gate letThrough:c.tokenId];
+    EXPECT(YGSTPipeAnswered(c, timeout) && c.started, YGSTPipeContext(@"C did not start after A's result", events, gate, capture));
+    YGSTPipeFeedAll(engine, pcm, 0, pcm.length);
     [engine stopEngine];
     EXPECT(YGSTSpin(^BOOL {
                return c.finals.count > 0;
            },
                     timeout),
-           @"C's result");
-    YGSTPipeWait(0.3);
+           YGSTPipeContext(@"C's result", events, gate, capture));
     if ((why = YGSTPipeFinalOf(a))) return why;
     if ((why = YGSTPipeFinalOf(c))) return why;
     EXPECT(a.recordEnds == 1 && a.pendingAtRecordEnd == 1 && !a.statusAtRecordEnd,
@@ -1968,21 +2034,25 @@ static NSString *YGSTPipelineDefaultOffChecks(KYTestEngine *engine, NSString *ba
 }
 
 NSString *YGSTCheckPipelineDefaultOff(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTTestGate *gate;
     KYTestEngine *engine;
     YGSTLineCapture *capture;
-    NSString *failure;
     YuguCompat.maxPendingEvaluations = 0;
     YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
-    engine = YGSTMockEngine(baseURL, timeout);
+    gate = [YGSTTestGate gateToMock:baseURL error:&failure];
+    if (!gate) return failure;
+    engine = YGSTGatedEngine(gate, timeout);
     capture = YGSTCaptureLines();
-    failure = YGSTPipelineDefaultOffChecks(engine, baseURL, specDir, capture, timeout);
+    failure = YGSTPipelineDefaultOffChecks(engine, gate, baseURL, specDir, capture, timeout);
     YGSTCaptureEnd();
     [engine deleteEngine];
+    [gate close];
     return failure;
 }
 
-static NSString *YGSTPipelineThreeChecks(KYTestEngine *engine, NSString *base, NSString *specDir, YGSTLineCapture *capture,
-                                         NSTimeInterval timeout) {
+static NSString *YGSTPipelineThreeChecks(KYTestEngine *engine, YGSTTestGate *gate, NSString *base, NSString *specDir,
+                                         YGSTLineCapture *capture, NSTimeInterval timeout) {
     NSData *pcm = YGSTFixturePCM(specDir, @"zh_progress.wav");
     NSMutableArray<NSString *> *events = [NSMutableArray array];
     YGSTPipeDelegate *d = YGSTPipeDelegateWith(events);
@@ -1990,48 +2060,46 @@ static NSString *YGSTPipelineThreeChecks(KYTestEngine *engine, NSString *base, N
     YGSTPipeRun *b = [YGSTPipeRun named:@"B"];
     YGSTPipeRun *c = [YGSTPipeRun named:@"C"];
     NSArray<YGSTPipeRun *> *runs = @[ a, b, c ];
-    __weak KYTestEngine *weakEngine = engine;
     NSDictionary *billing;
     NSUInteger callbacks = 0;
     NSUInteger i;
     NSString *why;
-    EXPECT(engine != nil, @"initEngine");
+    EXPECT(engine != nil, @"initEngine through the gate");
     EXPECT(pcm.length > 64000, @"fixture zh_progress.wav");
     engine.delegate = d;
-    // the handshakes come in the order A, B, C: A's result 6 s after its end, B's 3 s, C's at once
-    YGSTMockCall(base, @"POST", @"/__mock/faults", @{@"faults" : @[
-                     @{@"match" : @"/sent.eval.cn", @"fault" : @"ws-delay-result:6000"},
-                     @{@"match" : @"/sent.eval.cn", @"fault" : @"ws-delay-result:3000"}
-                 ]},
-                 timeout);
     // each one starts from the previous one's stop handler, as in README.md
-    YGSTPipeStart(engine, a, YGSTPipeStream(@"sent.eval.cn", YES), events, ^{
-        YGSTPipeStart(weakEngine, b, YGSTPipeStream(@"sent.eval.cn", YES), events, ^{
-            YGSTPipeStart(weakEngine, c, YGSTPipeStream(@"sent.eval.cn", YES), events, nil);
-        });
-    });
+    YGSTPipeChain(engine, runs, 0, YES, events);
     for (YGSTPipeRun *r in runs) {
+        EXPECT(YGSTPipeAnswered(r, timeout) && r.started,
+               YGSTPipeContext([r.name stringByAppendingString:@" did not start"], events, gate, capture));
+        YGSTPipeFeedSteps(engine, pcm);
         EXPECT(YGSTSpin(^BOOL {
-                   return r.started || r.finishError != nil;
+                   return r.progress.count > 0;
                },
-                        timeout) &&
-                   r.started,
-               ([NSString stringWithFormat:@"%@ did not start: %@ %@", r.name, r.finishError, events]));
-        YGSTPipeFeed(engine, pcm, 0, pcm.length);
-        YGSTPipeWait(0.3); // the progress of the last audio
+                        timeout),
+               YGSTPipeContext([r.name stringByAppendingString:@": no reading progress while it records"], events, gate, capture));
         [engine stopEngine];
     }
+    // the three results wait in the gate: the three sessions wait for their results at once
     EXPECT(YGSTSpin(^BOOL {
-               return a.finals.count && b.finals.count && c.finals.count;
+               return [gate isWaiting:a.tokenId] && [gate isWaiting:b.tokenId] && [gate isWaiting:c.tokenId];
            },
                     timeout),
-           ([NSString stringWithFormat:@"three results: %@", events]));
-    YGSTPipeWait(0.3);
+           YGSTPipeContext(@"the three results did not reach the gate", events, gate, capture));
+    EXPECT(YuguCompat.pendingEvaluations == 3 && ![engine getEngineStatus], @"three waiting for their results, none recording");
+    // the platform answers C first, then B, then A
+    for (YGSTPipeRun *r in @[ c, b, a ]) {
+        [gate letThrough:r.tokenId];
+        EXPECT(YGSTSpin(^BOOL {
+                   return r.finals.count > 0;
+               },
+                        timeout),
+               YGSTPipeContext([r.name stringByAppendingString:@"'s result"], events, gate, capture));
+    }
     for (YGSTPipeRun *r in runs) {
         if ((why = YGSTPipeFinalOf(r))) return why;
         EXPECT(r.tokenId.length == 32, r.name);
         EXPECT(r.recordEnds == 1 && !r.statusAtRecordEnd, ([NSString stringWithFormat:@"%@: idle once its stop was handled", r.name]));
-        EXPECT(r.progress.count > 0, ([NSString stringWithFormat:@"%@: reading progress while it records", r.name]));
         for (NSDictionary *p in r.progress) {
             EXPECT([p[@"tokenId"] isEqualToString:r.tokenId], ([NSString stringWithFormat:@"%@ got progress of %@", r.name, p[@"tokenId"]]));
         }
@@ -2062,7 +2130,6 @@ static NSString *YGSTPipelineThreeChecks(KYTestEngine *engine, NSString *base, N
     EXPECT(YGSTFirstEvent(events, @"C final") < YGSTFirstEvent(events, @"B final") &&
                YGSTFirstEvent(events, @"B final") < YGSTFirstEvent(events, @"A final"),
            ([NSString stringWithFormat:@"C, B, A: %@", events]));
-    EXPECT(YGSTFirstEvent(events, @"C end") < YGSTFirstEvent(events, @"B final"), @"C recorded while A and B were evaluated");
     EXPECT(YGSTFirstEvent(events, @"B started") > YGSTFirstEvent(events, @"A end") &&
                YGSTFirstEvent(events, @"C started") > YGSTFirstEvent(events, @"B end"),
            @"each started from the previous stop handler");
@@ -2076,8 +2143,7 @@ static NSString *YGSTPipelineThreeChecks(KYTestEngine *engine, NSString *base, N
     for (i = 0; i < runs.count; i++) {
         NSString *want = [NSString stringWithFormat:@"2 pipelined evaluation tokenId=%@ pending=%lu maxPendingEvaluations=3",
                                                     runs[i].tokenId, (unsigned long)i];
-        EXPECT(([capture countWith:@[ want ]] == 1),
-               ([NSString stringWithFormat:@"%@: %@", runs[i].name, capture.lines]));
+        EXPECT(([capture countWith:@[ want ]] == 1), ([NSString stringWithFormat:@"%@: %@", runs[i].name, capture.lines]));
     }
     // each evaluated once, over its own connection
     billing = YGSTMockCall(base, @"GET", @"/__mock/billing", nil, timeout);
@@ -2091,22 +2157,26 @@ static NSString *YGSTPipelineThreeChecks(KYTestEngine *engine, NSString *base, N
 }
 
 NSString *YGSTCheckPipelineThreeInFlight(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTTestGate *gate;
     KYTestEngine *engine;
     YGSTLineCapture *capture;
-    NSString *failure;
     YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
-    engine = YGSTMockEngine(baseURL, timeout);
+    gate = [YGSTTestGate gateToMock:baseURL error:&failure];
+    if (!gate) return failure;
+    engine = YGSTGatedEngine(gate, timeout);
     capture = YGSTCaptureLines();
     YuguCompat.maxPendingEvaluations = 3;
-    failure = YGSTPipelineThreeChecks(engine, baseURL, specDir, capture, timeout);
+    failure = YGSTPipelineThreeChecks(engine, gate, baseURL, specDir, capture, timeout);
     YuguCompat.maxPendingEvaluations = 0;
     YGSTCaptureEnd();
     [engine deleteEngine];
+    [gate close];
     return failure;
 }
 
-static NSString *YGSTPipelineCapChecks(KYTestEngine *engine, NSString *base, NSString *specDir, YGSTLineCapture *capture,
-                                       NSTimeInterval timeout) {
+static NSString *YGSTPipelineCapChecks(KYTestEngine *engine, YGSTTestGate *gate, NSString *base, NSString *specDir,
+                                       YGSTLineCapture *capture, NSTimeInterval timeout) {
     NSData *pcm = YGSTFixturePCM(specDir, @"zh_progress.wav");
     NSMutableArray<NSString *> *events = [NSMutableArray array];
     YGSTPipeDelegate *d = YGSTPipeDelegateWith(events);
@@ -2115,80 +2185,63 @@ static NSString *YGSTPipelineCapChecks(KYTestEngine *engine, NSString *base, NSS
     YGSTPipeRun *c1 = [YGSTPipeRun named:@"C1"];
     YGSTPipeRun *c2 = [YGSTPipeRun named:@"C2"];
     YGSTPipeRun *c3 = [YGSTPipeRun named:@"C3"];
-    __weak KYTestEngine *weakEngine = engine;
     NSInteger pendingAtC2 = -1;
     NSUInteger half = (pcm.length / 2) & ~(NSUInteger)1;
     NSString *why;
-    EXPECT(engine != nil, @"initEngine");
+    EXPECT(engine != nil, @"initEngine through the gate");
     EXPECT(pcm.length > 64000, @"fixture zh_progress.wav");
     engine.delegate = d;
-    // A's result 2.5 s after its end, B's 6 s after its end
-    YGSTMockCall(base, @"POST", @"/__mock/faults", @{@"faults" : @[
-                     @{@"match" : @"/sent.eval.cn", @"fault" : @"ws-delay-result:2500"},
-                     @{@"match" : @"/sent.eval.cn", @"fault" : @"ws-delay-result:6000"}
-                 ]},
-                 timeout);
-    YGSTPipeStart(engine, a, YGSTPipeStream(@"sent.eval.cn", NO), events, ^{
-        YGSTPipeStart(weakEngine, b, YGSTPipeStream(@"sent.eval.cn", NO), events, nil); // A waits for its result
-    });
-    EXPECT(YGSTSpin(^BOOL {
-               return a.started;
-           },
-                    timeout),
-           @"A started");
-    YGSTPipeFeed(engine, pcm, 0, pcm.length);
+    // B starts from A's stop handler while A waits for its result
+    YGSTPipeChain(engine, @[ a, b ], 0, NO, events);
+    EXPECT(YGSTPipeAnswered(a, timeout) && a.started, YGSTPipeContext(@"A did not start", events, gate, capture));
+    YGSTPipeFeedAll(engine, pcm, 0, pcm.length);
     [engine stopEngine];
-    EXPECT(YGSTSpin(^BOOL {
-               return b.started || b.finishError != nil;
-           },
-                    timeout) &&
-               b.started,
-           b.finishError ?: @"B did not start while A waits");
-    YGSTPipeFeed(engine, pcm, 0, half);
+    EXPECT(YGSTPipeAnswered(b, timeout) && b.started, YGSTPipeContext(@"B did not start while A waits", events, gate, capture));
+    YGSTPipeFeedAll(engine, pcm, 0, half);
     // a third session while one waits and one records
     YGSTPipeStart(engine, c1, YGSTPipeStream(@"sent.eval.cn", NO), events, nil);
-    EXPECT(YGSTSpin(^BOOL {
-               return c1.finishError != nil || c1.started;
-           },
-                    timeout),
-           @"C1 answered");
-    YGSTPipeFeed(engine, pcm, half, pcm.length);
+    EXPECT(YGSTPipeAnswered(c1, timeout), YGSTPipeContext(@"C1 not answered", events, gate, capture));
+    YGSTPipeFeedAll(engine, pcm, half, pcm.length);
     [engine stopEngine];
     EXPECT(YGSTSpin(^BOOL {
                return b.recordEnds > 0;
            },
                     timeout),
-           @"B's end");
+           YGSTPipeContext(@"B's end", events, gate, capture));
     // two wait for their results: more than 1
     pendingAtC2 = YuguCompat.pendingEvaluations;
     YGSTPipeStart(engine, c2, YGSTPipeStream(@"sent.eval.cn", NO), events, nil);
+    EXPECT(YGSTPipeAnswered(c2, timeout), YGSTPipeContext(@"C2 not answered", events, gate, capture));
     EXPECT(YGSTSpin(^BOOL {
-               return c2.finishError != nil || c2.started;
+               return [gate isWaiting:a.tokenId] && [gate isWaiting:b.tokenId];
            },
                     timeout),
-           @"C2 answered");
-    EXPECT(a.finals.count == 0, @"A's result came too early for the check");
-    // after A's result one waits: accepted
+           YGSTPipeContext(@"A's and B's results did not reach the gate", events, gate, capture));
+    EXPECT(a.finals.count == 0 && b.finals.count == 0, @"A's and B's results are held in the gate");
+    // after A's result one waits: accepted again
+    [gate letThrough:a.tokenId];
     EXPECT(YGSTSpin(^BOOL {
                return a.finals.count > 0;
            },
                     timeout),
-           @"A's result");
+           YGSTPipeContext(@"A's result", events, gate, capture));
     YGSTPipeStart(engine, c3, YGSTPipeStream(@"sent.eval.cn", NO), events, nil);
-    EXPECT(YGSTSpin(^BOOL {
-               return c3.started || c3.finishError != nil;
-           },
-                    timeout) &&
-               c3.started,
-           c3.finishError ?: @"C3 did not start after A's result");
-    YGSTPipeFeed(engine, pcm, 0, pcm.length);
+    [gate letThrough:c3.tokenId];
+    EXPECT(YGSTPipeAnswered(c3, timeout) && c3.started, YGSTPipeContext(@"C3 did not start after A's result", events, gate, capture));
+    YGSTPipeFeedAll(engine, pcm, 0, pcm.length);
     [engine stopEngine];
     EXPECT(YGSTSpin(^BOOL {
-               return c3.finals.count > 0 && b.finals.count > 0;
+               return c3.finals.count > 0;
            },
                     timeout),
-           ([NSString stringWithFormat:@"B's and C3's results: %@", events]));
-    YGSTPipeWait(0.3);
+           YGSTPipeContext(@"C3's result", events, gate, capture));
+    EXPECT(b.finals.count == 0, @"B's result is still held in the gate");
+    [gate letThrough:b.tokenId];
+    EXPECT(YGSTSpin(^BOOL {
+               return b.finals.count > 0;
+           },
+                    timeout),
+           YGSTPipeContext(@"B's result", events, gate, capture));
     if ((why = YGSTPipeFinalOf(a))) return why;
     if ((why = YGSTPipeFinalOf(b))) return why;
     if ((why = YGSTPipeFinalOf(c3))) return why;
@@ -2214,105 +2267,149 @@ static NSString *YGSTPipelineCapChecks(KYTestEngine *engine, NSString *base, NSS
 }
 
 NSString *YGSTCheckPipelineCap(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTTestGate *gate;
     KYTestEngine *engine;
     YGSTLineCapture *capture;
-    NSString *failure;
     YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
-    engine = YGSTMockEngine(baseURL, timeout);
+    gate = [YGSTTestGate gateToMock:baseURL error:&failure];
+    if (!gate) return failure;
+    engine = YGSTGatedEngine(gate, timeout);
     capture = YGSTCaptureLines();
     YuguCompat.maxPendingEvaluations = 1;
-    failure = YGSTPipelineCapChecks(engine, baseURL, specDir, capture, timeout);
+    failure = YGSTPipelineCapChecks(engine, gate, baseURL, specDir, capture, timeout);
     YuguCompat.maxPendingEvaluations = 0;
     YGSTCaptureEnd();
     [engine deleteEngine];
+    [gate close];
     return failure;
 }
 
-static NSString *YGSTPipelineCancelChecks(KYTestEngine *engine, NSString *base, NSString *specDir, NSTimeInterval timeout) {
+/// No callback of these runs among the events from index from on (theirs and the delegate's).
+static NSString *YGSTPipeSilentSince(NSArray<NSString *> *events, NSUInteger from, NSArray<YGSTPipeRun *> *runs) {
+    NSUInteger i;
+    for (i = from; i < events.count; i++) {
+        for (YGSTPipeRun *r in runs) {
+            NSString *e = events[i];
+            EXPECT(![e hasPrefix:[r.name stringByAppendingString:@" "]] && ![e containsString:r.tokenId],
+                   ([NSString stringWithFormat:@"%@ after cancelEngine: %@", e, events]));
+        }
+    }
+    return nil;
+}
+
+static NSString *YGSTPipelineCancelChecks(KYTestEngine *engine, YGSTTestGate *gate, NSString *base, NSString *specDir,
+                                          YGSTLineCapture *capture, NSTimeInterval timeout) {
     NSData *pcm = YGSTFixturePCM(specDir, @"zh_progress.wav");
+    NSUInteger half = (pcm.length / 2) & ~(NSUInteger)1;
     NSMutableArray<NSString *> *events = [NSMutableArray array];
     YGSTPipeDelegate *d = YGSTPipeDelegateWith(events);
     YGSTPipeRun *a = [YGSTPipeRun named:@"A"];
     YGSTPipeRun *b = [YGSTPipeRun named:@"B"];
     YGSTPipeRun *c = [YGSTPipeRun named:@"C"];
+    YGSTPipeRun *a2 = [YGSTPipeRun named:@"A2"];
+    YGSTPipeRun *b2 = [YGSTPipeRun named:@"B2"];
+    YGSTPipeRun *c2 = [YGSTPipeRun named:@"C2"];
     YGSTPipeRun *next = [YGSTPipeRun named:@"N"];
-    __weak KYTestEngine *weakEngine = engine;
-    NSUInteger eventsAtCancel, scoresAtCancel;
+    NSUInteger cancel1, cancel2;
     NSDictionary *billing;
     NSString *why;
-    EXPECT(engine != nil, @"initEngine");
+    EXPECT(engine != nil, @"initEngine through the gate");
     EXPECT(pcm.length > 64000, @"fixture zh_progress.wav");
     engine.delegate = d;
-    YGSTMockCall(base, @"POST", @"/__mock/faults", @{@"faults" : @[
-                     @{@"match" : @"/sent.eval.cn", @"fault" : @"ws-delay-result:3000"},
-                     @{@"match" : @"/sent.eval.cn", @"fault" : @"ws-delay-result:3000"}
-                 ]},
-                 timeout);
-    YGSTPipeStart(engine, a, YGSTPipeStream(@"sent.eval.cn", YES), events, ^{
-        YGSTPipeStart(weakEngine, b, YGSTPipeStream(@"sent.eval.cn", YES), events, ^{
-            YGSTPipeStart(weakEngine, c, YGSTPipeStream(@"sent.eval.cn", YES), events, nil);
-        });
-    });
-    for (YGSTPipeRun *r in @[ a, b, c ]) {
-        EXPECT(YGSTSpin(^BOOL {
-                   return r.started || r.finishError != nil;
-               },
-                        timeout) &&
-                   r.started,
-               ([NSString stringWithFormat:@"%@ did not start: %@", r.name, r.finishError]));
-        if (r == c) break; // C keeps recording
-        YGSTPipeFeed(engine, pcm, 0, pcm.length);
+    // round 1: cancelEngine while A and B wait for their results (held in the gate) and C records
+    YGSTPipeChain(engine, @[ a, b, c ], 0, NO, events);
+    for (YGSTPipeRun *r in @[ a, b ]) {
+        EXPECT(YGSTPipeAnswered(r, timeout) && r.started,
+               YGSTPipeContext([r.name stringByAppendingString:@" did not start"], events, gate, capture));
+        YGSTPipeFeedAll(engine, pcm, 0, pcm.length);
         [engine stopEngine];
     }
-    YGSTPipeFeed(engine, pcm, 0, (pcm.length / 2) & ~(NSUInteger)1);
+    EXPECT(YGSTPipeAnswered(c, timeout) && c.started, YGSTPipeContext(@"C did not start", events, gate, capture));
+    YGSTPipeFeedAll(engine, pcm, 0, half);
+    EXPECT(YGSTSpin(^BOOL {
+               return [gate isWaiting:a.tokenId] && [gate isWaiting:b.tokenId];
+           },
+                    timeout),
+           YGSTPipeContext(@"A's and B's results did not reach the gate", events, gate, capture));
     EXPECT(YuguCompat.pendingEvaluations == 2 && [engine getEngineStatus], @"two waiting for their results, one recording");
-    eventsAtCancel = events.count;
-    scoresAtCancel = d.scores.count;
+    cancel1 = events.count;
     [engine cancelEngine];
     EXPECT(YuguCompat.pendingEvaluations == 0, @"pendingEvaluations back to 0 at once");
     EXPECT(![engine getEngineStatus], @"nothing records after cancelEngine");
-    YGSTPipeWait(4.0); // longer than the delayed results
-    EXPECT(events.count == eventsAtCancel && d.scores.count == scoresAtCancel,
-           ([NSString stringWithFormat:@"callbacks after cancelEngine: %@",
-                                       [events subarrayWithRange:NSMakeRange(eventsAtCancel, events.count - eventsAtCancel)]]));
-    EXPECT(a.finals.count == 0 && b.finals.count == 0 && c.finals.count == 0, @"no result of a cancelled session");
-    // the next start works
-    YGSTPipeStartResult(engine, next, YGSTPipeStream(@"sent.eval.cn", NO), events);
+    // round 2: the results of A2 and B2 are with the engine, evaluated and queued for the main thread but
+    // not delivered, when cancelEngine comes; the main run loop stays still from the release to the cancel
+    YGSTPipeChain(engine, @[ a2, b2, c2 ], 0, NO, events);
+    for (YGSTPipeRun *r in @[ a2, b2 ]) {
+        EXPECT(YGSTPipeAnswered(r, timeout) && r.started,
+               YGSTPipeContext([r.name stringByAppendingString:@" did not start after cancelEngine"], events, gate, capture));
+        YGSTPipeFeedAll(engine, pcm, 0, pcm.length);
+        [engine stopEngine];
+    }
+    EXPECT(YGSTPipeAnswered(c2, timeout) && c2.started, YGSTPipeContext(@"C2 did not start", events, gate, capture));
+    YGSTPipeFeedAll(engine, pcm, 0, half);
     EXPECT(YGSTSpin(^BOOL {
-               return next.started || next.finishError != nil;
+               return [gate isWaiting:a2.tokenId] && [gate isWaiting:b2.tokenId];
            },
-                    timeout) &&
-               next.started,
-           next.finishError ?: @"the next start");
-    YGSTPipeFeed(engine, pcm, 0, pcm.length);
+                    timeout),
+           YGSTPipeContext(@"A2's and B2's results did not reach the gate", events, gate, capture));
+    [gate letThrough:a2.tokenId];
+    [gate letThrough:b2.tokenId];
+    EXPECT(YGSTWaitOffMain(^BOOL {
+               return YuguCompat.pendingEvaluations == 0;
+           },
+                           timeout),
+           YGSTPipeContext(@"A2's and B2's results were not evaluated", events, gate, capture));
+    EXPECT(a2.finals.count == 0 && b2.finals.count == 0, @"the main run loop stayed still: nothing delivered yet");
+    cancel2 = events.count;
+    [engine cancelEngine];
+    EXPECT(YuguCompat.pendingEvaluations == 0 && ![engine getEngineStatus], @"nothing pending or recording after cancelEngine");
+    // the next start works; its result comes after every callback queued before the two cancels
+    YGSTPipeStartResult(engine, next, YGSTPipeStream(@"sent.eval.cn", NO), events);
+    [gate letThrough:next.tokenId];
+    EXPECT(YGSTPipeAnswered(next, timeout) && next.started, YGSTPipeContext(@"the next start", events, gate, capture));
+    YGSTPipeFeedAll(engine, pcm, 0, pcm.length);
     [engine stopEngine];
     EXPECT(YGSTSpin(^BOOL {
                return next.finals.count > 0;
            },
                     timeout),
-           @"the next result");
-    YGSTPipeWait(0.3);
+           YGSTPipeContext(@"the next result", events, gate, capture));
     if ((why = YGSTPipeFinalOf(next))) return why;
+    if ((why = YGSTPipeSilentSince(events, cancel1, @[ a, b, c ]))) return why;
+    if ((why = YGSTPipeSilentSince(events, cancel2, @[ a2, b2, c2 ]))) return why;
+    EXPECT(a.finals.count + b.finals.count + c.finals.count + a2.finals.count + b2.finals.count + c2.finals.count == 0,
+           @"no result of a cancelled session");
     EXPECT(YuguCompat.pendingEvaluations == 0, @"nothing pending at the end");
-    // C sent no end: the platform evaluated nothing for it
+    // C and C2 sent no end: the platform evaluated nothing for them
     billing = YGSTMockCall(base, @"GET", @"/__mock/billing", nil, timeout);
-    EXPECT(billing[@"byKey"][c.tokenId] == nil && [billing[@"byKey"][next.tokenId] integerValue] == 1, [billing description]);
+    EXPECT(billing[@"byKey"][c.tokenId] == nil && billing[@"byKey"][c2.tokenId] == nil &&
+               [billing[@"byKey"][next.tokenId] integerValue] == 1,
+           [billing description]);
     return nil;
 }
 
 NSString *YGSTCheckPipelineCancel(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTTestGate *gate;
     KYTestEngine *engine;
-    NSString *failure;
+    YGSTLineCapture *capture;
     YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
-    engine = YGSTMockEngine(baseURL, timeout);
+    gate = [YGSTTestGate gateToMock:baseURL error:&failure];
+    if (!gate) return failure;
+    engine = YGSTGatedEngine(gate, timeout);
+    capture = YGSTCaptureLines();
     YuguCompat.maxPendingEvaluations = 3;
-    failure = YGSTPipelineCancelChecks(engine, baseURL, specDir, timeout);
+    failure = YGSTPipelineCancelChecks(engine, gate, baseURL, specDir, capture, timeout);
     YuguCompat.maxPendingEvaluations = 0;
+    YGSTCaptureEnd();
     [engine deleteEngine];
+    [gate close];
     return failure;
 }
 
-static NSString *YGSTPipelineFallbackChecks(KYTestEngine *engine, NSString *base, NSString *specDir, NSTimeInterval timeout) {
+static NSString *YGSTPipelineFallbackChecks(KYTestEngine *engine, YGSTTestGate *gate, NSString *base, NSString *specDir,
+                                            YGSTLineCapture *capture, NSTimeInterval timeout) {
     NSData *pcm = YGSTFixturePCM(specDir, @"zh_progress.wav");
     NSMutableArray<NSString *> *events = [NSMutableArray array];
     YGSTPipeRun *a = [YGSTPipeRun named:@"A"];
@@ -2321,40 +2418,41 @@ static NSString *YGSTPipelineFallbackChecks(KYTestEngine *engine, NSString *base
     NSArray<NSString *> *requestsA, *requestsB;
     NSDictionary *billing;
     NSString *why;
-    EXPECT(engine != nil, @"initEngine");
+    EXPECT(engine != nil, @"initEngine through the gate");
     EXPECT(pcm.length > 64000, @"fixture zh_progress.wav");
-    // A (sent.eval.cn): the connection dies after the parameter frame, before end; A's request after that
-    // takes 2.5 s. B uses another coreType, so that the faults only meet A.
-    YGSTMockCall(base, @"POST", @"/__mock/faults", @{@"faults" : @[
-                     @{@"match" : @"/sent.eval.cn", @"fault" : @"ws-kill-after:1"},
-                     @{@"match" : @"/sent.eval.cn", @"fault" : @"slow:2500"}
-                 ]},
+    // A (sent.eval.cn): the connection dies after the parameter frame, before end. B uses another coreType,
+    // so that the fault only meets A.
+    YGSTMockCall(base, @"POST", @"/__mock/faults", @{@"faults" : @[ @{@"match" : @"/sent.eval.cn", @"fault" : @"ws-kill-after:1"} ]},
                  timeout);
     YGSTPipeStart(engine, a, YGSTPipeStream(@"sent.eval.cn", NO), events, ^{
         YGSTPipeStart(weakEngine, b, YGSTPipeStream(@"para.eval.cn", NO), events, nil);
     });
-    EXPECT(YGSTSpin(^BOOL {
-               return a.started;
-           },
-                    timeout),
-           @"A started");
+    EXPECT(YGSTPipeAnswered(a, timeout) && a.started, YGSTPipeContext(@"A did not start", events, gate, capture));
     // all of A at once and stop: the connection fails while A's end waits for "started"
-    [engine feedAudioData:(void *)pcm.bytes audioLength:(int)pcm.length];
+    YGSTPipeFeedAll(engine, pcm, 0, pcm.length);
+    [engine stopEngine];
+    EXPECT(YGSTPipeAnswered(b, timeout) && b.started, YGSTPipeContext(@"B did not start while A waits", events, gate, capture));
+    [gate letThrough:b.tokenId];
+    YGSTPipeFeedAll(engine, pcm, 0, pcm.length);
     [engine stopEngine];
     EXPECT(YGSTSpin(^BOOL {
-               return b.started || b.finishError != nil;
-           },
-                    timeout) &&
-               b.started,
-           b.finishError ?: @"B did not start while A waits");
-    YGSTPipeFeed(engine, pcm, 0, pcm.length);
-    [engine stopEngine];
-    EXPECT(YGSTSpin(^BOOL {
-               return a.finals.count > 0 && b.finals.count > 0;
+               return b.finals.count > 0;
            },
                     timeout),
-           ([NSString stringWithFormat:@"two results: %@", events]));
-    YGSTPipeWait(0.3);
+           YGSTPipeContext(@"B's result", events, gate, capture));
+    // A's request with its tokenId reached the platform and its answer waits in the gate
+    EXPECT(YGSTSpin(^BOOL {
+               return [gate isWaiting:a.tokenId];
+           },
+                    timeout),
+           YGSTPipeContext(@"A's request did not reach the gate", events, gate, capture));
+    EXPECT(a.finals.count == 0, @"A's result is held in the gate");
+    [gate letThrough:a.tokenId];
+    EXPECT(YGSTSpin(^BOOL {
+               return a.finals.count > 0;
+           },
+                    timeout),
+           YGSTPipeContext(@"A's result", events, gate, capture));
     if ((why = YGSTPipeFinalOf(a))) return why;
     if ((why = YGSTPipeFinalOf(b))) return why;
     EXPECT(a.pendingAtRecordEnd == 1, @"A waits for its result");
@@ -2362,7 +2460,7 @@ static NSString *YGSTPipelineFallbackChecks(KYTestEngine *engine, NSString *base
     // A: the WebSocket, then one request with the same tokenId
     requestsA = YGSTPipeRequests(base, a.tokenId, timeout);
     requestsB = YGSTPipeRequests(base, b.tokenId, timeout);
-    EXPECT(([requestsA isEqualToArray:@[ @"WS ws-kill-after:1", @"POST slow:2500" ]]), [requestsA description]);
+    EXPECT(([requestsA isEqualToArray:@[ @"WS ws-kill-after:1", @"POST -" ]]), [requestsA description]);
     EXPECT(([requestsB isEqualToArray:@[ @"WS -" ]]), [requestsB description]);
     billing = YGSTMockCall(base, @"GET", @"/__mock/billing", nil, timeout);
     EXPECT([billing[@"billed"] integerValue] == 2 && [billing[@"byKey"][a.tokenId] integerValue] == 1, [billing description]);
@@ -2374,19 +2472,26 @@ static NSString *YGSTPipelineFallbackChecks(KYTestEngine *engine, NSString *base
 }
 
 NSString *YGSTCheckPipelineFallback(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTTestGate *gate;
     KYTestEngine *engine;
-    NSString *failure;
+    YGSTLineCapture *capture;
     YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
-    engine = YGSTMockEngine(baseURL, timeout);
+    gate = [YGSTTestGate gateToMock:baseURL error:&failure];
+    if (!gate) return failure;
+    engine = YGSTGatedEngine(gate, timeout);
+    capture = YGSTCaptureLines();
     YuguCompat.maxPendingEvaluations = 2;
-    failure = YGSTPipelineFallbackChecks(engine, baseURL, specDir, timeout);
+    failure = YGSTPipelineFallbackChecks(engine, gate, baseURL, specDir, capture, timeout);
     YuguCompat.maxPendingEvaluations = 0;
+    YGSTCaptureEnd();
     [engine deleteEngine];
+    [gate close];
     return failure;
 }
 
-static NSString *YGSTPipelineFileChecks(KYTestEngine *engine, NSString *base, NSString *specDir, YGSTLineCapture *capture,
-                                        NSTimeInterval timeout) {
+static NSString *YGSTPipelineFileChecks(KYTestEngine *engine, YGSTTestGate *gate, NSString *base, NSString *specDir,
+                                        YGSTLineCapture *capture, NSTimeInterval timeout) {
     NSMutableArray<NSString *> *events = [NSMutableArray array];
     YGSTPipeRun *a = [YGSTPipeRun named:@"A"];
     YGSTPipeRun *b = [YGSTPipeRun named:@"B"];
@@ -2395,29 +2500,13 @@ static NSString *YGSTPipelineFileChecks(KYTestEngine *engine, NSString *base, NS
     YGSTPipeRun *c2 = [YGSTPipeRun named:@"C2"];
     NSInteger pendingAfterA, pendingAfterB;
     NSString *why;
-    EXPECT(engine != nil, @"initEngine");
-    // the two first requests take 2 s each
-    YGSTMockCall(base, @"POST", @"/__mock/faults", @{@"faults" : @[
-                     @{@"match" : @"/word.eval.cn", @"fault" : @"slow:2000"},
-                     @{@"match" : @"/word.eval.cn", @"fault" : @"slow:2000"}
-                 ]},
-                 timeout);
+    EXPECT(engine != nil, @"initEngine through the gate");
     YGSTPipeStartResult(engine, a, YGSTPipeFile(specDir), events);
-    EXPECT(YGSTSpin(^BOOL {
-               return a.started || a.finishError != nil;
-           },
-                    timeout) &&
-               a.started,
-           a.finishError ?: @"A did not start");
+    EXPECT(YGSTPipeAnswered(a, timeout) && a.started, YGSTPipeContext(@"A did not start", events, gate, capture));
     pendingAfterA = YuguCompat.pendingEvaluations;
     EXPECT(![engine getEngineStatus], @"an audioPath session does not record");
     YGSTPipeStartResult(engine, b, YGSTPipeFile(specDir), events);
-    EXPECT(YGSTSpin(^BOOL {
-               return b.started || b.finishError != nil;
-           },
-                    timeout) &&
-               b.started,
-           b.finishError ?: @"B did not start while A waits");
+    EXPECT(YGSTPipeAnswered(b, timeout) && b.started, YGSTPipeContext(@"B did not start while A waits", events, gate, capture));
     pendingAfterB = YuguCompat.pendingEvaluations;
     // a third start while two wait, an audioPath one and a recording one
     YGSTPipeStartResult(engine, c1, YGSTPipeFile(specDir), events);
@@ -2426,20 +2515,33 @@ static NSString *YGSTPipelineFileChecks(KYTestEngine *engine, NSString *base, NS
                return c1.finishError != nil && s1.finishError != nil;
            },
                     timeout),
-           @"C1 and S1 answered");
-    EXPECT(a.finals.count == 0 && b.finals.count == 0, @"the results came too early for the check");
+           YGSTPipeContext(@"C1 and S1 not refused", events, gate, capture));
     EXPECT(YGSTSpin(^BOOL {
-               return a.finals.count > 0 || b.finals.count > 0;
+               return [gate isWaiting:a.tokenId] && [gate isWaiting:b.tokenId];
            },
                     timeout),
-           @"a first result");
+           YGSTPipeContext(@"A's and B's results did not reach the gate", events, gate, capture));
+    EXPECT(a.finals.count == 0 && b.finals.count == 0, @"A's and B's results are held in the gate");
+    [gate letThrough:a.tokenId];
+    EXPECT(YGSTSpin(^BOOL {
+               return a.finals.count > 0;
+           },
+                    timeout),
+           YGSTPipeContext(@"A's result", events, gate, capture));
     YGSTPipeStartResult(engine, c2, YGSTPipeFile(specDir), events);
+    [gate letThrough:c2.tokenId];
     EXPECT(YGSTSpin(^BOOL {
-               return a.finals.count > 0 && b.finals.count > 0 && c2.finals.count > 0;
+               return c2.finals.count > 0;
            },
                     timeout),
-           ([NSString stringWithFormat:@"three results: %@", events]));
-    YGSTPipeWait(0.3);
+           YGSTPipeContext(@"C2's result", events, gate, capture));
+    EXPECT(b.finals.count == 0, @"B's result is still held in the gate");
+    [gate letThrough:b.tokenId];
+    EXPECT(YGSTSpin(^BOOL {
+               return b.finals.count > 0;
+           },
+                    timeout),
+           YGSTPipeContext(@"B's result", events, gate, capture));
     EXPECT(pendingAfterA == 1 && pendingAfterB == 2, ([NSString stringWithFormat:@"pendingEvaluations %ld %ld", (long)pendingAfterA,
                                                                                 (long)pendingAfterB]));
     if ((why = YGSTPipeFinalOf(a))) return why;
@@ -2447,8 +2549,10 @@ static NSString *YGSTPipelineFileChecks(KYTestEngine *engine, NSString *base, NS
     if ((why = YGSTPipeFinalOf(c2))) return why;
     if ((why = YGSTPipeRefused(c1, NO))) return why;
     if ((why = YGSTPipeRefused(s1, YES))) return why;
-    EXPECT(YGSTFirstEvent(events, @"C2 started") > MIN(YGSTFirstEvent(events, @"A final"), YGSTFirstEvent(events, @"B final")),
-           @"C2 started after a result");
+    EXPECT(YGSTFirstEvent(events, @"C2 started") > YGSTFirstEvent(events, @"A final") &&
+               YGSTFirstEvent(events, @"A final") < YGSTFirstEvent(events, @"C2 final") &&
+               YGSTFirstEvent(events, @"C2 final") < YGSTFirstEvent(events, @"B final"),
+           ([NSString stringWithFormat:@"A, C2, B: %@", events]));
     EXPECT(([capture countWith:@[ @"1 start rejected: engine is busy (pending=2 maxPendingEvaluations=1)" ]] == 2),
            [capture.lines description]);
     EXPECT(([capture countWith:@[ @"2 pipelined evaluation tokenId=", a.tokenId, @" pending=0 maxPendingEvaluations=1 (audioPath)" ]] == 1) &&
@@ -2460,17 +2564,21 @@ static NSString *YGSTPipelineFileChecks(KYTestEngine *engine, NSString *base, NS
 }
 
 NSString *YGSTCheckPipelineFileSessions(NSString *baseURL, NSString *specDir, NSTimeInterval timeout) {
+    NSString *failure = nil;
+    YGSTTestGate *gate;
     KYTestEngine *engine;
     YGSTLineCapture *capture;
-    NSString *failure;
     YGSTMockCall(baseURL, @"POST", @"/__mock/reset", nil, timeout);
-    engine = YGSTMockEngine(baseURL, timeout);
+    gate = [YGSTTestGate gateToMock:baseURL error:&failure];
+    if (!gate) return failure;
+    engine = YGSTGatedEngine(gate, timeout);
     capture = YGSTCaptureLines();
     YuguCompat.maxPendingEvaluations = 1;
-    failure = YGSTPipelineFileChecks(engine, baseURL, specDir, capture, timeout);
+    failure = YGSTPipelineFileChecks(engine, gate, baseURL, specDir, capture, timeout);
     YuguCompat.maxPendingEvaluations = 0;
     YGSTCaptureEnd();
     [engine deleteEngine];
+    [gate close];
     return failure;
 }
 

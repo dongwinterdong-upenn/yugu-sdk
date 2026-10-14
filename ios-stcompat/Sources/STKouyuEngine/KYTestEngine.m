@@ -166,6 +166,7 @@ static char kYGSTEngineQueueKey;
     double _serverTimeout;
     YGSTSession *_session; // the session that records, or one at a time the session until its result
     NSMutableArray<YGSTSession *> *_pending; // 2.3.0: handed over, evaluating, in hand-over order
+    NSMutableArray<YGSTSession *> *_delivering; // final posted to the main queue, callbacks not run yet
     YGSTRecorder *_recorder;
     NSString *_lastRecordPath;
     // main thread only
@@ -194,6 +195,7 @@ static char kYGSTEngineQueueKey;
         _secretKey = @"";
         _lastRecordPath = @"";
         _pending = [NSMutableArray array];
+        _delivering = [NSMutableArray array];
     }
     return self;
 }
@@ -289,11 +291,11 @@ static char kYGSTEngineQueueKey;
             [self detachAndTeardown:self->_session];
         }
         // 2.3.0: the pipelined sessions waiting for their results, which the old keys signed, end as well
-        for (YGSTSession *p in [self->_pending copy]) {
+        for (YGSTSession *p in self->_pending) {
             YGSTLogf(YGST_LEVEL_WARN, @"initEngine while session %@ waits for its result: the session is cancelled",
                      p.tokenId);
-            [self detachAndTeardown:p];
         }
+        [self teardownAll];
         self->_initialized = ok;
         self->_appKey = ok ? appKey : @"";
         self->_secretKey = ok ? secret : @"";
@@ -1281,8 +1283,12 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
 
 /// The final result or error JSON through the result callbacks, then (2.1.1) the timing line of the
 /// evaluation on the engine queue, with the time the callbacks started on the main queue.
+/// 2.3.0: until the callbacks run the session stays in _delivering, so that cancelEngine, deleteEngine
+/// and initEngine called meanwhile still end it without a callback (the main block checks cancelled).
 - (void)deliverFinal:(NSString *)json session:(YGSTSession *)s {
     dispatch_queue_t q = _q;
+    __weak KYTestEngine *weakSelf = self;
+    [_delivering addObject:s];
     [self post:s
          block:^(id<KYTestEngineDelegate> d) {
              int64_t delivered = YGSTMonotonicMs();
@@ -1290,6 +1296,8 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
              if (s.onScore) s.onScore(json);
              if ([d respondsToSelector:@selector(kyTestEngineDidScore:)]) [d kyTestEngineDidScore:json];
              dispatch_async(q, ^{
+                 KYTestEngine *strongSelf = weakSelf;
+                 if (strongSelf) [strongSelf->_delivering removeObjectIdenticalTo:s];
                  s.timing->_t.delivered_ms = delivered;
                  [s.timing logForToken:s.tokenId];
              });
@@ -1362,12 +1370,16 @@ static const NSUInteger kYGSTMaxRecordBytes = (NSUInteger)(YGST_MAX_AUDIO_MS / 1
     YGSTLogf(YGST_LEVEL_INFO, @"session %@ cancelled", s.tokenId);
 }
 
-/// The engine's session and (2.3.0) every pipelined session waiting for its result: none of them calls
-/// back afterwards, pendingEvaluations drops by as many.
+/// The engine's session, (2.3.0) every pipelined session waiting for its result, and every session
+/// whose final is queued for the main thread but not delivered: none of them calls back afterwards,
+/// pendingEvaluations drops by the ones still counted.
 - (void)teardownAll {
     YGSTSession *s = _session;
     if (s) [self detachAndTeardown:s];
     for (YGSTSession *p in [_pending copy]) [self detachAndTeardown:p];
+    // 2.3.0: a final evaluated before this call and still queued for the main thread is not delivered
+    for (YGSTSession *f in _delivering) f.cancelled = YES;
+    [_delivering removeAllObjects];
 }
 
 - (void)cancelEngine {

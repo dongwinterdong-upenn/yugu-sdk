@@ -15,6 +15,7 @@ STKouyuEngine 声通 iOS 平替包的版本记录。版本号遵循语义化版�
 
 1. 评测，边录边传与两个客户端共用的网络会话把每个主机的并发连接数提高到 32，后台评测的上传与实时连接不再排队等待系统默认的 4 到 6 个连接。
 2. 版本号 `2.3.0`。`YuguCompat.sdkVersion` 为 `2.3.0`，User-Agent 为 `yugu-ios-stcompat-sdk/2.3.0`，`STKouyuEngineVersionNumber` 为 2.3。
+3. 调用 `cancelEngine`，`deleteEngine` 或再次 `initEngine` 时，已经评测完，正在排队等主线程回调的结果同样不再回调。此前恰在这一刻调用仍可能收到这次的结果，一次只做一次评测时也是如此，打开流水线评测后等结果的题多，这一刻更容易遇到。
 
 ### 已知限制
 

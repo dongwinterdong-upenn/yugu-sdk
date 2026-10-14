@@ -16,4 +16,5 @@ char *strchr(const char *s, int c);
 char *strrchr(const char *s, int c);
 char *strstr(const char *a, const char *b);
 char *strpbrk(const char *s, const char *chars);
+size_t strcspn(const char *s, const char *charset);
 #endif

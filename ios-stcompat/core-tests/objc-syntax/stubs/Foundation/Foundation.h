@@ -242,6 +242,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 @interface NSMutableArray<ObjectType> : NSArray <ObjectType>
 - (void)addObject:(ObjectType)anObject;
 - (void)removeObjectIdenticalTo:(ObjectType)anObject;
+- (void)removeAllObjects;
 @end
 
 @interface NSDictionary<__covariant KeyType, __covariant ObjectType> : NSObject <NSCopying, NSMutableCopying,
@@ -373,6 +374,15 @@ enum {
 @property (class, readonly) BOOL isMainThread;
 @end
 
+@interface NSCondition : NSObject
+- (void)lock;
+- (void)unlock;
+- (void)wait;
+- (BOOL)waitUntilDate:(NSDate *)limit;
+- (void)signal;
+- (void)broadcast;
+@end
+
 @interface NSUUID : NSObject <NSCopying>
 + (instancetype)UUID;
 @property (readonly, copy) NSString *UUIDString;
@@ -470,6 +480,7 @@ typedef NSString *NSNotificationName;
 + (NSURL *)fileURLWithPath:(NSString *)path;
 @property (readonly, copy) NSString *absoluteString;
 @property (readonly, copy) NSString *path;
+@property (readonly, copy) NSNumber *port;
 @end
 
 typedef NS_ENUM(NSUInteger, NSURLRequestCachePolicy) {
